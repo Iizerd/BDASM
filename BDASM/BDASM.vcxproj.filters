@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="addr_width.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="symbol.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="traits.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="inst.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="disasm.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="sff.h">
+      <Filter>Testing</Filter>
+    </ClInclude>
+    <ClInclude Include="pex.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="align.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="symbol2.h">
+      <Filter>old</Filter>
+    </ClInclude>
+    <ClInclude Include="dasm2.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="headers">
+      <UniqueIdentifier>{210126f2-8894-4b8d-b89c-13ad10de0906}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sources">
+      <UniqueIdentifier>{2022b579-6edd-4d14-817d-d13fda4315b0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Testing">
+      <UniqueIdentifier>{e838d32b-d295-409f-ada1-ff952beed48a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="old">
+      <UniqueIdentifier>{c8479d99-55a6-43c3-88ce-272372e24498}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Testing</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
