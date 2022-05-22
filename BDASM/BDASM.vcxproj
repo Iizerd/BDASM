@@ -150,7 +150,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="addr_width.h" />
-    <ClInclude Include="dasm2.h" />
+    <ClInclude Include="dasm.h" />
     <ClInclude Include="disasm.h" />
     <ClInclude Include="align.h" />
     <ClInclude Include="inst.h" />
