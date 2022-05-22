@@ -7,6 +7,7 @@
 #include "sff.h"
 #include "symbol.h"
 #include "disasm.h"
+#include "dasm.h"
 #include "pex.h"
 //uint8_t bytes[] = { 0xFF, 0x15, 0x00 ,0x30 ,0x40 ,0x00 };
 //uint8_t bytes[] = { 0x48,0xFF ,0x15 ,0x39 ,0x6C ,0xC3 ,0xFF };
@@ -57,54 +58,85 @@ int main(int argc, char** argv)
 
 		printf("Entry point %X\n", binary.get_offset_of_entry_point());
 
-		x86_dasm_t<address_width::x64> dasm(FileBuffer, FileLength, &binary.m_symbol_table, binary.m_optional_header.get_image_base());
-		dasm.set_malformed_functions(true);
-		dasm.set_recurse_calls(true);
-		dasm.set_max_thread_count(8);
-		/*dasm.set_block_progress_callback([](inst_block_t<address_width::x64> const& block)
-			{
-				std::printf("Created block with %llu insts at [%016X:%016X]\n", block.instructions.size(), block.start, block.end);
-			});*/
 
-		std::atomic_uint32_t routine_count = 0;
-		std::atomic_uint32_t inst_count = 0;
-		dasm.set_routine_progress_callback([&routine_count, &inst_count](uint32_t instruction_count)
-			{
-				routine_count++;
-				inst_count += instruction_count;
-				std::printf("Created routine with %u instructions.\n", instruction_count);
-			});
+		std::mutex memelock;
+		decoder_context_t decode_context(FileBuffer, FileLength, &binary.m_symbol_table, &memelock);
+		decode_context.settings.recurse_calls = true;
+
+		dasm_t<address_width::x64, 1> dasm(&decode_context);
 
 
-		//dasm.do_routine(binary.get_offset_of_entry_point());
+		dasm.add_routine(binary.get_offset_of_entry_point());
+
 
 		std::vector<uint64_t> routine_pointers;
-
 		routine_pointers.push_back(binary.get_offset_of_entry_point());
 		for (auto i : binary.m_exports.entries)
 		{
 			routine_pointers.push_back(i.pointer_to_raw_data);
 		}
-
-		dasm.set_routine_pointers(routine_pointers);
-
+		dasm.add_multiple_routines(routine_pointers);
+		
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
-		dasm.go();
+		dasm.run();
+
+		dasm.wait_for_completion();
 
 		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 
-		printf("disasembled a total of %u %u finished_routines and %u instructions.\n In %u ms\n", 
-			routine_count.load(), 
-			dasm.finished_routines.size(),
-			inst_count.load(),
-			std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-		);
+		dasm.print_details();
+		std::printf("it took %u\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-		//printf("Symbo Count: %u\n", binary.m_symbol_table.)
+		std::printf("2");
+		//x86_dasm_t<address_width::x64> dasm(FileBuffer, FileLength, &binary.m_symbol_table, binary.m_optional_header.get_image_base());
+		//dasm.set_malformed_functions(true);
+		//dasm.set_recurse_calls(true);
+		//dasm.set_max_thread_count(8);
+		///*dasm.set_block_progress_callback([](inst_block_t<address_width::x64> const& block)
+		//	{
+		//		std::printf("Created block with %llu insts at [%016X:%016X]\n", block.instructions.size(), block.start, block.end);
+		//	});*/
 
-		//dasm.routines.back().print_blocks();
-		system("pause");
+		//std::atomic_uint32_t routine_count = 0;
+		//std::atomic_uint32_t inst_count = 0;
+		//dasm.set_routine_progress_callback([&routine_count, &inst_count](uint32_t instruction_count)
+		//	{
+		//		routine_count++;
+		//		inst_count += instruction_count;
+		//		std::printf("Created routine with %u instructions.\n", instruction_count);
+		//	});
+
+
+		////dasm.do_routine(binary.get_offset_of_entry_point());
+
+		//std::vector<uint64_t> routine_pointers;
+
+		//routine_pointers.push_back(binary.get_offset_of_entry_point());
+		//for (auto i : binary.m_exports.entries)
+		//{
+		//	routine_pointers.push_back(i.pointer_to_raw_data);
+		//}
+
+		//dasm.set_routine_pointers(routine_pointers);
+
+		//std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
+		//dasm.go();
+
+		//std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+
+		//printf("disasembled a total of %u %u finished_routines and %u instructions.\n In %u ms\n", 
+		//	routine_count.load(), 
+		//	dasm.finished_routines.size(),
+		//	inst_count.load(),
+		//	std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+		//);
+
+		////printf("Symbo Count: %u\n", binary.m_symbol_table.)
+
+		////dasm.routines.back().print_blocks();
+		//system("pause");
 	}
 	else
 		printf("invalid addr width.");

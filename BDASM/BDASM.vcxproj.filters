@@ -1,19 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="addr_width.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="symbol.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="traits.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="inst.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="disasm.h">
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="sff.h">
@@ -28,8 +16,20 @@
     <ClInclude Include="symbol2.h">
       <Filter>old</Filter>
     </ClInclude>
-    <ClInclude Include="dasm2.h">
-      <Filter>headers</Filter>
+    <ClInclude Include="disasm.h">
+      <Filter>old</Filter>
+    </ClInclude>
+    <ClInclude Include="addr_width.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="dasm.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="inst.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="symbol.h">
+      <Filter>headers\dasm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +44,9 @@
     </Filter>
     <Filter Include="old">
       <UniqueIdentifier>{c8479d99-55a6-43c3-88ce-272372e24498}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\dasm">
+      <UniqueIdentifier>{f08220bb-65a3-4763-82ea-b6ab6662ed8f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
