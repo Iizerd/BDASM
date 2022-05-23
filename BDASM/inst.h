@@ -11,10 +11,21 @@ extern "C"
 #include "traits.h"
 #include "addr_width.h"
 
+namespace inst_flag
+{
+	typedef uint32_t type;
+	constexpr type none = 0;
+
+
+
+}
+
 template<address_width Addr_width = address_width::x64>
 class inst_t
 {
 public:
+
+	inst_flag::type flags;
 
 	// Symbol this instruction is responsible for setting the RVA of.
 	//
@@ -30,7 +41,6 @@ public:
 
 	xed_decoded_inst_t decoded_inst;
 
-	
 	//This was for debugging
 	//
 	//uint32_t rva;

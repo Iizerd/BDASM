@@ -3,9 +3,9 @@
 #include <cstdint>
 #include <map>
 #include <vector>
-
-
 #include <Windows.h>
+
+#include "traits.h"
 namespace symbol_flag
 {
 	typedef uint32_t type;
@@ -98,7 +98,7 @@ public:
 	// For looking up symbols that are inside the original binary.
 	// Ex: auto import_sym_idx = get_symbol_index_for_rva(symbol_flag::base, import_addr);
 	//
-	[[nodiscard]] uint32_t get_symbol_index_for_rva(symbol_flag::type flags, uint64_t address)
+	ndiscard uint32_t get_symbol_index_for_rva(symbol_flag::type flags, uint64_t address)
 	{
 		uint64_t map_key = make_symbol_map_key(flags, address);
 		auto it = m_lookup_table.find(map_key);
@@ -115,13 +115,13 @@ public:
 	// For symbols created after the fact, these dont get an entry in the lookup table because
 	// they are not within the original binary. => dont have an rva.
 	//
-	[[nodiscard]] uint32_t get_arbitrary_symbol_index(symbol_flag::type flags = symbol_flag::none)
+	ndiscard uint32_t get_arbitrary_symbol_index(symbol_flag::type flags = symbol_flag::none)
 	{
 		m_entries.emplace_back(flags, 0);
 		return static_cast<uint32_t>(m_entries.size()) - 1;
 	}
 
-	[[nodiscard]] finline symbol_t& get_symbol_by_index(uint32_t symbol_index)
+	ndiscard finline symbol_t& get_symbol_by_index(uint32_t symbol_index)
 	{
 		return m_entries[symbol_index];
 	}
