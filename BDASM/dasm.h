@@ -158,6 +158,13 @@ public:
 template<address_width Addr_width = address_width::x64>
 class inst_routine_t
 {
+	void block_trace()
+	{
+		for (auto& block : blocks)
+		{
+			std::printf("Block[%p:%p]\n", block.start, block.end);
+		}
+	}
 	void decode_block(decoder_context_t* context, uint64_t rva, decode_lookup_table* lookup_table)
 	{
 		auto& current_block = blocks.emplace_back();
@@ -172,7 +179,10 @@ class inst_routine_t
 			int32_t ilen = inst.decode(const_cast<uint8_t*>(context->raw_data_start + rva), context->raw_data_size - rva);
 			if (ilen == 0)
 			{
-				std::printf("Failed to decode, 0 inst length.\n");
+				std::printf("Failed to decode, 0 inst length. RVA: 0x%016X, Block Start: 0x%016X, Size: %llu\n", rva, current_block.start, current_block.instructions.size());
+				block_trace();
+				/*if (blocks.size() > 1)
+					std::printf("\tBlock Count %llu, PrevBlockStart: 0x%016X PrevBlockEnd: 0x%016X\n", blocks.size(), std::prev(blocks.end())->start, std::prev(blocks.end())->end);*/
 				break;
 			}
 
@@ -239,6 +249,10 @@ class inst_routine_t
 					}
 					break;
 				}
+				case XED_IFORM_JMP_FAR_MEMp2:
+				case XED_IFORM_JMP_FAR_PTRp_IMMw:
+					std::printf("Jump we dont handle.\n");
+					break;
 				}
 				goto ExitInstDecodeLoop;
 			}
@@ -260,12 +274,13 @@ class inst_routine_t
 				{
 					int32_t call_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
 					uint64_t dest_rva = rva + call_disp;
-
 					if (!context->validate_rva(dest_rva))
 					{
 						std::printf("Call to invalid rva.\n");
 						goto ExitInstDecodeLoop;
 					}
+
+					//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 
 					context->symbol_lock->lock();
 					inst.used_symbol = context->symbol_table->get_symbol_index_for_rva(symbol_flag::base, dest_rva);
@@ -277,9 +292,13 @@ class inst_routine_t
 					}
 					break;
 				}
+				case XED_IFORM_CALL_FAR_MEMp2:
+				case XED_IFORM_CALL_FAR_PTRp_IMMw:
+					std::printf("Call we dont handle.\n");
+					break;
 				}
 			}
-			else if (cat == XED_CATEGORY_RET)
+			else if (cat == XED_CATEGORY_RET || cat == XED_CATEGORY_INTERRUPT)
 			{
 				break;
 			}
@@ -312,6 +331,25 @@ public:
 
 		decode_lookup_table lookup_table(context->raw_data_size);
 		decode_block(context, rva, &lookup_table);
+
+		blocks.sort([](inst_block_t<Addr_width> const& b1, inst_block_t<Addr_width> const& b2) -> bool
+			{
+				return (b1.start < b2.start);
+			});
+
+		for (auto it = blocks.begin(); it != blocks.end(); ++it)
+		{
+			auto next = std::next(it);
+			if (next == blocks.end())
+				break;
+
+			if (it->end == next->start)
+			{
+				it->instructions.splice(it->instructions.end(), next->instructions);
+
+				blocks.erase(next);
+			}
+		}
 	}
 };
 
@@ -409,7 +447,11 @@ class dasm_t
 	std::vector<dasm_thread_t<Addr_width> > m_threads;
 
 	std::atomic_bool* m_routine_lookup_table;
+
 public:
+
+	std::function<bool(uint64_t)> is_executable;
+
 	explicit dasm_t(decoder_context_t* context)
 		: m_next_thread(0)
 	{ 
@@ -431,7 +473,7 @@ public:
 
 	void add_routine(uint64_t routine_rva)
 	{
-		if (m_routine_lookup_table[routine_rva])
+		if (m_routine_lookup_table[routine_rva] || !is_executable(routine_rva))
 			return;
 
 		m_routine_lookup_table[routine_rva] = true;
@@ -445,7 +487,10 @@ public:
 	void add_multiple_routines(std::vector<uint64_t> const& routines_rvas)
 	{
 		for (auto rva : routines_rvas)
-			add_routine(rva);
+		{
+			if (m_context->validate_rva(rva))
+				add_routine(rva);
+		}
 	}
 
 	void run()

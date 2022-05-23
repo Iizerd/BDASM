@@ -31,6 +31,21 @@
     <ClInclude Include="symbol.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
+    <ClInclude Include="old.h">
+      <Filter>old</Filter>
+    </ClInclude>
+    <ClInclude Include="emu.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="gen.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="encoder.h">
+      <Filter>headers\xed</Filter>
+    </ClInclude>
+    <ClInclude Include="size_casting.h">
+      <Filter>headers\xed</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
@@ -47,6 +62,12 @@
     </Filter>
     <Filter Include="headers\dasm">
       <UniqueIdentifier>{f08220bb-65a3-4763-82ea-b6ab6662ed8f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\obfuscator">
+      <UniqueIdentifier>{0136dbc2-1a9e-4fed-b3eb-8333ba453967}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\xed">
+      <UniqueIdentifier>{7bff6ba0-bb46-4961-81b0-3fc14ffc27cf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

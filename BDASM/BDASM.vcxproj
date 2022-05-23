@@ -153,9 +153,14 @@
     <ClInclude Include="dasm.h" />
     <ClInclude Include="disasm.h" />
     <ClInclude Include="align.h" />
+    <ClInclude Include="emu.h" />
+    <ClInclude Include="gen.h" />
+    <ClInclude Include="encoder.h" />
     <ClInclude Include="inst.h" />
+    <ClInclude Include="old.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
+    <ClInclude Include="size_casting.h" />
     <ClInclude Include="symbol.h" />
     <ClInclude Include="symbol2.h" />
     <ClInclude Include="traits.h" />
