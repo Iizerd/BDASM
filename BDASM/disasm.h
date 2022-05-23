@@ -629,7 +629,7 @@
 //
 //		for (auto it = current_routine_it->blocks.begin(); it != current_routine_it->blocks.end(); ++it)
 //		{
-//			auto next = ++it;
+//			auto next = std::next(it);
 //			if (next == current_routine_it->blocks.end())
 //				break;
 //

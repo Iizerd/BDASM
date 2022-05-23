@@ -33,6 +33,7 @@ typedef IMAGE_THUNK_DATA64 image_thunk_data64_t;
 typedef IMAGE_OPTIONAL_HEADER32 image_optional_header32_t;
 typedef IMAGE_OPTIONAL_HEADER64 image_optional_header64_t;
 typedef IMAGE_IMPORT_BY_NAME image_import_by_name_t;
+typedef IMAGE_RUNTIME_FUNCTION_ENTRY image_runtime_function_entry_t;
 
 
 typedef std::vector<uint8_t> byte_vector;
@@ -45,19 +46,19 @@ typedef std::vector<uint8_t> byte_vector;
 #define _DEFINE_SETTER(_Sd, _Sn, _ItemName, _RealName) \
 	_DEFINE_SETTER_PROTO(_Sd, _Sn, _ItemName, _RealName) { _Sn##_ItemName = value; }
 
-template <typename Class_type, typename Interface_type>
-class base_interface_t
+template <typename Class_type, typename it_type>
+class base_it_t
 {
-	base_interface_t()
+	base_it_t()
 		: m_pdata(nullptr) {}
 
 protected:
 	Class_type* m_pdata;
 
 public:
-	base_interface_t(Class_type* ptr)
+	base_it_t(Class_type* ptr)
 		: m_pdata(ptr) {}
-	base_interface_t(base_interface_t const& to_copy)
+	base_it_t(base_it_t const& to_copy)
 		: m_pdata(to_copy.m_pdata) {}
 	void append_to_vec(byte_vector& vec)
 	{
@@ -79,41 +80,41 @@ public:
 	{
 		return reinterpret_cast<uint8_t*>(m_pdata);
 	}
-	Interface_type& operator++()
+	it_type& operator++()
 	{
 		++m_pdata;
-		return *static_cast<Interface_type*>(this);
+		return *static_cast<it_type*>(this);
 	}
-	[[nodiscard]] Interface_type operator++(int)
+	[[nodiscard]] it_type operator++(int)
 	{
-		return Interface_type(m_pdata++);
+		return it_type(m_pdata++);
 	}
-	Interface_type operator--()
+	it_type operator--()
 	{
 		--m_pdata;
-		return *static_cast<Interface_type*>(this);
+		return *static_cast<it_type*>(this);
 	}
-	[[nodiscard]] Interface_type operator--(int)
+	[[nodiscard]] it_type operator--(int)
 	{
-		return Interface_type(m_pdata--);
+		return it_type(m_pdata--);
 	}
-	Interface_type operator[](uint32_t index)
+	it_type operator[](uint32_t index)
 	{
-		return Interface_type(m_pdata + index);
+		return it_type(m_pdata + index);
 	}
 };
 
 #define _DATA_DIR_ITEM_LIST(_Sd, _Sn, _M)          \
 	_M(_Sd, _Sn, VirtualAddress, virtual_address); \
 	_M(_Sd, _Sn, Size, size);
-class data_dir_interface_t : public base_interface_t<image_data_dir_t, data_dir_interface_t>
+class data_dir_it_t : public base_it_t<image_data_dir_t, data_dir_it_t>
 {
-	data_dir_interface_t()
-		: base_interface_t(nullptr) {}
+	data_dir_it_t()
+		: base_it_t(nullptr) {}
 
 public:
-	data_dir_interface_t(image_data_dir_t* raw_data)
-		: base_interface_t(raw_data) {}
+	data_dir_it_t(image_data_dir_t* raw_data)
+		: base_it_t(raw_data) {}
 	_DATA_DIR_ITEM_LIST(image_data_dir_t, this->m_pdata->, _DEFINE_GETTER)
 		_DATA_DIR_ITEM_LIST(image_data_dir_t, this->m_pdata->, _DEFINE_SETTER)
 };
@@ -137,14 +138,14 @@ public:
 	_M(_Sd, _Sn, e_oemid, oemid);           \
 	_M(_Sd, _Sn, e_oeminfo, oeminfo);       \
 	_M(_Sd, _Sn, e_lfanew, lfanew);
-class dos_header_interface_t : public base_interface_t<image_dos_header_t, dos_header_interface_t>
+class dos_header_it_t : public base_it_t<image_dos_header_t, dos_header_it_t>
 {
-	dos_header_interface_t()
-		: base_interface_t(nullptr) {}
+	dos_header_it_t()
+		: base_it_t(nullptr) {}
 
 public:
-	dos_header_interface_t(image_dos_header_t* raw_data)
-		: base_interface_t(raw_data) {}
+	dos_header_it_t(image_dos_header_t* raw_data)
+		: base_it_t(raw_data) {}
 	uint16_t* res_at_idx(uint32_t idx)
 	{
 		if (idx < 4)
@@ -171,14 +172,14 @@ public:
 	_M(_Sd, _Sn, NumberOfSymbols, number_of_symbols)            \
 	_M(_Sd, _Sn, SizeOfOptionalHeader, size_of_optional_header) \
 	_M(_Sd, _Sn, Characteristics, characteristics)
-class file_header_interface_t : public base_interface_t<image_file_header_t, file_header_interface_t>
+class file_header_it_t : public base_it_t<image_file_header_t, file_header_it_t>
 {
-	file_header_interface_t()
-		: base_interface_t(nullptr) {}
+	file_header_it_t()
+		: base_it_t(nullptr) {}
 
 public:
-	file_header_interface_t(image_file_header_t* header)
-		: base_interface_t(header) {}
+	file_header_it_t(image_file_header_t* header)
+		: base_it_t(header) {}
 	_FILE_HEADER_ITEM_LIST(image_file_header_t, this->m_pdata->, _DEFINE_GETTER)
 		_FILE_HEADER_ITEM_LIST(image_file_header_t, this->m_pdata->, _DEFINE_SETTER)
 };
@@ -216,17 +217,17 @@ public:
 	_M(_Sd, _Sn, NumberOfRvaAndSizes, number_of_rva_and_sizes)
 #define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == address_width::x86, image_optional_header32_t, image_optional_header64_t>::type
 template <address_width Addr_width = address_width::x64>
-class optional_header_interface_t : public std::conditional<Addr_width == address_width::x86, base_interface_t<image_optional_header32_t, optional_header_interface_t<Addr_width>>, base_interface_t<image_optional_header64_t, optional_header_interface_t<Addr_width>>>::type
+class optional_header_it_t : public std::conditional<Addr_width == address_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>>>::type
 {
 	
 	using _Header_type = optional_header_conditional_type(Addr_width);
-	optional_header_interface_t()
-		: base_interface_t<_Header_type, optional_header_interface_t>(nullptr) {}
+	optional_header_it_t()
+		: base_it_t<_Header_type, optional_header_it_t>(nullptr) {}
 
 public:
-	optional_header_interface_t(_Header_type* header)
-		: base_interface_t<_Header_type, optional_header_interface_t>(header) {}
-	data_dir_interface_t get_data_directory(uint32_t data_dir_enum)
+	optional_header_it_t(_Header_type* header)
+		: base_it_t<_Header_type, optional_header_it_t>(header) {}
+	data_dir_it_t get_data_directory(uint32_t data_dir_enum)
 	{
 		if (data_dir_enum < IMAGE_NUMBEROF_DIRECTORY_ENTRIES)
 			return &this->m_pdata->DataDirectory[data_dir_enum];
@@ -244,16 +245,16 @@ public:
 	_M(_Sd, _Sn, u1.AddressOfData, address_of_data)
 #define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == address_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
 template <address_width Addr_width = address_width::x64>
-class image_thunk_data_interface_t : public std::conditional<Addr_width == address_width::x86, base_interface_t<image_thunk_data32_t, image_thunk_data_interface_t<Addr_width>>, base_interface_t<image_thunk_data64_t, image_thunk_data_interface_t<Addr_width>>>::type
+class image_thunk_data_it_t : public std::conditional<Addr_width == address_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>>>::type
 {
 	using _Thunk_data_type = thunk_data_conditional_type(Addr_width);
 	using _Thunk_ordinal_type = std::conditional<Addr_width == address_width::x86, DWORD, ULONGLONG>::type;
-	image_thunk_data_interface_t()
-		: base_interface_t<_Thunk_data_type, image_thunk_data_interface_t>(nullptr) {}
+	image_thunk_data_it_t()
+		: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(nullptr) {}
 
 public:
-	image_thunk_data_interface_t(_Thunk_data_type* thunk_data)
-		: base_interface_t<_Thunk_data_type, image_thunk_data_interface_t>(thunk_data) {}
+	image_thunk_data_it_t(_Thunk_data_type* thunk_data)
+		: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(thunk_data) {}
 	bool is_ordinal() const
 	{
 		if constexpr (Addr_width == address_width::x86)
@@ -287,15 +288,15 @@ public:
 	_M(_Sd, _Sn, Reserved1, reserved1)
 #define tls_conditional_type(Addr_width) std::conditional<Addr_width == address_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
 template <address_width Addr_width = address_width::x64>
-class image_tls_dir_interface_t : public std::conditional<Addr_width == address_width::x86, base_interface_t<image_tls_dir32_t, image_tls_dir_interface_t<Addr_width>>, base_interface_t<image_tls_dir64_t, image_tls_dir_interface_t<Addr_width>>>::type
+class image_tls_dir_it_t : public std::conditional<Addr_width == address_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<Addr_width>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<Addr_width>>>::type
 {
 	using _Tls_dir_type = tls_conditional_type(Addr_width);
-	image_tls_dir_interface_t()
-		: base_interface_t<_Tls_dir_type, image_tls_dir_interface_t>(nullptr) {}
+	image_tls_dir_it_t()
+		: base_it_t<_Tls_dir_type, image_tls_dir_it_t>(nullptr) {}
 
 public:
-	image_tls_dir_interface_t(_Tls_dir_type* tls_dir)
-		: base_interface_t<_Tls_dir_type, image_tls_dir_interface_t>(tls_dir) {}
+	image_tls_dir_it_t(_Tls_dir_type* tls_dir)
+		: base_it_t<_Tls_dir_type, image_tls_dir_it_t>(tls_dir) {}
 	_TLS_DIR_ITEM_LIST(_Tls_dir_type, this->m_pdata->, _DEFINE_GETTER)
 		_TLS_DIR_ITEM_LIST(_Tls_dir_type, this->m_pdata->, _DEFINE_SETTER)
 };
@@ -312,14 +313,14 @@ public:
 	_M(_Sd, _Sn, NumberOfRelocations, number_of_relocations)    \
 	_M(_Sd, _Sn, NumberOfLinenumbers, number_of_line_numbers)   \
 	_M(_Sd, _Sn, Characteristics, characteristics)
-class image_section_header_interface_t : public base_interface_t<image_section_header_t, image_section_header_interface_t>
+class image_section_header_it_t : public base_it_t<image_section_header_t, image_section_header_it_t>
 {
-	image_section_header_interface_t()
-		: base_interface_t(nullptr) {}
+	image_section_header_it_t()
+		: base_it_t(nullptr) {}
 
 public:
-	image_section_header_interface_t(image_section_header_t* header)
-		: base_interface_t(header) {}
+	image_section_header_it_t(image_section_header_t* header)
+		: base_it_t(header) {}
 
 	uint8_t* get_name() { return this->m_pdata->Name; }
 	void set_name(uint8_t* new_name, uint32_t name_length)
@@ -340,14 +341,14 @@ public:
 	_M(_Sd, _Sn, ForwarderChain, forwarder_chain)          \
 	_M(_Sd, _Sn, Name, name)                               \
 	_M(_Sd, _Sn, FirstThunk, first_thunk)
-class image_import_descriptor_interface_t : public base_interface_t<image_import_descriptor_t, image_import_descriptor_interface_t>
+class image_import_descriptor_it_t : public base_it_t<image_import_descriptor_t, image_import_descriptor_it_t>
 {
-	image_import_descriptor_interface_t()
-		: base_interface_t(nullptr) {}
+	image_import_descriptor_it_t()
+		: base_it_t(nullptr) {}
 
 public:
-	image_import_descriptor_interface_t(image_import_descriptor_t* descriptor)
-		: base_interface_t(descriptor) {}
+	image_import_descriptor_it_t(image_import_descriptor_t* descriptor)
+		: base_it_t(descriptor) {}
 
 	bool is_null()
 	{
@@ -374,87 +375,103 @@ public:
 	_M(_Sd, _Sn, AddressOfFunctions, address_of_functions) \
 	_M(_Sd, _Sn, AddressOfNames, address_of_names)         \
 	_M(_Sd, _Sn, AddressOfNameOrdinals, address_of_name_ordinals)
-class image_export_directory_interface_t : public base_interface_t<image_export_dir_t, image_export_directory_interface_t>
+class image_export_directory_it_t : public base_it_t<image_export_dir_t, image_export_directory_it_t>
 {
-	image_export_directory_interface_t()
-		: base_interface_t(nullptr) {}
+	image_export_directory_it_t()
+		: base_it_t(nullptr) {}
 
 public:
-	image_export_directory_interface_t(image_export_dir_t* dir)
-		: base_interface_t(dir) {}
+	image_export_directory_it_t(image_export_dir_t* dir)
+		: base_it_t(dir) {}
 
 	_EXPORT_DESCRIPTOR_ITEM_LIST(image_export_dir_t, this->m_pdata->, _DEFINE_GETTER)
 		_EXPORT_DESCRIPTOR_ITEM_LIST(image_export_dir_t, this->m_pdata->, _DEFINE_SETTER)
 };
 
+#define _RUNTIME_FUNCTION_ITEM_LIST(_Sd, _Sn, _M)			\
+	_M(_Sd, _Sn, BeginAddress, begin_address)				\
+	_M(_Sd, _Sn, EndAddress, end_address)					\
+	_M(_Sd, _Sn, UnwindInfoAddress, unwindw_info_address)	\
+	_M(_Sd, _Sn, UnwindData, unwind_data)
+class image_runtime_function_it_t : public base_it_t<image_runtime_function_entry_t, image_runtime_function_it_t>
+{
+	image_runtime_function_it_t()
+		: base_it_t(nullptr) {}
+
+public:
+	image_runtime_function_it_t(image_runtime_function_entry_t* entry)
+		: base_it_t(entry) {}
+
+	bool is_null()
+	{
+		return (get_begin_address() != 0 && get_end_address() != 0 && get_unwindw_info_address() != 0);
+	}
+	_RUNTIME_FUNCTION_ITEM_LIST(image_runtime_function_entry_t, this->m_pdata->, _DEFINE_GETTER)
+	_RUNTIME_FUNCTION_ITEM_LIST(image_runtime_function_entry_t, this->m_pdata->, _DEFINE_SETTER)
+};
 
 
 // Representation definitions for when we need our own representation.
 //
-class dos_header_rep_t : public dos_header_interface_t
+class dos_header_rep_t : public dos_header_it_t
 {
 	image_dos_header_t m_header;
 
 public:
 	explicit dos_header_rep_t()
-		: dos_header_interface_t(&this->m_header) {}
+		: dos_header_it_t(&this->m_header) {}
 	explicit dos_header_rep_t(dos_header_rep_t const& to_copy)
-		: dos_header_interface_t(&this->m_header)
+		: dos_header_it_t(&this->m_header)
 	{
 		this->copy_from_data(to_copy.m_pdata);
 	}
 };
-class file_header_rep_t : public file_header_interface_t
+class file_header_rep_t : public file_header_it_t
 {
 	image_file_header_t m_header;
 
 public:
 	explicit file_header_rep_t()
-		: file_header_interface_t(&this->m_header) {}
+		: file_header_it_t(&this->m_header) {}
 	explicit file_header_rep_t(file_header_rep_t const& to_copy)
-		: file_header_interface_t(&this->m_header)
+		: file_header_it_t(&this->m_header)
 	{
 		this->copy_from_data(to_copy.m_pdata);
 	}
 };
 template <address_width Addr_width = address_width::x64>
-class optional_header_rep_t : public optional_header_interface_t<Addr_width>
+class optional_header_rep_t : public optional_header_it_t<Addr_width>
 {
 	using _Header_type = std::conditional<Addr_width == address_width::x86, image_optional_header32_t, image_optional_header64_t>::type;
 	_Header_type m_header;
 
 public:
 	explicit optional_header_rep_t()
-		: optional_header_interface_t<Addr_width>(&this->m_header) {}
+		: optional_header_it_t<Addr_width>(&this->m_header) {}
 	explicit optional_header_rep_t(optional_header_rep_t const& to_copy)
-		: optional_header_interface_t<Addr_width>(&this->m_header)
+		: optional_header_it_t<Addr_width>(&this->m_header)
 	{
 		this->copy_from_data(to_copy.m_pdata);
 	}
 };
-class section_header_rep_t : public image_section_header_interface_t
+class section_header_rep_t : public image_section_header_it_t
 {
 	image_section_header_t m_header;
 
 public:
-	byte_vector section_data;
-
 	explicit section_header_rep_t()
-		: image_section_header_interface_t(&this->m_header) {}
+		: image_section_header_it_t(&this->m_header) {}
 
-	explicit section_header_rep_t(uint8_t* image_base, image_section_header_interface_t section_header)
-		: image_section_header_interface_t(&this->m_header)
+	explicit section_header_rep_t(image_section_header_it_t section_header)
+		: image_section_header_it_t(&this->m_header)
 	{
 		this->copy_from_data(section_header.get());
-		uint8_t* copy_start = image_base + section_header.get_pointer_to_raw_data();
-		this->section_data.insert(this->section_data.begin(), copy_start, copy_start + section_header.get_size_of_raw_data());
 	}
 
 	explicit section_header_rep_t(section_header_rep_t const& to_copy)
-		: image_section_header_interface_t(&this->m_header)
+		: image_section_header_it_t(&this->m_header)
 	{
 		this->copy_from_data(to_copy.m_pdata);
-		this->section_data.insert(this->section_data.begin(), to_copy.section_data.begin(), to_copy.section_data.end());
 	}
 };
 
@@ -572,7 +589,6 @@ class export_t
 {
 public:
 	const uint64_t rva;
-	const uint64_t pointer_to_raw_data;
 
 	const std::string export_name;
 	const uint16_t ordinal;
@@ -583,26 +599,23 @@ public:
 
 	// Initializer that constructs string import.
 	//
-	explicit export_t(std::string const& name, uint32_t sym, uint64_t virt_addr, uint64_t raw_data_addr)
+	explicit export_t(std::string const& name, uint32_t sym, uint64_t virt_addr)
 		: export_name(name),
 		symbol(sym),
 		ordinal(0),
-		rva(virt_addr),
-		pointer_to_raw_data(raw_data_addr)
+		rva(virt_addr)
 	{}
-	explicit export_t(uint32_t ord, uint32_t sym, uint64_t virt_addr, uint64_t raw_data_addr)
+	explicit export_t(uint32_t ord, uint32_t sym, uint64_t virt_addr)
 		: export_name(""),
 		symbol(sym),
 		ordinal(ord),
-		rva(virt_addr),
-		pointer_to_raw_data(raw_data_addr)
+		rva(virt_addr)
 	{}
 	export_t(export_t const& to_copy)
 		: export_name(to_copy.export_name),
 		symbol(to_copy.symbol),
 		ordinal(to_copy.ordinal),
-		rva(to_copy.rva),
-		pointer_to_raw_data(to_copy.pointer_to_raw_data)
+		rva(to_copy.rva)
 	{}
 
 	bool is_ordinal()
@@ -624,13 +637,13 @@ public:
 			entries.push_back(entry);
 	}
 
-	void add_ordinal_export(uint32_t ordinal, uint32_t symbol, uint64_t virt_addr, uint64_t raw_data_addr)
+	void add_ordinal_export(uint32_t ordinal, uint32_t symbol, uint64_t virt_addr)
 	{
-		entries.emplace_back(ordinal, symbol, virt_addr, raw_data_addr);
+		entries.emplace_back(ordinal, symbol, virt_addr);
 	}
-	void add_named_export(char* name, uint32_t symbol, uint64_t virt_addr, uint64_t raw_data_addr)
+	void add_named_export(char* name, uint32_t symbol, uint64_t virt_addr)
 	{
-		entries.emplace_back(name, symbol, virt_addr, raw_data_addr);
+		entries.emplace_back(name, symbol, virt_addr);
 	}
 };
 
@@ -638,7 +651,6 @@ public:
 template <address_width Addr_width = address_width::x64>
 class binary_ir_t
 {
-protected:
 public:
 	symbol_table_t m_symbol_table;
 
@@ -654,8 +666,8 @@ public:
 	std::vector<import_module_t<Addr_width>> m_imports;
 	exports_t m_exports;
 
-
-
+	uint8_t* m_raw_data;
+	uint8_t* m_mapped_image;
 
 	// Pretty neat, the dbghelp.dll version ImageDirectoryEntryToDataEx is implemented the exact way i thought to implement this.
 	// This returns a pointer to the section within the _default_sections list and the offset within where the directory lies.
@@ -679,7 +691,7 @@ public:
 		return m_sections[section_and_offset.first].get_pointer_to_raw_data() + section_and_offset.second;
 	}
 
-	template <typename Ptr_type>
+	template<typename Ptr_type>
 	Ptr_type* section_and_offset_to_raw_data(uint8_t* image_base, std::pair<uint32_t, uint32_t> const& section_and_offset)
 	{
 		return reinterpret_cast<Ptr_type*>(image_base + section_and_offset_to_raw_data(section_and_offset));
@@ -687,18 +699,37 @@ public:
 
 	std::pair<uint32_t, uint32_t> data_dir_to_section_offset(uint32_t data_dir_enum)
 	{
-		data_dir_interface_t data_dir = m_optional_header.get_data_directory(data_dir_enum);
+		data_dir_it_t data_dir = m_optional_header.get_data_directory(data_dir_enum);
 		if (!data_dir.get() || !data_dir.get_size() || !data_dir.get_virtual_address())
 			return { 0, 0 };
 
 		return rva_to_section_and_offset(data_dir.get_virtual_address());
 	}
 
-
+	template<typename Ptr_type>
+	Ptr_type* rva_as(uint32_t rva)
+	{
+		return reinterpret_cast<Ptr_type*>(m_mapped_image + rva);
+	}
 public:
 	binary_ir_t() {}
 	~binary_ir_t() {}
 
+	bool is_rva_in_executable_section(uint64_t rva)
+	{
+		for (auto& section : m_sections)
+		{
+			if (auto virt_addr = section.get_virtual_address(); 
+				rva >= virt_addr && 
+				rva < virt_addr + section.get_virtual_size() &&
+				section.get_characteristics() & (IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE)
+				)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 
 	// High level decomp/recomp routines
 	//
@@ -724,26 +755,27 @@ public:
 		file.read((PCHAR)data, file_size);
 		file.close();
 
-		bool ret = from_memory(data, file_size);
+		bool ret = load_from_raw_data(data, file_size);
 
-		delete[] data;
 		return ret;
 	}
 	bool to_file(std::string const& file_path)
 	{
 		return false;
 	}
-	bool from_memory(uint8_t* image_base, uint32_t image_size)
+	bool load_from_raw_data(uint8_t* image_base, uint32_t image_size)
 	{
+		m_raw_data = image_base;
+
 		if (image_size < sizeof image_dos_header_t)
 			return false;
 
 		m_dos_header.copy_from_data(
-			image_base);
+			m_raw_data);
 		if (m_dos_header.get_magic() != IMAGE_DOS_SIGNATURE)
 			return false;
 
-		uint8_t* new_header_addr = image_base + m_dos_header.get_lfanew();
+		uint8_t* new_header_addr = m_raw_data + m_dos_header.get_lfanew();
 
 		if (image_size < m_dos_header.get_lfanew() + sizeof image_nt_headers64_t ||
 			*(uint32_t*)new_header_addr != IMAGE_NT_SIGNATURE)
@@ -762,47 +794,63 @@ public:
 		// Enumerate all sections and copy their data.
 		//
 		{
-			image_section_header_interface_t section_header_interface(reinterpret_cast<image_section_header_t*>(
+			image_section_header_it_t section_header_interface(reinterpret_cast<image_section_header_t*>(
 				new_header_addr + offsetof(image_nt_headers64_t, OptionalHeader) + m_file_header.get_size_of_optional_header()));
 
 			for (uint16_t i = 0; i < m_file_header.get_number_of_sections(); ++i)
 			{
-				m_sections.emplace_back(image_base, section_header_interface[i]);
+				m_sections.emplace_back(section_header_interface[i]);
 			}
+		}
+
+		if (!m_sections.size())
+		{
+			std::printf("Image has no sections.\n");
+			return false;
 		}
 
 		// Build the loaded image thing. where sections are at their real rvas
 		// This will replace all of this above section nonsense
 		//
+		{
+			m_mapped_image = new uint8_t[m_optional_header.get_size_of_image()];
+
+			for (auto& section : m_sections)
+			{
+				std::printf("Mapping image section at %X of size %X to %X\n", section.get_pointer_to_raw_data(), section.get_size_of_raw_data(), section.get_virtual_address());
+				std::memcpy(m_mapped_image + section.get_virtual_address(), m_raw_data + section.get_pointer_to_raw_data(), section.get_size_of_raw_data());
+			}
+		}
 
 
 		// Fill normal imports
 		//
 		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_size())
 		{
-			for (image_import_descriptor_interface_t import_descriptor_interface(section_and_offset_to_raw_data<image_import_descriptor_t>(image_base, data_dir_to_section_offset(IMAGE_DIRECTORY_ENTRY_IMPORT)));
+			for (image_import_descriptor_it_t import_descriptor_interface(rva_as<image_import_descriptor_t>(m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_virtual_address()));
 				!import_descriptor_interface.is_null(); ++import_descriptor_interface)
 			{
-				m_imports.emplace_back(section_and_offset_to_raw_data<char>(image_base, rva_to_section_and_offset(import_descriptor_interface.get_name())));
+				m_imports.emplace_back(rva_as<char>(import_descriptor_interface.get_name()));
+				
+				//std::printf("Module Name: %s\n", m_imports.back().module_name.data());
 
-				for (image_thunk_data_interface_t<Addr_width> thunk_data_interface(section_and_offset_to_raw_data<thunk_data_conditional_type(Addr_width)>(image_base, rva_to_section_and_offset(import_descriptor_interface.get_first_thunk())));
+				for (image_thunk_data_it_t<Addr_width> thunk_data_interface(rva_as<thunk_data_conditional_type(Addr_width)>(import_descriptor_interface.get_original_first_thunk()));
 					!thunk_data_interface.is_null(); ++thunk_data_interface)
 				{
 					uint32_t symbol_index = m_symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_import,
-						static_cast<uint32_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - image_base));
+						static_cast<uint32_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - m_raw_data));
 
 					if (!thunk_data_interface.is_ordinal())
 					{
-						image_import_by_name_t* import_name = section_and_offset_to_raw_data<image_import_by_name_t>(
-							image_base,
-							rva_to_section_and_offset(
-								thunk_data_interface.get_address_of_data()));
-
+						image_import_by_name_t* import_name = rva_as<image_import_by_name_t>(thunk_data_interface.get_address_of_data());
+				
 						m_imports.back().add_named_import(
 							import_name->Hint,
 							import_name->Name,
 							symbol_index);
+
+						//std::printf("\tImport name %s\n", import_name->Name);
 					}
 					else
 					{
@@ -812,6 +860,8 @@ public:
 					}
 				}
 			}
+
+			
 		}
 
 		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT).get_size())
@@ -826,11 +876,11 @@ public:
 
 		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_size())
 		{
-			image_export_directory_interface_t export_dir(section_and_offset_to_raw_data<image_export_dir_t>(image_base, data_dir_to_section_offset(IMAGE_DIRECTORY_ENTRY_EXPORT)));
+			image_export_directory_it_t export_dir(rva_as<image_export_dir_t>(m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_virtual_address()));
 
-			uint32_t* name_address_table = section_and_offset_to_raw_data<uint32_t>(image_base, rva_to_section_and_offset(export_dir.get_address_of_names()));
-			uint32_t* export_address_table = section_and_offset_to_raw_data<uint32_t>(image_base, rva_to_section_and_offset(export_dir.get_address_of_functions()));
-			uint16_t* name_ordinal_table = section_and_offset_to_raw_data<uint16_t>(image_base, rva_to_section_and_offset(export_dir.get_address_of_name_ordinals()));
+			uint32_t* name_address_table = rva_as<uint32_t>(export_dir.get_address_of_names());
+			uint32_t* export_address_table = rva_as<uint32_t>(export_dir.get_address_of_functions());
+			uint16_t* name_ordinal_table = rva_as<uint16_t>(export_dir.get_address_of_name_ordinals());
 
 			std::set<uint16_t> ordinals;
 			for (uint32_t i = 0; i < export_dir.get_number_of_functions(); ++i)
@@ -838,22 +888,17 @@ public:
 
 			for (uint32_t i = 0; i < export_dir.get_number_of_names(); i++)
 			{
-				char* name = section_and_offset_to_raw_data<char>(image_base, rva_to_section_and_offset(name_address_table[i]));
+				char* name = rva_as<char>(name_address_table[i]);
 				uint16_t name_ordinal = name_ordinal_table[i];
-
-				uint32_t pointer_to_raw_data = section_and_offset_to_raw_data(
-					rva_to_section_and_offset(
-						export_address_table[name_ordinal]
-					)
-				);
+				
+				uint32_t export_rva = export_address_table[name_ordinal];
 
 				m_exports.add_named_export(name,
 					m_symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_export,
-						pointer_to_raw_data
+						export_rva
 					),
-					export_address_table[name_ordinal],
-					pointer_to_raw_data
+					export_rva
 				);
 
 				ordinals.erase(name_ordinal);
@@ -861,31 +906,23 @@ public:
 
 			for (uint16_t ordinal : ordinals)
 			{
-				uint32_t pointer_to_raw_data = section_and_offset_to_raw_data(
-					rva_to_section_and_offset(
-						export_address_table[ordinal]
-					)
-				);
+				uint32_t export_rva = export_address_table[ordinal];
 
 				m_exports.add_ordinal_export(ordinal,
 					m_symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_export,
-						pointer_to_raw_data
+						export_rva
 					),
-					export_address_table[ordinal],
-					pointer_to_raw_data
+					export_rva
 				);
 			}
 		}
+		
 
-
-
-		// Find the code section(s)
-		//
-
+		// USE SEH TABLES TO FIND FUNCTIONS.
 
 		//auto [code_section_idx, code_addr_in_section] = rva_to_section_and_offset(m_optional_header.get_base_of_code());
-		//uint8_t* base_of_code_addr = section_and_offset_to_raw_data<uint8_t>(image_base, { code_section_idx, code_addr_in_section });
+		//uint8_t* base_of_code_addr = section_and_offset_to_raw_data<uint8_t>(m_raw_data, { code_section_idx, code_addr_in_section });
 
 
 
@@ -896,16 +933,12 @@ public:
 		return false;
 	}
 
-	uint32_t get_offset_of_entry_point()
-	{
-		return section_and_offset_to_raw_data(rva_to_section_and_offset(m_optional_header.get_address_of_entry_point()));
-	}
 
 	// Functionality to expose the various interfaces
 	//
-	// dos_header_interface_t* dos_header() { return &_dos_header;  }
-	// file_header_interface_t* file_header() { return &_file_header; }
-	// optional_header_interface_t<Addr_width>* optional_header() { return &_optional_header; }
+	// dos_header_it_t* dos_header() { return &_dos_header;  }
+	// file_header_it_t* file_header() { return &_file_header; }
+	// optional_header_it_t<Addr_width>* optional_header() { return &_optional_header; }
 
 
 	inline static address_width deduce_address_width(std::string const& file_path)
@@ -920,14 +953,18 @@ public:
 		file.seekg(0, std::ios::end);
 		uint32_t file_size = static_cast<uint32_t>(file.tellg());
 		file.seekg(0, std::ios::beg);
-		uint8_t* data = new uint8_t[file_size];
+
+		if (file_size < 0x1000)
+			return address_width::invalid;
+
+		uint8_t* data = new uint8_t[0x1000];
 		if (!data)
 		{
 			file.close();
 			return address_width::invalid;
 		}
 
-		file.read((PCHAR)data, file_size);
+		file.read((PCHAR)data, 0x1000);
 		file.close();
 
 		address_width width = deduce_address_width(data, file_size);

@@ -9,33 +9,40 @@
 namespace symbol_flag
 {
 	typedef uint32_t type;
-	type none = 0;
+	constexpr type none = 0;
 
 	// Indicates that the address is relative to
 	// These are used to key into the map and find symbols.
 	// After that they dont matter.
 	//
-	type base = (1 << 0);
+	constexpr type base = (1 << 0);
 
 	// import_lookup_key uses this to mask to only the values used in the key.
 	//
-	type key_mask = (1 << 0);
+	constexpr type key_mask = (1 << 0);
 
 
 	// An instruction or other isntrument set this symbol after final placement and the address is valid.
 	// If this isn't set upon recompilation... something is very wrong.
 	//
-	type valid = (1 << 1);
+	constexpr type valid = (1 << 1);
 
 
 	// The type descriptor for debug purposes i think...
 	// Will probably remove this later
 	//
-	type type_export = (1 << 2);
-	type type_import = (1 << 3);
+	constexpr type type_export = (1 << 2);
+	constexpr type type_export_data = (1 << 3);
+	constexpr type type_export_function = (1 << 4);
+	constexpr type type_export_mask = (type_export | type_export_data | type_export_function);
+
+	constexpr type type_import = (1 << 5);
+	constexpr type type_import_data = (1 << 6);
+	constexpr type type_import_routine = (1 << 7);
+	constexpr type type_import_mask = (type_import | type_import_data | type_import_routine);
 
 
-	type mask = 0xffffffff;
+	constexpr type mask = 0xffffffff;
 };
 
 // These symbols are basically an intermediate between two things. For example an instruction and another isntruction
