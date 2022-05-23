@@ -7,9 +7,6 @@
     <ClInclude Include="sff.h">
       <Filter>Testing</Filter>
     </ClInclude>
-    <ClInclude Include="pex.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="align.h">
       <Filter>headers</Filter>
     </ClInclude>
@@ -45,6 +42,12 @@
     </ClInclude>
     <ClInclude Include="size_casting.h">
       <Filter>headers\xed</Filter>
+    </ClInclude>
+    <ClInclude Include="pex.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="marker.h">
+      <Filter>headers\obfuscator</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -16,6 +16,7 @@
 //#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
 #define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
 
+//
 int main(int argc, char** argv)
 {
 
