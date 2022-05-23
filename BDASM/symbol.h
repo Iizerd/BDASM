@@ -86,6 +86,7 @@ class symbol_table_t
 public:
 	explicit symbol_table_t(uint32_t base_table_size = 3000)
 	{
+		m_entries.emplace_back(symbol_flag::none, 0);
 		m_entries.reserve(base_table_size);
 	}
 	explicit symbol_table_t(symbol_table_t const& table)
