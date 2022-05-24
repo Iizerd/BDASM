@@ -16,8 +16,15 @@ namespace inst_flag
 	typedef uint32_t type;
 	constexpr type none = 0;
 
+	// This instruction relies on a displacement
+	//
+	constexpr type rel_br = (1 << 0);
 
+	// This instruction has a rip relative displacement
+	//
+	constexpr type rip_disp = (1 << 1);
 
+	
 }
 
 template<address_width Addr_width = address_width::x64>
@@ -224,11 +231,17 @@ public:
 template<address_width Addr_width>
 using inst_list_t = std::list<inst_t<Addr_width> >;
 
+template<address_width Addr_width>
+using inst_it_t = inst_list_t<Addr_width>::iterator;
+
 using inst32_t = inst_t<address_width::x86>;
 using inst64_t = inst_t<address_width::x64>;
 
 using inst_list32_t = inst_list_t<address_width::x86>;
 using inst_list64_t = inst_list_t<address_width::x64>;
+
+using inst_it32_t = inst_list32_t::iterator;
+using inst_it64_t = inst_list64_t::iterator;
 
 template<address_width Addr_width>
 uint32_t calc_inst_list_size(inst_list_t<Addr_width>const& list)

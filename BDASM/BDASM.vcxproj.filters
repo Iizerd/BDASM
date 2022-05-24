@@ -7,9 +7,6 @@
     <ClInclude Include="sff.h">
       <Filter>Testing</Filter>
     </ClInclude>
-    <ClInclude Include="align.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="symbol2.h">
       <Filter>old</Filter>
     </ClInclude>
@@ -46,8 +43,14 @@
     <ClInclude Include="pex.h">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="sdk.h">
+      <Filter>headers</Filter>
+    </ClInclude>
     <ClInclude Include="marker.h">
       <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="align.h">
+      <Filter>headers\utils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -71,6 +74,9 @@
     </Filter>
     <Filter Include="headers\xed">
       <UniqueIdentifier>{7bff6ba0-bb46-4961-81b0-3fc14ffc27cf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\utils">
+      <UniqueIdentifier>{16f57466-8880-4c24-918d-0ea63aa306b9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
