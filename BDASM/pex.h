@@ -731,6 +731,10 @@ public:
 		return false;
 	}
 
+	bool is_rva_in_iat(uint64_t rva)
+	{
+		return false;
+	}
 	// High level decomp/recomp routines
 	//
 	bool from_file(std::string const& file_path)

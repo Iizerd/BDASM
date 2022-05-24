@@ -77,6 +77,14 @@ struct decoder_context_t
 		return (rva < raw_data_size);
 	}
 };
+decoder_context_t* allocate_quick_decoder_context(uint8_t* data, uint32_t data_size)
+{
+	return new decoder_context_t(data, data_size, new symbol_table_t, new std::mutex);
+}
+void free_quick_decoder_context(decoder_context_t* context)
+{
+	delete context;
+}
 
 class decode_lookup_table
 {
@@ -185,6 +193,7 @@ class inst_routine_t
 					std::printf("\tBlock Count %llu, PrevBlockStart: 0x%016X PrevBlockEnd: 0x%016X\n", blocks.size(), std::prev(blocks.end())->start, std::prev(blocks.end())->end);*/
 				break;
 			}
+			std::printf("cat %s\n", xed_category_enum_t2str(xed_decoded_inst_get_category(&inst.decoded_inst)));
 
 			context->symbol_lock->lock();
 			inst.my_symbol = context->symbol_table->get_symbol_index_for_rva(symbol_flag::base, rva);
@@ -222,11 +231,13 @@ class inst_routine_t
 				case XED_IFORM_JMP_GPRv:
 					// Jump table.
 					//
-					break;
+
+					goto ExitInstDecodeLoop;
 				case XED_IFORM_JMP_MEMv:
 					// Import or jump to absolute address...
 					//
-					break;
+
+					goto ExitInstDecodeLoop;
 				case XED_IFORM_JMP_RELBRb:
 				case XED_IFORM_JMP_RELBRd:
 				case XED_IFORM_JMP_RELBRz:
@@ -247,14 +258,15 @@ class inst_routine_t
 					{
 						decode_block(context, dest_rva, lookup_table);
 					}
-					break;
+
+					goto ExitInstDecodeLoop;
 				}
 				case XED_IFORM_JMP_FAR_MEMp2:
 				case XED_IFORM_JMP_FAR_PTRp_IMMw:
 					std::printf("Jump we dont handle.\n");
-					break;
+
+					goto ExitInstDecodeLoop;
 				}
-				goto ExitInstDecodeLoop;
 			}
 			else if (cat == XED_CATEGORY_CALL && context->settings.recurse_calls)
 			{
@@ -298,7 +310,7 @@ class inst_routine_t
 					break;
 				}
 			}
-			else if (cat == XED_CATEGORY_RET || cat == XED_CATEGORY_INTERRUPT)
+			else if (cat == XED_CATEGORY_RET)
 			{
 				break;
 			}

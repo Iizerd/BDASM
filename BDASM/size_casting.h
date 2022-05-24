@@ -61,9 +61,10 @@ constexpr uint32_t __reg_enum_to_internal_id(xed_reg_enum_t reg)
 	case XED_REG_R14B: case XED_REG_R14W: case XED_REG_R14D: case XED_REG_R14: return 14;
 	case XED_REG_R15B: case XED_REG_R15W: case XED_REG_R15D: case XED_REG_R15: return 15;
 
-	case XED_REG_INVALID: case XED_REG_IP: case XED_REG_EIP: case XED_REG_RIP: return 16;
+	case XED_REG_IP: case XED_REG_EIP: case XED_REG_RIP: return 16;
+	default:
+		return XED_REG_INVALID;
 	}
-	return 17;
 }
 
 template<xed_reg_enum_t Register_enum, register_width Register_width>
