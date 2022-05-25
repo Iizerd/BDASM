@@ -70,35 +70,35 @@ int main(int argc, char** argv)
 	if (width == address_width::x86)
 	{
 		binary_ir_t<address_width::x86> binary;
-		if (!binary.load_from_raw_data(FileBuffer, FileLength))
+		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 	}
 	else if (width == address_width::x64)
 	{
 		binary_ir_t<address_width::x64> binary;
-		if (!binary.load_from_raw_data(FileBuffer, FileLength))
+		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 
-		binary.m_appended_sections.emplace_back(".TEST", 0, new uint8_t[0x1500], 0x1500);
+		std::printf("Appended %u\n", binary.append_section(".TEST2", 0x1234, 0xFFAAFFAA));
 		binary.to_file("C:\\$Fanta\\CV2\\x64\\Release\\CV22.exe");
 		return 1;
 
-		printf("Entry point %X\n", binary.m_optional_header.get_address_of_entry_point());
+		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
 		//system("pause");
 		//return -1;
 
 		std::mutex memelock;
-		decoder_context_t decode_context(binary.m_mapped_image, binary.m_optional_header.get_size_of_image(), &binary.m_symbol_table, &memelock);
+		decoder_context_t decode_context(binary.mapped_image, binary.optional_header.get_size_of_image(), &binary.m_symbol_table, &memelock);
 		decode_context.settings.recurse_calls = true;
 
 		dasm_t<address_width::x64, 1> dasm(&decode_context);
 		dasm.is_executable = std::bind(&binary_ir_t<address_width::x64>::is_rva_in_executable_section, &binary, std::placeholders::_1);
 
-		dasm.add_routine(binary.m_optional_header.get_address_of_entry_point());
+		dasm.add_routine(binary.optional_header.get_address_of_entry_point());
 
 	
-		for (image_runtime_function_it_t m_runtime_functions(reinterpret_cast<image_runtime_function_entry_t*>(binary.m_mapped_image + binary.m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
+		for (image_runtime_function_it_t m_runtime_functions(reinterpret_cast<image_runtime_function_entry_t*>(binary.mapped_image + binary.optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
 			!m_runtime_functions.is_null(); ++m_runtime_functions)
 		{
 			if (binary.is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
@@ -123,7 +123,7 @@ int main(int argc, char** argv)
 		dasm.print_details();
 		std::printf("it took %ums\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-		//x86_dasm_t<address_width::x64> dasm(FileBuffer, FileLength, &binary.m_symbol_table, binary.m_optional_header.get_image_base());
+		//x86_dasm_t<address_width::x64> dasm(FileBuffer, FileLength, &binary.m_symbol_table, binary.optional_header.get_image_base());
 		//dasm.set_malformed_functions(true);
 		//dasm.set_recurse_calls(true);
 		//dasm.set_max_thread_count(8);
