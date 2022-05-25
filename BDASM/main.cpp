@@ -22,29 +22,29 @@ int main(int argc, char** argv)
 
 	xed_tables_init();
 	
-	uint8_t marker_test[] = { 0x31, 0xC0, 0x90, 0xCC, 0xC6, 0xF8, 0xFF, 0xC6, 0xF8, 0xF8, 0x90, 0x31, 0xC0, 0x31, 0xC0, 0xC3 };
-	//uint8_t marker_test[] = { 0x31, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x31, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x31, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x90, 0xCC, 0xCC, 0x90 };
-	auto qcontext = allocate_quick_decoder_context(marker_test, sizeof(marker_test));
-	inst_routine_t routine;
-	routine.decode(qcontext, 0);
+	//uint8_t marker_test[] = { 0x31, 0xC0, 0x90, 0xCC, 0xC6, 0xF8, 0xFF, 0xC6, 0xF8, 0xF8, 0x90, 0x31, 0xC0, 0x31, 0xC0, 0xC3 };
+	////uint8_t marker_test[] = { 0x31, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x31, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x31, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x90, 0xCC, 0xCC, 0x90 };
+	//auto qcontext = allocate_quick_decoder_context(marker_test, sizeof(marker_test));
+	//inst_routine_t routine;
+	//routine.decode(qcontext, 0);
 
-	auto& block = routine.blocks.front();
-	auto start = find_begin_marker(block.instructions);
-	if (start != block.instructions.end())
-	{
-		auto [attributes, settings] = get_begin_data(start);
-		std::printf("First thing %s %X %X\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&start->decoded_inst)), attributes, settings);
-	}
-	else
-	{
-		std::printf("Failed to find.\n");
-	}
+	//auto& block = routine.blocks.front();
+	//auto start = find_begin_marker(block.instructions);
+	//if (start != block.instructions.end())
+	//{
+	//	auto [attributes, settings] = get_begin_data(start);
+	//	std::printf("First thing %s %X %X\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&start->decoded_inst)), attributes, settings);
+	//}
+	//else
+	//{
+	//	std::printf("Failed to find.\n");
+	//}
 
-	std::printf("decoded with %llu instructions.\n", routine.blocks.front().instructions.size());
+	//std::printf("decoded with %llu instructions.\n", routine.blocks.front().instructions.size());
 
 
-	system("pause");
-	return 0;
+	//system("pause");
+	//return 0;
 	std::string binary_path = image_name;
 
 	if (argc == 2)
@@ -78,6 +78,10 @@ int main(int argc, char** argv)
 		binary_ir_t<address_width::x64> binary;
 		if (!binary.load_from_raw_data(FileBuffer, FileLength))
 			printf("failed.\n");
+
+		binary.m_appended_sections.emplace_back(".TEST", 0, new uint8_t[0x1500], 0x1500);
+		binary.to_file("C:\\$Fanta\\CV2\\x64\\Release\\CV22.exe");
+		return 1;
 
 		printf("Entry point %X\n", binary.m_optional_header.get_address_of_entry_point());
 

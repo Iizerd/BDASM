@@ -15,7 +15,6 @@ bool is_begin_marker(inst_it_t<Addr_width> it)
 		XED_ICLASS_XABORT != xed_decoded_inst_get_iclass(&(++it)->decoded_inst) ||
 		XED_ICLASS_NOP != xed_decoded_inst_get_iclass(&(++it)->decoded_inst))
 		return false;
-
 	return true;
 }
 
@@ -32,7 +31,7 @@ inst_it_t<Addr_width> find_begin_marker(inst_list_t<Addr_width>& list)
 	{
 		if (is_begin_marker(it))
 			return it;
-		it = std::next(it);
+		++it;/* = std::next(it);*/
 		--search_length;
 	}
 	return list.end();
@@ -66,7 +65,7 @@ inst_it_t<Addr_width> find_end_marker(inst_list_t<Addr_width>& list)
 	{
 		if (is_end_marker(it))
 			return it;
-		it = std::prev(it);
+		--it;/* = std::prev(it);*/
 		--search_length;
 	}
 	return list.end();

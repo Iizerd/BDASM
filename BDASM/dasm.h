@@ -193,7 +193,6 @@ class inst_routine_t
 					std::printf("\tBlock Count %llu, PrevBlockStart: 0x%016X PrevBlockEnd: 0x%016X\n", blocks.size(), std::prev(blocks.end())->start, std::prev(blocks.end())->end);*/
 				break;
 			}
-			std::printf("cat %s\n", xed_category_enum_t2str(xed_decoded_inst_get_category(&inst.decoded_inst)));
 
 			context->symbol_lock->lock();
 			inst.my_symbol = context->symbol_table->get_symbol_index_for_rva(symbol_flag::base, rva);
@@ -333,6 +332,8 @@ class inst_routine_t
 public:
 	std::list<inst_block_t<Addr_width> > blocks;
 
+	uint64_t start;
+	uint64_t end;
 	void decode(decoder_context_t* context, uint64_t rva)
 	{
 		if (!context->validate_rva(rva))

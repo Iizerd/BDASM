@@ -20,16 +20,18 @@
 //
 #define MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START	(1 << 2)
 
-// Same as above, but extends the group to the end instead.
+// Same as above, but extends the group to the end of the function instead.
 // 
 #define MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END		(1 << 3)
 
 // Tells the obfuscator that the entire function the BDASM_Begin appears
 // in is to be treated as one group and obfuscated.
-// This will ignore BDASM_End macros so you dont need to put one.
+// This will ignore BDASM_End macros so you dont need to place one.
 // Implies MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START and MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END
 // 
-#define MARKER_ATTRIBUTE_ENTIRE_FUNCTION		((1<<4) | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END)
+#define MARKER_ATTRIBUTE_ENTIRE_FUNCTION		((1 << 4) | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END)
+
+
 
 
 
