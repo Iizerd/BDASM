@@ -8,11 +8,11 @@
 	//
 	inline std::pair<uint32_t, uint32_t> rva_to_section_and_offset(uint32_t rva)
 	{
-		for (uint32_t i = 0; i < m_sections.size(); i++)
+		for (uint32_t i = 0; i < section_headers.size(); i++)
 		{
-			uint32_t section_virt_addr = m_sections[i].get_virtual_address();
+			uint32_t section_virt_addr = section_headers[i].get_virtual_address();
 
-			if ((rva >= section_virt_addr && rva < section_virt_addr + m_sections[i].get_size_of_raw_data()))
+			if ((rva >= section_virt_addr && rva < section_virt_addr + section_headers[i].get_size_of_raw_data()))
 			{
 				return { i, rva - section_virt_addr };
 			}
@@ -22,7 +22,7 @@
 
 	inline uint32_t section_and_offset_to_raw_data(std::pair<uint32_t, uint32_t> const& section_and_offset)
 	{
-		return m_sections[section_and_offset.first].get_pointer_to_raw_data() + section_and_offset.second;
+		return section_headers[section_and_offset.first].get_pointer_to_raw_data() + section_and_offset.second;
 	}
 
 	template<typename Ptr_type>
@@ -33,7 +33,7 @@
 
 	std::pair<uint32_t, uint32_t> data_dir_to_section_offset(uint32_t data_dir_enum)
 	{
-		data_dir_it_t data_dir = m_optional_header.get_data_directory(data_dir_enum);
+		data_dir_it_t data_dir = optional_header.get_data_directory(data_dir_enum);
 		if (!data_dir.get() || !data_dir.get_size() || !data_dir.get_virtual_address())
 			return { 0, 0 };
 

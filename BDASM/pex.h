@@ -681,43 +681,39 @@ template <address_width Addr_width = address_width::x64>
 class binary_ir_t
 {
 public:
+	uint8_t* mapped_image;
+
 	symbol_table_t m_symbol_table;
 
 	// Header interfaces
 	//
-	dos_header_it_t m_dos_header;
-	file_header_it_t m_file_header;
-	optional_header_it_t<Addr_width> m_optional_header;
+	dos_header_it_t dos_header;
+	file_header_it_t file_header;
+	optional_header_it_t<Addr_width> optional_header;
 
 	// These are the sections header interfaces from the original binary.
 	//
-	std::vector<image_section_header_it_t> m_sections;
-
-	// Sections that will be appended when this is converted back to a file.
-	//
-	std::vector<appended_section_t> m_appended_sections;
+	std::vector<image_section_header_it_t> section_headers;
 
 	std::vector<import_module_t<Addr_width>> m_imports;
 	exports_t m_exports;
 
-	uint8_t* m_mapped_image;
-
 	template<typename Ptr_type>
 	Ptr_type* rva_as(uint32_t rva)
 	{
-		return reinterpret_cast<Ptr_type*>(m_mapped_image + rva);
+		return reinterpret_cast<Ptr_type*>(mapped_image + rva);
 	}
 public:
 	binary_ir_t()
-	: m_optional_header(nullptr),
-		m_file_header(nullptr),
-		m_dos_header(nullptr)
+	: optional_header(nullptr),
+		file_header(nullptr),
+		dos_header(nullptr)
 	{}
 	~binary_ir_t() {}
 
 	bool is_rva_in_executable_section(uint64_t rva)
 	{
-		for (auto& section : m_sections)
+		for (auto& section : section_headers)
 		{
 			if (auto virt_addr = section.get_virtual_address(); 
 				rva >= virt_addr && 
@@ -736,9 +732,131 @@ public:
 		return false;
 	}
 
+	void update_header_iterators(uint8_t* base)
+	{
+		dos_header.set(base);
+		file_header.set(base + dos_header.get_lfanew() + sizeof uint32_t);
+		optional_header.set(base + dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
 
-	// High level decomp/recomp routines
-	//
+		uint8_t* section_header_base = (uint8_t*)optional_header.get() + file_header.get_size_of_optional_header();
+		for (uint32_t i = 0; i < file_header.get_number_of_sections(); i++)
+		{
+			section_headers[i].set(section_header_base + (i * sizeof image_section_header_t));
+		}
+	}
+
+	uint32_t get_max_virt_addr()
+	{
+		uint32_t max_addr = 0;
+		for (auto& sec : section_headers)
+		{
+			if (uint32_t sec_end = sec.get_virtual_address() + sec.get_virtual_size(); sec_end > max_addr)
+				max_addr = sec_end;
+		}
+		return max_addr;
+	}
+	uint32_t get_max_file_addr()
+	{
+		uint32_t max_addr = 0;
+		for (auto& sec : section_headers)
+		{
+			if (uint32_t sec_end = sec.get_pointer_to_raw_data() + sec.get_size_of_raw_data(); sec_end > max_addr)
+				max_addr = sec_end;
+		}
+		return max_addr;
+	}
+	uint32_t get_lowest_section_start()
+	{
+		uint32_t min_addr = section_headers.front().get_pointer_to_raw_data();
+		for (auto& sec : section_headers)
+		{
+			if (uint32_t sec_start = sec.get_pointer_to_raw_data(); sec_start < min_addr)
+				min_addr = sec_start;
+		}
+		return min_addr;
+	}
+
+	uint32_t append_section(std::string const& name, uint32_t section_size, uint32_t characteristics, bool is_code = false, bool is_idata = false, bool is_udata = false)
+	{
+		// Make sure there is enough space to append another header.
+		//
+		if (align_up(
+			dos_header.get_lfanew() +
+			sizeof uint32_t +
+			sizeof image_file_header_t +
+			file_header.get_size_of_optional_header() +
+			sizeof image_section_header_t * (file_header.get_number_of_sections() + 1),
+			optional_header.get_file_alignment()) > get_lowest_section_start()
+			)
+			return 0;
+
+		auto last_section = section_headers.back();
+		uint32_t virt_addr = align_up(get_max_virt_addr(), optional_header.get_section_alignment());
+		uint32_t virt_size = section_size;
+		uint32_t aligned_virt_size = align_up(virt_size, optional_header.get_section_alignment());
+
+		uint32_t file_addr = align_up(get_max_file_addr(), optional_header.get_file_alignment());
+		uint32_t file_size = align_up(section_size, optional_header.get_file_alignment());
+
+		uint8_t* new_mapped_image = new uint8_t[optional_header.get_size_of_image() + align_up(virt_size, optional_header.get_section_alignment())];
+		std::memcpy(new_mapped_image, mapped_image, optional_header.get_size_of_image());
+		delete[] mapped_image;
+		mapped_image = new_mapped_image;
+
+		update_header_iterators(mapped_image);
+
+		// Allocate new section header and increment section count
+		uint32_t section_count = file_header.get_number_of_sections();
+		section_headers.emplace_back(section_headers.front().get() + section_count);
+		file_header.set_number_of_sections(section_count + 1);
+
+		// Update sizes in headers
+		//
+		optional_header.set_size_of_image(optional_header.get_size_of_image() + aligned_virt_size);
+
+		optional_header.set_size_of_headers(align_up(
+			dos_header.get_lfanew() +
+			sizeof uint32_t +
+			sizeof image_file_header_t +
+			file_header.get_size_of_optional_header() +
+			sizeof image_section_header_t * file_header.get_number_of_sections(),
+			optional_header.get_file_alignment()
+		));
+
+		// Tested and these are ignored by loader, I think they were used to create the sections cs ds at some point? no clue.
+		//
+		if (is_code)
+			optional_header.set_size_of_code(optional_header.get_size_of_code() + aligned_virt_size);
+		else if (is_idata)
+			optional_header.set_size_of_initialized_data(optional_header.get_size_of_initialized_data() + aligned_virt_size);
+		else if (is_udata)
+			optional_header.set_size_of_uninitialized_data(optional_header.get_size_of_uninitialized_data() + aligned_virt_size);
+
+
+		// Update the section header
+		//
+		auto& cur_section = section_headers.back();
+		for (uint8_t i = 0; i < 8; i++)
+		{
+			if (i < name.size())
+				cur_section.get()->Name[i] = name[i];
+			else
+				cur_section.get()->Name[i] = 0;
+		}
+		cur_section.set_pointer_to_raw_data(file_addr);
+		cur_section.set_size_of_raw_data(file_size);
+		cur_section.set_virtual_address(virt_addr);
+		cur_section.set_virtual_size(virt_size);
+		cur_section.set_characteristics(characteristics);
+
+		cur_section.set_pointer_to_relocations(0);
+		cur_section.set_number_of_relocations(0);
+		cur_section.set_pointer_to_line_numbers(0);
+		cur_section.set_number_of_line_numbers(0);
+
+		return virt_addr;
+	}
+
 	bool from_file(std::string const& file_path)
 	{
 		if (!std::filesystem::exists(file_path))
@@ -761,7 +879,7 @@ public:
 		file.read((PCHAR)data, file_size);
 		file.close();
 
-		bool ret = load_from_raw_data(data, file_size);
+		bool ret = map_image(data, file_size);
 
 		return ret;
 	}
@@ -773,34 +891,34 @@ public:
 
 		std::printf("wrote it.\n");
 		uint32_t data_size = 0;
-		uint8_t* data = store_to_raw_data(data_size);
+		uint8_t* data = unmap_image(data_size);
 		
 		file.write((char*)data, data_size);
 		file.close();
 
 		return true;
 	}
-	bool load_from_raw_data(uint8_t* image_base, uint32_t image_size)
+	bool map_image(uint8_t* image_base, uint32_t image_size)
 	{
 		if (image_size < sizeof image_dos_header_t)
 			return false;
 
-		m_dos_header.set(image_base);
-		if (m_dos_header.get_magic() != IMAGE_DOS_SIGNATURE)
+		dos_header.set(image_base);
+		if (dos_header.get_magic() != IMAGE_DOS_SIGNATURE)
 			return false;
 
-		uint8_t* new_header_addr = image_base + m_dos_header.get_lfanew();
+		uint8_t* new_header_addr = image_base + dos_header.get_lfanew();
 
-		if (image_size < m_dos_header.get_lfanew() + sizeof image_nt_headers64_t ||
+		if (image_size < dos_header.get_lfanew() + sizeof image_nt_headers64_t ||
 			*(uint32_t*)new_header_addr != IMAGE_NT_SIGNATURE)
 			return false;
 
-		m_file_header.set(new_header_addr + sizeof uint32_t);
+		file_header.set(new_header_addr + sizeof uint32_t);
 
-		m_optional_header.set(new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
+		optional_header.set(new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
 
-		if ((m_optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != address_width::x86) ||
-			(m_optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != address_width::x64))
+		if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != address_width::x86) ||
+			(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != address_width::x64))
 			return false;
 
 
@@ -808,15 +926,15 @@ public:
 		//
 		{
 			image_section_header_it_t section_header_interface(reinterpret_cast<image_section_header_t*>(
-				new_header_addr + offsetof(image_nt_headers64_t, OptionalHeader) + m_file_header.get_size_of_optional_header()));
+				new_header_addr + offsetof(image_nt_headers64_t, OptionalHeader) + file_header.get_size_of_optional_header()));
 
-			for (uint16_t i = 0; i < m_file_header.get_number_of_sections(); ++i)
+			for (uint16_t i = 0; i < file_header.get_number_of_sections(); ++i)
 			{
-				m_sections.emplace_back(section_header_interface[i]);
+				section_headers.emplace_back(section_header_interface[i]);
 			}
 		}
 
-		if (!m_sections.size())
+		if (!section_headers.size())
 		{
 			std::printf("Image has no sections.\n");
 			return false;
@@ -826,33 +944,32 @@ public:
 		// This will replace all of this above section nonsense
 		//
 		{
-			m_mapped_image = new uint8_t[m_optional_header.get_size_of_image()];
+			mapped_image = new uint8_t[optional_header.get_size_of_image()];
 
 			// Copy the headers over.
 			//
-			std::memcpy(m_mapped_image, image_base, m_optional_header.get_size_of_headers());
+			std::memcpy(mapped_image, image_base, optional_header.get_size_of_headers());
 
 			// Update the header iterators.
 			//
-			m_dos_header.set(m_mapped_image);
-			m_file_header.set(m_mapped_image + m_dos_header.get_lfanew() + sizeof uint32_t);
-			m_optional_header.set(m_mapped_image + m_dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
+			dos_header.set(mapped_image);
+			file_header.set(mapped_image + dos_header.get_lfanew() + sizeof uint32_t);
+			optional_header.set(mapped_image + dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
 
 			// Map the sections
 			//
-			for (auto& section : m_sections)
+			for (auto& section : section_headers)
 			{
-				std::printf("Mapping image section at %X of size %X to %X\n", section.get_pointer_to_raw_data(), section.get_size_of_raw_data(), section.get_virtual_address());
-				std::memcpy(m_mapped_image + section.get_virtual_address(), image_base + section.get_pointer_to_raw_data(), section.get_size_of_raw_data());
+				std::memcpy(mapped_image + section.get_virtual_address(), image_base + section.get_pointer_to_raw_data(), section.get_size_of_raw_data());
 			}
 		}
 
 
 		// Fill normal imports
 		//
-		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_size())
+		if (optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_size())
 		{
-			for (image_import_descriptor_it_t import_descriptor_interface(rva_as<image_import_descriptor_t>(m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_virtual_address()));
+			for (image_import_descriptor_it_t import_descriptor_interface(rva_as<image_import_descriptor_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_virtual_address()));
 				!import_descriptor_interface.is_null(); ++import_descriptor_interface)
 			{
 				m_imports.emplace_back(rva_as<char>(import_descriptor_interface.get_name()));
@@ -864,7 +981,7 @@ public:
 				{
 					uint32_t symbol_index = m_symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_import,
-						static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - m_mapped_image));
+						static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - mapped_image));
 
 					if (!thunk_data_interface.is_ordinal())
 					{
@@ -889,19 +1006,19 @@ public:
 			
 		}
 
-		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT).get_size())
+		if (optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT).get_size())
 		{
 			std::printf("Found delay load data dir.\n");
 		}
 
-		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT).get_size())
+		if (optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT).get_size())
 		{
 			std::printf("Found bound data dir.\n");
 		}
 
-		if (m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_size())
+		if (optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_size())
 		{
-			image_export_directory_it_t export_dir(rva_as<image_export_dir_t>(m_optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_virtual_address()));
+			image_export_directory_it_t export_dir(rva_as<image_export_dir_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_virtual_address()));
 
 			uint32_t* name_address_table = rva_as<uint32_t>(export_dir.get_address_of_names());
 			uint32_t* export_address_table = rva_as<uint32_t>(export_dir.get_address_of_functions());
@@ -949,82 +1066,29 @@ public:
 
 		return true;
 	}
-	uint8_t* store_to_raw_data(uint32_t& raw_image_size)
+	uint8_t* unmap_image(uint32_t& raw_image_size)
 	{
-		raw_image_size = 0;
-
-		for (auto& sec : m_sections)
-		{
-			if (uint32_t sec_end = sec.get_pointer_to_raw_data() + sec.get_size_of_raw_data(); sec_end > raw_image_size)
-				raw_image_size = sec_end;
-		}
-
-		// Add size needed to hold all the appended sections.
-		//
-		for (auto& sec : m_appended_sections)
-		{
-			raw_image_size += align_up(sec.raw_data_size, m_optional_header.get_file_alignment());
-		}
+		raw_image_size = get_max_file_addr();
 
 		uint8_t* output_image = new uint8_t[raw_image_size];
 
 		// Copy default headers
 		//
-		std::memcpy(output_image, m_mapped_image, m_optional_header.get_size_of_headers());
+		std::memcpy(output_image, mapped_image, optional_header.get_size_of_headers());
 
 		// Remap iterators to this output
 		//
-		m_dos_header.set(output_image);
-		m_file_header.set(output_image + m_dos_header.get_lfanew() + sizeof uint32_t);
-		m_optional_header.set(output_image + m_dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
+		dos_header.set(output_image);
+		file_header.set(output_image + dos_header.get_lfanew() + sizeof uint32_t);
+		optional_header.set(output_image + dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
 
-
-		// Copy default sections
+		// Copy sections
 		//
-		for (auto& sec : m_sections)
+		for (auto& sec : section_headers)
 		{
-			std::memcpy(output_image + sec.get_pointer_to_raw_data(), m_mapped_image + sec.get_virtual_address(), sec.get_size_of_raw_data());
+			std::memcpy(output_image + sec.get_pointer_to_raw_data(), mapped_image + sec.get_virtual_address(), sec.get_size_of_raw_data());
 		}
 
-		image_section_header_it_t last_section_it(reinterpret_cast<image_section_header_t*>(output_image +
-			m_dos_header.get_lfanew() +
-			sizeof uint32_t +
-			sizeof image_file_header_t +
-			m_file_header.get_size_of_optional_header() + sizeof image_section_header_t * (m_file_header.get_number_of_sections() - 1)));
-		
-		for (image_section_header_it_t cur_section_it(last_section_it); auto& sec : m_appended_sections)
-		{
-			++cur_section_it;
-			cur_section_it.set_pointer_to_raw_data(last_section_it.get_pointer_to_raw_data() + last_section_it.get_size_of_raw_data());
-			cur_section_it.set_size_of_raw_data(align_up(sec.raw_data_size, m_optional_header.get_file_alignment()));
-			cur_section_it.set_virtual_address(align_up(last_section_it.get_virtual_address() + last_section_it.get_virtual_size(), m_optional_header.get_section_alignment()));
-			cur_section_it.set_virtual_size(sec.raw_data_size);
-			cur_section_it.set_characteristics(sec.characteristics);
-
-			cur_section_it.set_pointer_to_relocations(0);
-			cur_section_it.set_number_of_relocations(0);
-			cur_section_it.set_pointer_to_line_numbers(0);
-			cur_section_it.set_number_of_line_numbers(0);
-
-			std::memcpy(cur_section_it.get()->Name, sec.name, IMAGE_SIZEOF_SHORT_NAME);
-
-			m_optional_header.set_size_of_image(align_up(cur_section_it.get_virtual_address() + cur_section_it.get_virtual_size(), m_optional_header.get_section_alignment()));
-			m_file_header.set_number_of_sections(m_file_header.get_number_of_sections() + 1);
-			
-			m_optional_header.set_size_of_headers(align_up(m_dos_header.get_lfanew() +
-				sizeof uint32_t +
-				sizeof image_file_header_t +
-				m_file_header.get_size_of_optional_header() +
-				sizeof image_section_header_t * m_file_header.get_number_of_sections()
-				, m_optional_header.get_file_alignment())
-			);
-
-			// Things to consider...
-			// There might not be enough space for the next section header(very unlikely)
-			//
-
-			++last_section_it;
-		}
 		return output_image;
 	}
 
