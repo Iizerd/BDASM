@@ -22,10 +22,9 @@ namespace symbol_flag
 	constexpr type key_mask = (1 << 0);
 
 
-	// An instruction or other isntrument set this symbol after final placement and the address is valid.
-	// If this isn't set upon recompilation... something is very wrong.
+	// This symbol was placed and given an updated rva
 	//
-	constexpr type valid = (1 << 1);
+	constexpr type placed = (1 << 1);
 
 
 	// The type descriptor for debug purposes i think...
@@ -125,9 +124,9 @@ public:
 	{
 		return m_entries[symbol_index];
 	}
-	finline void set_sym_addr_and_valid(uint32_t symbol_index, uint64_t address)
+	finline void set_sym_addr_and_placed(uint32_t symbol_index, uint64_t address)
 	{
 		m_entries[symbol_index].rva = address;
-		m_entries[symbol_index].flags |= symbol_flag::valid;
+		m_entries[symbol_index].flags |= symbol_flag::placed;
 	}
 };

@@ -1,5 +1,8 @@
 #pragma once
 
+// Did you know that pex looks like xed if it was flipped upside down?
+//
+
 #include <Windows.h>
 #include <string_view>
 #include <string>
@@ -11,8 +14,10 @@
 #include <set>
 #include <type_traits>
 
+#include "traits.h"
 #include "addr_width.h"
 #include "symbol.h"
+#include "align.h"
 
 typedef IMAGE_DOS_HEADER image_dos_header_t;
 typedef IMAGE_FILE_HEADER image_file_header_t;
@@ -38,7 +43,7 @@ typedef IMAGE_RUNTIME_FUNCTION_ENTRY image_runtime_function_entry_t;
 
 typedef std::vector<uint8_t> byte_vector;
 
-#define _DEFINE_GETTER_PROTO(_Sd, _Sn, _ItemName, _RealName) [[nodiscard]] __forceinline decltype(_Sd::_ItemName) get_##_RealName##() const
+#define _DEFINE_GETTER_PROTO(_Sd, _Sn, _ItemName, _RealName) ndiscard __forceinline decltype(_Sd::_ItemName) get_##_RealName##() const
 #define _DEFINE_SETTER_PROTO(_Sd, _Sn, _ItemName, _RealName) __forceinline void set_##_RealName##(decltype(_Sd::_ItemName) value)
 
 #define _DEFINE_GETTER(_Sd, _Sn, _ItemName, _RealName) \
@@ -46,7 +51,10 @@ typedef std::vector<uint8_t> byte_vector;
 #define _DEFINE_SETTER(_Sd, _Sn, _ItemName, _RealName) \
 	_DEFINE_SETTER_PROTO(_Sd, _Sn, _ItemName, _RealName) { _Sn##_ItemName = value; }
 
-template <typename Class_type, typename it_type>
+// Is this really an iterators?
+// I think not, come up with a better name.
+//
+template <typename Class_type, typename It_type>
 class base_it_t
 {
 	base_it_t()
@@ -76,32 +84,37 @@ public:
 	{
 		return m_pdata;
 	}
-	uint8_t get_byte_ptr()
+	void set(void* ptr)
+	{
+		m_pdata = reinterpret_cast<Class_type*>(ptr);
+	}
+	uint8_t* get_byte_ptr()
 	{
 		return reinterpret_cast<uint8_t*>(m_pdata);
 	}
-	it_type& operator++()
+	It_type& operator++()
 	{
 		++m_pdata;
-		return *static_cast<it_type*>(this);
+		return *static_cast<It_type*>(this);
 	}
-	[[nodiscard]] it_type operator++(int)
+	ndiscard It_type operator++(int)
 	{
-		return it_type(m_pdata++);
+		return It_type(m_pdata++);
 	}
-	it_type operator--()
+	It_type operator--()
 	{
 		--m_pdata;
-		return *static_cast<it_type*>(this);
+		return *static_cast<It_type*>(this);
 	}
-	[[nodiscard]] it_type operator--(int)
+	ndiscard It_type operator--(int)
 	{
-		return it_type(m_pdata--);
+		return It_type(m_pdata--);
 	}
-	it_type operator[](uint32_t index)
+	It_type operator[](uint32_t index)
 	{
-		return it_type(m_pdata + index);
+		return It_type(m_pdata + index);
 	}
+
 };
 
 #define _DATA_DIR_ITEM_LIST(_Sd, _Sn, _M)          \
@@ -116,7 +129,7 @@ public:
 	data_dir_it_t(image_data_dir_t* raw_data)
 		: base_it_t(raw_data) {}
 	_DATA_DIR_ITEM_LIST(image_data_dir_t, this->m_pdata->, _DEFINE_GETTER)
-		_DATA_DIR_ITEM_LIST(image_data_dir_t, this->m_pdata->, _DEFINE_SETTER)
+	_DATA_DIR_ITEM_LIST(image_data_dir_t, this->m_pdata->, _DEFINE_SETTER)
 };
 
 
@@ -647,6 +660,22 @@ public:
 	}
 };
 
+class appended_section_t
+{
+public:
+	uint32_t characteristics;
+	uint8_t name[IMAGE_SIZEOF_SHORT_NAME];
+
+	uint32_t raw_data_size;
+	uint8_t* raw_data;
+	explicit appended_section_t(std::string const& nm, uint32_t chars, uint8_t* rd, uint32_t rds)
+		: characteristics(chars), raw_data(rd), raw_data_size(rds)
+	{
+		for (uint32_t i = 0; i < 8 && i < nm.length(); i++)
+			name[i] = nm[i];
+	}
+};
+
 
 template <address_width Addr_width = address_width::x64>
 class binary_ir_t
@@ -656,55 +685,22 @@ public:
 
 	// Header interfaces
 	//
-	dos_header_rep_t m_dos_header;
-	file_header_rep_t m_file_header;
-	optional_header_rep_t<Addr_width> m_optional_header;
+	dos_header_it_t m_dos_header;
+	file_header_it_t m_file_header;
+	optional_header_it_t<Addr_width> m_optional_header;
 
 	// These are the sections header interfaces from the original binary.
-	std::vector<section_header_rep_t> m_sections;
+	//
+	std::vector<image_section_header_it_t> m_sections;
+
+	// Sections that will be appended when this is converted back to a file.
+	//
+	std::vector<appended_section_t> m_appended_sections;
 
 	std::vector<import_module_t<Addr_width>> m_imports;
 	exports_t m_exports;
 
-	uint8_t* m_raw_data;
 	uint8_t* m_mapped_image;
-
-	// Pretty neat, the dbghelp.dll version ImageDirectoryEntryToDataEx is implemented the exact way i thought to implement this.
-	// This returns a pointer to the section within the _default_sections list and the offset within where the directory lies.
-	//
-	inline std::pair<uint32_t, uint32_t> rva_to_section_and_offset(uint32_t rva)
-	{
-		for (uint32_t i = 0; i < m_sections.size(); i++)
-		{
-			uint32_t section_virt_addr = m_sections[i].get_virtual_address();
-
-			if ((rva >= section_virt_addr && rva < section_virt_addr + m_sections[i].get_size_of_raw_data()))
-			{
-				return { i, rva - section_virt_addr };
-			}
-		}
-		return { 0, 0 };
-	}
-
-	inline uint32_t section_and_offset_to_raw_data(std::pair<uint32_t, uint32_t> const& section_and_offset)
-	{
-		return m_sections[section_and_offset.first].get_pointer_to_raw_data() + section_and_offset.second;
-	}
-
-	template<typename Ptr_type>
-	Ptr_type* section_and_offset_to_raw_data(uint8_t* image_base, std::pair<uint32_t, uint32_t> const& section_and_offset)
-	{
-		return reinterpret_cast<Ptr_type*>(image_base + section_and_offset_to_raw_data(section_and_offset));
-	}
-
-	std::pair<uint32_t, uint32_t> data_dir_to_section_offset(uint32_t data_dir_enum)
-	{
-		data_dir_it_t data_dir = m_optional_header.get_data_directory(data_dir_enum);
-		if (!data_dir.get() || !data_dir.get_size() || !data_dir.get_virtual_address())
-			return { 0, 0 };
-
-		return rva_to_section_and_offset(data_dir.get_virtual_address());
-	}
 
 	template<typename Ptr_type>
 	Ptr_type* rva_as(uint32_t rva)
@@ -712,7 +708,11 @@ public:
 		return reinterpret_cast<Ptr_type*>(m_mapped_image + rva);
 	}
 public:
-	binary_ir_t() {}
+	binary_ir_t()
+	: m_optional_header(nullptr),
+		m_file_header(nullptr),
+		m_dos_header(nullptr)
+	{}
 	~binary_ir_t() {}
 
 	bool is_rva_in_executable_section(uint64_t rva)
@@ -735,6 +735,8 @@ public:
 	{
 		return false;
 	}
+
+
 	// High level decomp/recomp routines
 	//
 	bool from_file(std::string const& file_path)
@@ -765,37 +767,44 @@ public:
 	}
 	bool to_file(std::string const& file_path)
 	{
-		return false;
+		std::ofstream file(file_path, std::ios::binary);
+		if (!file.good())
+			return false;
+
+		std::printf("wrote it.\n");
+		uint32_t data_size = 0;
+		uint8_t* data = store_to_raw_data(data_size);
+		
+		file.write((char*)data, data_size);
+		file.close();
+
+		return true;
 	}
 	bool load_from_raw_data(uint8_t* image_base, uint32_t image_size)
 	{
-		m_raw_data = image_base;
-
 		if (image_size < sizeof image_dos_header_t)
 			return false;
 
-		m_dos_header.copy_from_data(
-			m_raw_data);
+		m_dos_header.set(image_base);
 		if (m_dos_header.get_magic() != IMAGE_DOS_SIGNATURE)
 			return false;
 
-		uint8_t* new_header_addr = m_raw_data + m_dos_header.get_lfanew();
+		uint8_t* new_header_addr = image_base + m_dos_header.get_lfanew();
 
 		if (image_size < m_dos_header.get_lfanew() + sizeof image_nt_headers64_t ||
 			*(uint32_t*)new_header_addr != IMAGE_NT_SIGNATURE)
 			return false;
 
-		m_file_header.copy_from_data(
-			new_header_addr + sizeof uint32_t);
-		m_optional_header.copy_from_data(
-			new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
+		m_file_header.set(new_header_addr + sizeof uint32_t);
+
+		m_optional_header.set(new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
 
 		if ((m_optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != address_width::x86) ||
 			(m_optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != address_width::x64))
 			return false;
 
 
-		// Enumerate all sections and copy their data.
+		// Enumerate all sections
 		//
 		{
 			image_section_header_it_t section_header_interface(reinterpret_cast<image_section_header_t*>(
@@ -813,16 +822,28 @@ public:
 			return false;
 		}
 
-		// Build the loaded image thing. where sections are at their real rvas
+		// Build the mapped image. Where sections are at their real rvas
 		// This will replace all of this above section nonsense
 		//
 		{
 			m_mapped_image = new uint8_t[m_optional_header.get_size_of_image()];
 
+			// Copy the headers over.
+			//
+			std::memcpy(m_mapped_image, image_base, m_optional_header.get_size_of_headers());
+
+			// Update the header iterators.
+			//
+			m_dos_header.set(m_mapped_image);
+			m_file_header.set(m_mapped_image + m_dos_header.get_lfanew() + sizeof uint32_t);
+			m_optional_header.set(m_mapped_image + m_dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
+
+			// Map the sections
+			//
 			for (auto& section : m_sections)
 			{
 				std::printf("Mapping image section at %X of size %X to %X\n", section.get_pointer_to_raw_data(), section.get_size_of_raw_data(), section.get_virtual_address());
-				std::memcpy(m_mapped_image + section.get_virtual_address(), m_raw_data + section.get_pointer_to_raw_data(), section.get_size_of_raw_data());
+				std::memcpy(m_mapped_image + section.get_virtual_address(), image_base + section.get_pointer_to_raw_data(), section.get_size_of_raw_data());
 			}
 		}
 
@@ -843,7 +864,7 @@ public:
 				{
 					uint32_t symbol_index = m_symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_import,
-						static_cast<uint32_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - m_raw_data));
+						static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - m_mapped_image));
 
 					if (!thunk_data_interface.is_ordinal())
 					{
@@ -925,25 +946,87 @@ public:
 
 		// USE SEH TABLES TO FIND FUNCTIONS.
 
-		//auto [code_section_idx, code_addr_in_section] = rva_to_section_and_offset(m_optional_header.get_base_of_code());
-		//uint8_t* base_of_code_addr = section_and_offset_to_raw_data<uint8_t>(m_raw_data, { code_section_idx, code_addr_in_section });
-
-
 
 		return true;
 	}
-	bool to_memory(uint8_t* image_base, uint32_t data_size)
+	uint8_t* store_to_raw_data(uint32_t& raw_image_size)
 	{
-		return false;
+		raw_image_size = 0;
+
+		for (auto& sec : m_sections)
+		{
+			if (uint32_t sec_end = sec.get_pointer_to_raw_data() + sec.get_size_of_raw_data(); sec_end > raw_image_size)
+				raw_image_size = sec_end;
+		}
+
+		// Add size needed to hold all the appended sections.
+		//
+		for (auto& sec : m_appended_sections)
+		{
+			raw_image_size += align_up(sec.raw_data_size, m_optional_header.get_file_alignment());
+		}
+
+		uint8_t* output_image = new uint8_t[raw_image_size];
+
+		// Copy default headers
+		//
+		std::memcpy(output_image, m_mapped_image, m_optional_header.get_size_of_headers());
+
+		// Remap iterators to this output
+		//
+		m_dos_header.set(output_image);
+		m_file_header.set(output_image + m_dos_header.get_lfanew() + sizeof uint32_t);
+		m_optional_header.set(output_image + m_dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
+
+
+		// Copy default sections
+		//
+		for (auto& sec : m_sections)
+		{
+			std::memcpy(output_image + sec.get_pointer_to_raw_data(), m_mapped_image + sec.get_virtual_address(), sec.get_size_of_raw_data());
+		}
+
+		image_section_header_it_t last_section_it(reinterpret_cast<image_section_header_t*>(output_image +
+			m_dos_header.get_lfanew() +
+			sizeof uint32_t +
+			sizeof image_file_header_t +
+			m_file_header.get_size_of_optional_header() + sizeof image_section_header_t * (m_file_header.get_number_of_sections() - 1)));
+		
+		for (image_section_header_it_t cur_section_it(last_section_it); auto& sec : m_appended_sections)
+		{
+			++cur_section_it;
+			cur_section_it.set_pointer_to_raw_data(last_section_it.get_pointer_to_raw_data() + last_section_it.get_size_of_raw_data());
+			cur_section_it.set_size_of_raw_data(align_up(sec.raw_data_size, m_optional_header.get_file_alignment()));
+			cur_section_it.set_virtual_address(align_up(last_section_it.get_virtual_address() + last_section_it.get_virtual_size(), m_optional_header.get_section_alignment()));
+			cur_section_it.set_virtual_size(sec.raw_data_size);
+			cur_section_it.set_characteristics(sec.characteristics);
+
+			cur_section_it.set_pointer_to_relocations(0);
+			cur_section_it.set_number_of_relocations(0);
+			cur_section_it.set_pointer_to_line_numbers(0);
+			cur_section_it.set_number_of_line_numbers(0);
+
+			std::memcpy(cur_section_it.get()->Name, sec.name, IMAGE_SIZEOF_SHORT_NAME);
+
+			m_optional_header.set_size_of_image(align_up(cur_section_it.get_virtual_address() + cur_section_it.get_virtual_size(), m_optional_header.get_section_alignment()));
+			m_file_header.set_number_of_sections(m_file_header.get_number_of_sections() + 1);
+			
+			m_optional_header.set_size_of_headers(align_up(m_dos_header.get_lfanew() +
+				sizeof uint32_t +
+				sizeof image_file_header_t +
+				m_file_header.get_size_of_optional_header() +
+				sizeof image_section_header_t * m_file_header.get_number_of_sections()
+				, m_optional_header.get_file_alignment())
+			);
+
+			// Things to consider...
+			// There might not be enough space for the next section header(very unlikely)
+			//
+
+			++last_section_it;
+		}
+		return output_image;
 	}
-
-
-	// Functionality to expose the various interfaces
-	//
-	// dos_header_it_t* dos_header() { return &_dos_header;  }
-	// file_header_it_t* file_header() { return &_file_header; }
-	// optional_header_it_t<Addr_width>* optional_header() { return &_optional_header; }
-
 
 	inline static address_width deduce_address_width(std::string const& file_path)
 	{
