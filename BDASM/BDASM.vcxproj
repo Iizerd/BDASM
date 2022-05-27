@@ -136,7 +136,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\sdk.h" />
     <ClInclude Include="addr_width.h" />
     <ClInclude Include="dasm.h" />
     <ClInclude Include="disasm.h" />
@@ -157,7 +158,6 @@
     <ClInclude Include="gen.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="inst.h" />
-    <ClInclude Include="sdk.h" />
     <ClInclude Include="marker.h" />
     <ClInclude Include="old.h" />
     <ClInclude Include="pex.h" />

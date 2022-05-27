@@ -15,11 +15,10 @@
 
 //#define image_name "C:\\$Fanta\\FntaDrvr\\x64\\Release\\ShellcodeMaker.exe"
 //#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
-#define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
+//#define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
 
 int main(int argc, char** argv)
 {
-
 	xed_tables_init();
 	
 	//uint8_t marker_test[] = { 0x31, 0xC0, 0x90, 0xCC, 0xC6, 0xF8, 0xFF, 0xC6, 0xF8, 0xF8, 0x90, 0x31, 0xC0, 0x31, 0xC0, 0xC3 };
@@ -79,14 +78,8 @@ int main(int argc, char** argv)
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 
-		std::printf("Appended %u\n", binary.append_section(".TEST2", 0x1234, 0xFFAAFFAA));
-		binary.to_file("C:\\$Fanta\\CV2\\x64\\Release\\CV22.exe");
-		return 1;
-
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		//system("pause");
-		//return -1;
 
 		std::mutex memelock;
 		decoder_context_t decode_context(binary.mapped_image, binary.optional_header.get_size_of_image(), &binary.m_symbol_table, &memelock);
@@ -98,19 +91,19 @@ int main(int argc, char** argv)
 		dasm.add_routine(binary.optional_header.get_address_of_entry_point());
 
 	
-		for (image_runtime_function_it_t m_runtime_functions(reinterpret_cast<image_runtime_function_entry_t*>(binary.mapped_image + binary.optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
+		/*for (image_runtime_function_it_t m_runtime_functions(reinterpret_cast<image_runtime_function_entry_t*>(binary.mapped_image + binary.optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
 			!m_runtime_functions.is_null(); ++m_runtime_functions)
 		{
 			if (binary.is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
 				dasm.add_routine(m_runtime_functions.get_begin_address());
-		}
+		}*/
 
 		
-		/*for (auto& i : binary.m_exports.entries)
+		for (auto& i : binary.m_exports.entries)
 		{
 			if (binary.is_rva_in_executable_section(i.rva))
 				dasm.add_routine(i.rva);
-		}*/
+		}
 		
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 

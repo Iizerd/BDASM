@@ -950,11 +950,7 @@ public:
 			//
 			std::memcpy(mapped_image, image_base, optional_header.get_size_of_headers());
 
-			// Update the header iterators.
-			//
-			dos_header.set(mapped_image);
-			file_header.set(mapped_image + dos_header.get_lfanew() + sizeof uint32_t);
-			optional_header.set(mapped_image + dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
+			update_header_iterators(mapped_image);
 
 			// Map the sections
 			//
