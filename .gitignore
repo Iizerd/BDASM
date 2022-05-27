@@ -41,4 +41,11 @@
 *.recipe
 *.iobj
 *.pdb
+*.vsidx
+*.id0
+*.id1
+*.id2
+x64/Release/TestExe.exe.nam
+x64/Release/TestExe.exe.til
+*.idb
 *.ilk
