@@ -43,14 +43,14 @@
     <ClInclude Include="pex.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="sdk.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="marker.h">
       <Filter>headers\obfuscator</Filter>
     </ClInclude>
     <ClInclude Include="align.h">
       <Filter>headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sdk.h">
+      <Filter>headers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

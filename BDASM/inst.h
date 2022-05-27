@@ -215,6 +215,7 @@ public:
 		return ((XED_CATEGORY_UNCOND_BR == xed_decoded_inst_get_category(&this->decoded_inst)) &&
 			(XED_OPERAND_RELBR == xed_operand_name(xed_inst_operand(xed_decoded_inst_inst(&this->decoded_inst), 0))));
 	}
+
 	finline bool is_rel_call()
 	{
 		auto iclass = xed_decoded_inst_get_iclass(&this->decoded_inst);
