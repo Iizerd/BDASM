@@ -158,6 +158,7 @@
     <ClInclude Include="gen.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="inst.h" />
+    <ClInclude Include="inst_block.h" />
     <ClInclude Include="marker.h" />
     <ClInclude Include="obf.h" />
     <ClInclude Include="old.h" />
