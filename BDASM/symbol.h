@@ -53,17 +53,17 @@ public:
 
 	// Some rva that represents where the symbol isa. Set once its placed.
 	//
-	uint64_t rva;
+	uint64_t address;
 
 	// 
 	//
 	symbol_flag::type flags;
 
 	explicit symbol_t(symbol_flag::type flags, uint64_t raw_address)
-		: flags(flags), rva(raw_address) {}
+		: flags(flags), address(raw_address) {}
 
 	explicit symbol_t(symbol_t const& to_copy)
-		: flags(to_copy.flags), rva(to_copy.rva) {}
+		: flags(to_copy.flags), address(to_copy.address) {}
 };
 
 #define make_symbol_map_key(macro_flag, macro_addr)															\
@@ -126,7 +126,7 @@ public:
 	}
 	finline void set_sym_addr_and_placed(uint32_t symbol_index, uint64_t address)
 	{
-		m_entries[symbol_index].rva = address;
+		m_entries[symbol_index].address = address;
 		m_entries[symbol_index].flags |= symbol_flag::placed;
 	}
 };

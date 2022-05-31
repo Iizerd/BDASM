@@ -160,12 +160,68 @@ public:
 			inst.print_details();
 		}
 	}
+	uint32_t get_size()
+	{
+		uint32_t size = 0;
+		for (auto const& inst : instructions)
+			size += inst.length();
+		return size;
+	}
+	// This updates the symbols for each isntruction.
+	// Returns the end of the data needed to store the block
+	// can do end - start to get size
+	//
+	uint64_t place_at(uint64_t start_address, symbol_table_t& symbol_table)
+	{
+		for (auto& inst : instructions)
+		{
+			if (inst.my_symbol)
+				symbol_table.set_sym_addr_and_placed(inst.my_symbol, start_address);
+			start_address += inst.length();
+		}
+		return start_address;
+	}
+	uint8_t* encode_to(uint8_t* dest, uint64_t start_address, symbol_table_t& symbol_table)
+	{
+		for (auto& inst : instructions)
+		{
+			inst.to_encode_request();
+			auto ilen = inst.encode(dest);
+			start_address += ilen;
 
+			if (inst.flags & inst_flag::rel_br)
+			{
+				int64_t br_disp = (int64_t)symbol_table.get_symbol_by_index(inst.used_symbol).address - start_address;
+				inst.decode(dest, ilen);
+				if (!xed_patch_relbr(&inst.decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&inst.decoded_inst))))
+				{
+					std::printf("Failed to patch relative br.\n");
+				}
+			}
+			if (inst.flags & inst_flag::disp)
+			{
+				int64_t br_disp = (int64_t)symbol_table.get_symbol_by_index(inst.used_symbol).address - start_address;
+				inst.decode(dest, ilen);
+				if (!xed_patch_disp(&inst.decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0))))
+				{
+					std::printf("Failed to patch displacement.\n");
+				}
+			}
+
+			dest += ilen;
+		}
+		return dest;
+	}
 };
 
 template<address_width Addr_width = address_width::x64>
 class inst_routine_t
 {
+public:
+	std::list<inst_block_t<Addr_width> > blocks;
+	uint64_t start;
+	uint64_t end;
+
 	void block_trace()
 	{
 		for (auto& block : blocks)
@@ -193,6 +249,8 @@ class inst_routine_t
 					std::printf("\tBlock Count %llu, PrevBlockStart: 0x%016X PrevBlockEnd: 0x%016X\n", blocks.size(), std::prev(blocks.end())->start, std::prev(blocks.end())->end);*/
 				break;
 			}
+
+			//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
 			context->symbol_lock->lock();
 			inst.my_symbol = context->symbol_table->get_symbol_index_for_rva(symbol_flag::base, rva);
@@ -329,11 +387,6 @@ class inst_routine_t
 			}
 		}
 	}
-public:
-	std::list<inst_block_t<Addr_width> > blocks;
-
-	uint64_t start;
-	uint64_t end;
 	void decode(decoder_context_t* context, uint64_t rva)
 	{
 		if (!context->validate_rva(rva))
@@ -361,6 +414,28 @@ public:
 				it->instructions.splice(it->instructions.end(), next->instructions);
 
 				blocks.erase(next);
+			}
+		}
+
+		context->symbol_lock->lock();
+		start = context->symbol_table->get_symbol_by_index(blocks.front().instructions.front().my_symbol).address;
+		end = context->symbol_table->get_symbol_by_index(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
+		context->symbol_lock->unlock();
+	}
+
+	void force_merge_blocks()
+	{
+		if (blocks.size() > 1)
+		{
+			auto start = blocks.begin();
+
+			for (auto it = std::next(blocks.begin()); it != blocks.end();)
+			{
+				auto next = std::next(it);
+				std::printf("Merging blocks with gap: %u\n", next->end - it->start);
+				start->instructions.splice(start->instructions.end(), it->instructions);
+				blocks.erase(it);
+				it = next;
 			}
 		}
 	}
@@ -453,8 +528,6 @@ class dasm_t
 {
 	decoder_context_t* m_context;
 
-	std::list<inst_routine_t<Addr_width> > m_routines;
-
 	uint8_t m_next_thread;
 
 	std::vector<dasm_thread_t<Addr_width> > m_threads;
@@ -462,6 +535,8 @@ class dasm_t
 	std::atomic_bool* m_routine_lookup_table;
 
 public:
+
+	std::list<inst_routine_t<Addr_width> > completed_routines;
 
 	std::function<bool(uint64_t)> is_executable;
 
@@ -519,7 +594,7 @@ public:
 
 		for (auto& thread : m_threads)
 		{
-			m_routines.splice(m_routines.end(), thread.finished_routines);
+			completed_routines.splice(completed_routines.end(), thread.finished_routines);
 			thread.stop();
 		}
 
@@ -528,11 +603,11 @@ public:
 
 	void print_details()
 	{
-		std::printf("decoded %llu routines.\n", m_routines.size());
+		std::printf("decoded %llu routines.\n", completed_routines.size());
 
 		uint32_t inst_count = 0;
 
-		for (auto& routine : m_routines)
+		for (auto& routine : completed_routines)
 			for (auto& block : routine.blocks)
 				inst_count += block.instructions.size();
 
