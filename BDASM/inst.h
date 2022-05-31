@@ -16,15 +16,11 @@ namespace inst_flag
 	typedef uint32_t type;
 	constexpr type none = 0;
 
-	// This instruction relies on a displacement
+	// Patch types
 	//
 	constexpr type rel_br = (1 << 0);
-
-	// This instruction has a rip relative displacement
-	//
-	constexpr type rip_disp = (1 << 1);
-
-	
+	constexpr type disp = (1 << 1);
+	constexpr type uses_label = (rel_br | disp);
 }
 
 template<address_width Addr_width = address_width::x64>

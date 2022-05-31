@@ -13,6 +13,7 @@
 #include <map>
 #include <set>
 #include <type_traits>
+#include <mutex>
 
 #include "traits.h"
 #include "addr_width.h"
@@ -660,21 +661,6 @@ public:
 	}
 };
 
-class appended_section_t
-{
-public:
-	uint32_t characteristics;
-	uint8_t name[IMAGE_SIZEOF_SHORT_NAME];
-
-	uint32_t raw_data_size;
-	uint8_t* raw_data;
-	explicit appended_section_t(std::string const& nm, uint32_t chars, uint8_t* rd, uint32_t rds)
-		: characteristics(chars), raw_data(rd), raw_data_size(rds)
-	{
-		for (uint32_t i = 0; i < 8 && i < nm.length(); i++)
-			name[i] = nm[i];
-	}
-};
 
 
 template <address_width Addr_width = address_width::x64>
@@ -683,7 +669,8 @@ class binary_ir_t
 public:
 	uint8_t* mapped_image;
 
-	symbol_table_t m_symbol_table;
+	std::mutex symbol_lock;
+	symbol_table_t symbol_table;
 
 	// Header interfaces
 	//
@@ -975,7 +962,7 @@ public:
 				for (image_thunk_data_it_t<Addr_width> thunk_data_interface(rva_as<thunk_data_conditional_type(Addr_width)>(import_descriptor_interface.get_original_first_thunk()));
 					!thunk_data_interface.is_null(); ++thunk_data_interface)
 				{
-					uint32_t symbol_index = m_symbol_table.get_symbol_index_for_rva(
+					uint32_t symbol_index = symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_import,
 						static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - mapped_image));
 
@@ -1032,7 +1019,7 @@ public:
 				uint32_t export_rva = export_address_table[name_ordinal];
 
 				m_exports.add_named_export(name,
-					m_symbol_table.get_symbol_index_for_rva(
+					symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_export,
 						export_rva
 					),
@@ -1047,7 +1034,7 @@ public:
 				uint32_t export_rva = export_address_table[ordinal];
 
 				m_exports.add_ordinal_export(ordinal,
-					m_symbol_table.get_symbol_index_for_rva(
+					symbol_table.get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_export,
 						export_rva
 					),

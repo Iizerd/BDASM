@@ -159,6 +159,7 @@
     <ClInclude Include="encoder.h" />
     <ClInclude Include="inst.h" />
     <ClInclude Include="marker.h" />
+    <ClInclude Include="obf.h" />
     <ClInclude Include="old.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />

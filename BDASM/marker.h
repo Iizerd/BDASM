@@ -59,7 +59,7 @@ inst_it_t<Addr_width> find_end_marker(inst_list_t<Addr_width>& list)
 	inst_it_t<Addr_width> it = list.end();
 	std::advance(it, -__BDASM_END_INST_COUNT);
 
-	uint32_t search_length = list.size() - __BDASM_END_INST_COUNT + 2;
+	uint32_t search_length = list.size() - __BDASM_END_INST_COUNT;
 
 	while (search_length)
 	{

@@ -52,6 +52,9 @@
     <ClInclude Include="..\sdk.h">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="obf.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
