@@ -73,7 +73,7 @@ public:
 					std::printf("Failed to patch relative br.\n");
 				}
 			}
-			if (inst.flags & inst_flag::disp)
+			else if (inst.flags & inst_flag::disp)
 			{
 				int64_t br_disp = (int64_t)symbol_table.get_symbol_by_index(inst.used_symbol).address - start_address;
 				inst.decode(dest, ilen);
