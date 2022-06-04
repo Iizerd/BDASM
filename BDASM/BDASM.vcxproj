@@ -155,6 +155,7 @@
     <ClInclude Include="disasm.h" />
     <ClInclude Include="align.h" />
     <ClInclude Include="emu.h" />
+    <ClInclude Include="off.h" />
     <ClInclude Include="gen.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="inst.h" />

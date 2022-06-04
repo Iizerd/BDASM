@@ -128,7 +128,7 @@ public:
 			if (!file.good())
 				continue;
 
-			uint64_t marker_offset = m_binary->symbol_table.get_symbol_by_index(begin_start->my_symbol).address - routine->start;
+			uint64_t marker_offset = m_binary->symbol_table.get_symbol(begin_start->my_symbol).address - routine->start;
 			uint8_t* routine_buffer = new uint8_t[routine_size];
 			std::memcpy(routine_buffer, m_binary->mapped_image + routine->start, routine_size);
 			std::memset(routine_buffer + marker_offset, 0x90, 9);
