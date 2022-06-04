@@ -335,8 +335,8 @@ public:
 		}
 
 		context->symbol_lock->lock();
-		start = context->symbol_table->get_symbol_by_index(blocks.front().instructions.front().my_symbol).address;
-		end = context->symbol_table->get_symbol_by_index(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
+		start = context->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
+		end = context->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
 		context->symbol_lock->unlock();
 	}
 

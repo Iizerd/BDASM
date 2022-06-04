@@ -66,7 +66,7 @@ public:
 
 			if (inst.flags & inst_flag::rel_br)
 			{
-				int64_t br_disp = (int64_t)symbol_table.get_symbol_by_index(inst.used_symbol).address - start_address;
+				int64_t br_disp = (int64_t)symbol_table.get_symbol(inst.used_symbol).address - start_address;
 				inst.decode(dest, ilen);
 				if (!xed_patch_relbr(&inst.decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&inst.decoded_inst))))
 				{
@@ -75,7 +75,7 @@ public:
 			}
 			else if (inst.flags & inst_flag::disp)
 			{
-				int64_t br_disp = (int64_t)symbol_table.get_symbol_by_index(inst.used_symbol).address - start_address;
+				int64_t br_disp = (int64_t)symbol_table.get_symbol(inst.used_symbol).address - start_address;
 				inst.decode(dest, ilen);
 				if (!xed_patch_disp(&inst.decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0))))
 				{

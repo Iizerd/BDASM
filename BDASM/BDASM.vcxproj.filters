@@ -58,6 +58,9 @@
     <ClInclude Include="inst_block.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
+    <ClInclude Include="off.h">
+      <Filter>off</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
@@ -83,6 +86,9 @@
     </Filter>
     <Filter Include="headers\utils">
       <UniqueIdentifier>{16f57466-8880-4c24-918d-0ea63aa306b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="off">
+      <UniqueIdentifier>{5f3ac283-e4dc-4a4d-91f9-9cb2157b40df}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

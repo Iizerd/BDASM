@@ -3,9 +3,9 @@
 #include <cstdint>
 #include <map>
 #include <vector>
-#include <Windows.h>
 
 #include "traits.h"
+
 namespace symbol_flag
 {
 	typedef uint32_t type;
@@ -64,6 +64,27 @@ public:
 
 	explicit symbol_t(symbol_t const& to_copy)
 		: flags(to_copy.flags), address(to_copy.address) {}
+
+	finline symbol_t& set_flag(symbol_flag::type value)
+	{
+		flags |= value;
+		return *this;
+	}
+	finline symbol_t& remove_flag(symbol_flag::type value)
+	{
+		flags &= ~value;
+		return *this;
+	}
+	finline symbol_t& set_flag_abs(symbol_flag::type new_flags)
+	{
+		flags = new_flags;
+		return *this;
+	}
+	finline symbol_t& set_address(uint64_t new_addr)
+	{
+		address = new_addr;
+		return *this;
+	}
 };
 
 #define make_symbol_map_key(macro_flag, macro_addr)															\
@@ -76,7 +97,9 @@ static_cast<uint64_t>(																						\
 	)
 class symbol_table_t
 {
-	// Lookup table to support 
+	// Lookup table to support lookups of static things
+	// imports, functions, rvas inside binary, anything
+	//
 	std::map<uint64_t, uint32_t> m_lookup_table;
 
 	//
@@ -120,13 +143,14 @@ public:
 		return static_cast<uint32_t>(m_entries.size()) - 1;
 	}
 
-	ndiscard finline symbol_t& get_symbol_by_index(uint32_t symbol_index)
+	ndiscard finline symbol_t& get_symbol(uint32_t symbol_index)
 	{
 		return m_entries[symbol_index];
 	}
 	finline void set_sym_addr_and_placed(uint32_t symbol_index, uint64_t address)
 	{
-		m_entries[symbol_index].address = address;
-		m_entries[symbol_index].flags |= symbol_flag::placed;
+		m_entries[symbol_index].set_flag(symbol_flag::placed).set_address(address);
+		/*m_entries[symbol_index].address = address;
+		m_entries[symbol_index].flags |= symbol_flag::placed;*/
 	}
 };
