@@ -121,6 +121,8 @@ namespace obf
 
 				auto [attributes, marker_id] = get_begin_data(begin_start);
 
+				std::printf(" %X %X data.\n", attributes, marker_id);
+
 				uint64_t routine_size = routine->end - routine->start;
 				std::string file_path = dir_path;
 				file_path.append("sub_")

@@ -36,7 +36,7 @@
 
 int main(int argc, char** argv)
 {
-	/*static constexpr dasm::static_pattern_t<dasm::address_width::x64, XED_ICLASS_CALL_FAR, XED_ICLASS_JB> pattern;
+	/*static constexpr dasm::static_ipattern_t<dasm::address_width::x64, XED_ICLASS_CALL_FAR, XED_ICLASS_JB> pattern;
 
 	std::printf("Pattern Size: %u\n", pattern.size);
 
