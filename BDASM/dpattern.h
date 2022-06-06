@@ -9,55 +9,48 @@
 namespace dasm
 {
 
+	// Thanks 'The personified devil#4871'. Stupid comma operator.
+	//
 	template<address_width Addr_width, xed_iclass_enum_t... IClass_list>
-	class static_pattern_t
+	struct static_ipattern_t
 	{
-	public:
-		uint32_t size = sizeof...(IClass_list);
-		xed_iclass_enum_t pattern[sizeof...(IClass_list)];
+		inline static constexpr uint32_t size = sizeof...(IClass_list);
 
-		constexpr static_pattern_t()
+		// Searches a list for a pattern.
+		//
+		inline static const bool match(inst_list_t<Addr_width>& list, inst_it_t<Addr_width> start)
 		{
-			uint32_t i = 0;
-			// Feels hacky...
-			(
-				(pattern[i++] = IClass_list),
-				...
-			);
+			return (
+					(
+						(IClass_list == xed_decoded_inst_get_iclass(&start->decoded_inst)) &&
+						(++start != list.end())
+					) && 
+					...
+				);
 		}
 
-		const bool match(inst_list_t<Addr_width>& list, inst_it_t<Addr_width> start)
+		// Does not check to make sure we dont iterate past the end of the list
+		//
+		inline static const bool unsafe_match(inst_it_t<Addr_width> start)
 		{
-			for (uint32_t i = 0; i < size && start != list.end(); ++i, ++start)
-			{
-				if (pattern[i] != xed_decoded_inst_get_iclass(&start->decoded_inst))
-					return false;
-			}
-			return true;
-		}
-
-		const bool unsafe_match(inst_it_t<Addr_width> start)
-		{
-			for (uint32_t i = 0; i < size; ++i, ++start)
-			{
-				if (pattern[i] != xed_decoded_inst_get_iclass(&start->decoded_inst))
-					return false;
-			}
-			return true;
+			return ((IClass_list == xed_decoded_inst_get_iclass(&(start++)->decoded_inst)) && ...);
 		}
 	};
 
+
+
+
 	template<address_width Addr_width = address_width::x64>
-	class pattern_t
+	class ipattern_t
 	{
 	public:
 		std::vector<xed_iclass_enum_t> pattern;
 		
-		constexpr pattern_t(std::initializer_list<xed_iclass_enum_t> pat)
+		constexpr ipattern_t(std::initializer_list<xed_iclass_enum_t> pat)
 		{
 			pattern.insert(pattern.end(), pat.end(), pat.begin());
 		}
-		constexpr pattern_t(pattern_t const& to_copy)
+		constexpr ipattern_t(ipattern_t const& to_copy)
 		{
 			pattern.insert(pattern.end(), to_copy.pattern.end(), to_copy.pattern.begin());
 		}
@@ -100,12 +93,12 @@ namespace dasm
 	template<address_width Addr_width = address_width::x64>
 	class pattern_tracker_t
 	{
-		std::vector<pattern_t<Addr_width> > m_pattern_list;
+		std::vector<ipattern_t<Addr_width> > m_pattern_list;
 		uint32_t m_index;
 	public:
 		std::vector<bool> valid_mask;
 
-		constexpr pattern_tracker_t(std::initializer_list<pattern_t<Addr_width> > pattern_list)
+		constexpr pattern_tracker_t(std::initializer_list<ipattern_t<Addr_width> > pattern_list)
 		{
 			m_pattern_list.insert(m_pattern_list.end(), pattern_list.begin(), pattern_list.end());
 			for (uint32_t i = 0; i < m_pattern_list.size(); ++i)
