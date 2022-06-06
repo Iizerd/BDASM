@@ -229,9 +229,9 @@ public:
 	_M(_Sd, _Sn, SizeOfHeapCommit, size_of_heap_commit)                       \
 	_M(_Sd, _Sn, LoaderFlags, loader_flags)                                   \
 	_M(_Sd, _Sn, NumberOfRvaAndSizes, number_of_rva_and_sizes)
-#define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == address_width::x86, image_optional_header32_t, image_optional_header64_t>::type
-template <address_width Addr_width = address_width::x64>
-class optional_header_it_t : public std::conditional<Addr_width == address_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>>>::type
+#define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == dasm::address_width::x86, image_optional_header32_t, image_optional_header64_t>::type
+template <dasm::address_width Addr_width = dasm::address_width::x64>
+class optional_header_it_t : public std::conditional<Addr_width == dasm::address_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>>>::type
 {
 	
 	using _Header_type = optional_header_conditional_type(Addr_width);
@@ -257,12 +257,12 @@ public:
 	_M(_Sd, _Sn, u1.Function, function)                \
 	_M(_Sd, _Sn, u1.Ordinal, raw_ordinal)              \
 	_M(_Sd, _Sn, u1.AddressOfData, address_of_data)
-#define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == address_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
-template <address_width Addr_width = address_width::x64>
-class image_thunk_data_it_t : public std::conditional<Addr_width == address_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>>>::type
+#define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == dasm::address_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
+template <dasm::address_width Addr_width = dasm::address_width::x64>
+class image_thunk_data_it_t : public std::conditional<Addr_width == dasm::address_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>>>::type
 {
 	using _Thunk_data_type = thunk_data_conditional_type(Addr_width);
-	using _Thunk_ordinal_type = std::conditional<Addr_width == address_width::x86, DWORD, ULONGLONG>::type;
+	using _Thunk_ordinal_type = std::conditional<Addr_width == dasm::address_width::x86, DWORD, ULONGLONG>::type;
 	image_thunk_data_it_t()
 		: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(nullptr) {}
 
@@ -271,7 +271,7 @@ public:
 		: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(thunk_data) {}
 	bool is_ordinal() const
 	{
-		if constexpr (Addr_width == address_width::x86)
+		if constexpr (Addr_width == dasm::address_width::x86)
 			return (get_raw_ordinal() & IMAGE_ORDINAL_FLAG32);
 		return (get_raw_ordinal() & IMAGE_ORDINAL_FLAG64);
 	}
@@ -281,7 +281,7 @@ public:
 	}
 	uint16_t get_masked_ordinal()
 	{
-		if constexpr (Addr_width == address_width::x86)
+		if constexpr (Addr_width == dasm::address_width::x86)
 			return IMAGE_ORDINAL32(get_raw_ordinal());
 		return IMAGE_ORDINAL64(get_raw_ordinal());
 	}
@@ -300,9 +300,9 @@ public:
 	_M(_Sd, _Sn, Reserved0, reserved0)                             \
 	_M(_Sd, _Sn, Alignment, alignment)                             \
 	_M(_Sd, _Sn, Reserved1, reserved1)
-#define tls_conditional_type(Addr_width) std::conditional<Addr_width == address_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
-template <address_width Addr_width = address_width::x64>
-class image_tls_dir_it_t : public std::conditional<Addr_width == address_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<Addr_width>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<Addr_width>>>::type
+#define tls_conditional_type(Addr_width) std::conditional<Addr_width == dasm::address_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
+template <dasm::address_width Addr_width = dasm::address_width::x64>
+class image_tls_dir_it_t : public std::conditional<Addr_width == dasm::address_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<Addr_width>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<Addr_width>>>::type
 {
 	using _Tls_dir_type = tls_conditional_type(Addr_width);
 	image_tls_dir_it_t()
@@ -453,10 +453,10 @@ public:
 		this->copy_from_data(to_copy.m_pdata);
 	}
 };
-template <address_width Addr_width = address_width::x64>
+template <dasm::address_width Addr_width = dasm::address_width::x64>
 class optional_header_rep_t : public optional_header_it_t<Addr_width>
 {
-	using _Header_type = std::conditional<Addr_width == address_width::x86, image_optional_header32_t, image_optional_header64_t>::type;
+	using _Header_type = std::conditional<Addr_width == dasm::address_width::x86, image_optional_header32_t, image_optional_header64_t>::type;
 	_Header_type m_header;
 
 public:
@@ -519,7 +519,7 @@ public:
 
 class import_t
 {
-	// using _Entry_type = std::conditional<Addr_width == address_width::x86, DWORD, ULONGLONG>::type;
+	// using _Entry_type = std::conditional<Addr_width == dasm::address_width::x86, DWORD, ULONGLONG>::type;
 
 public:
 	const std::string import_name;
@@ -553,7 +553,7 @@ public:
 		is_ordinal(to_copy.is_ordinal),
 		thunk_symbol(to_copy.thunk_symbol) {}
 };
-template <address_width Addr_width = address_width::x64>
+template <dasm::address_width Addr_width = dasm::address_width::x64>
 class import_module_t : public data_directory_ir_t
 {
 public:
@@ -663,14 +663,14 @@ public:
 
 
 
-template <address_width Addr_width = address_width::x64>
+template <dasm::address_width Addr_width = dasm::address_width::x64>
 class binary_ir_t
 {
 public:
 	uint8_t* mapped_image;
 
 	std::mutex symbol_lock;
-	symbol_table_t symbol_table;
+	symbol_table_t* symbol_table;
 
 	// Header interfaces
 	//
@@ -904,10 +904,11 @@ public:
 
 		optional_header.set(new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
 
-		if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != address_width::x86) ||
-			(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != address_width::x64))
+		if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != dasm::address_width::x86) ||
+			(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != dasm::address_width::x64))
 			return false;
 
+		symbol_table = new symbol_table_t(image_size, 3000);
 
 		// Enumerate all sections
 		//
@@ -962,7 +963,7 @@ public:
 				for (image_thunk_data_it_t<Addr_width> thunk_data_interface(rva_as<thunk_data_conditional_type(Addr_width)>(import_descriptor_interface.get_original_first_thunk()));
 					!thunk_data_interface.is_null(); ++thunk_data_interface)
 				{
-					uint32_t symbol_index = symbol_table.get_symbol_index_for_rva(
+					uint32_t symbol_index = symbol_table->get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_import,
 						static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_interface.get()) - mapped_image));
 
@@ -1019,7 +1020,7 @@ public:
 				uint32_t export_rva = export_address_table[name_ordinal];
 
 				m_exports.add_named_export(name,
-					symbol_table.get_symbol_index_for_rva(
+					symbol_table->get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_export,
 						export_rva
 					),
@@ -1034,7 +1035,7 @@ public:
 				uint32_t export_rva = export_address_table[ordinal];
 
 				m_exports.add_ordinal_export(ordinal,
-					symbol_table.get_symbol_index_for_rva(
+					symbol_table->get_symbol_index_for_rva(
 						symbol_flag::base | symbol_flag::type_export,
 						export_rva
 					),
@@ -1075,57 +1076,57 @@ public:
 		return output_image;
 	}
 
-	inline static address_width deduce_address_width(std::string const& file_path)
+	inline static dasm::address_width deduce_address_width(std::string const& file_path)
 	{
 		if (!std::filesystem::exists(file_path))
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 
 		std::ifstream file(file_path, std::ios::binary);
 		if (!file.good())
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 
 		file.seekg(0, std::ios::end);
 		uint32_t file_size = static_cast<uint32_t>(file.tellg());
 		file.seekg(0, std::ios::beg);
 
 		if (file_size < 0x1000)
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 
 		uint8_t* data = new uint8_t[0x1000];
 		if (!data)
 		{
 			file.close();
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 		}
 
 		file.read((PCHAR)data, 0x1000);
 		file.close();
 
-		address_width width = deduce_address_width(data, file_size);
+		dasm::address_width width = deduce_address_width(data, file_size);
 
 		delete[] data;
 		return width;
 	}
-	inline static address_width deduce_address_width(uint8_t* image_data, uint32_t image_size)
+	inline static dasm::address_width deduce_address_width(uint8_t* image_data, uint32_t image_size)
 	{
 		if (image_size < sizeof image_dos_header_t)
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 		image_dos_header_t* dos_header = (image_dos_header_t*)image_data;
 		if (dos_header->e_magic != IMAGE_DOS_SIGNATURE)
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 
 		image_nt_headers32_t* nt_headers = (image_nt_headers32_t*)(image_data + dos_header->e_lfanew);
 
 		if (image_size < dos_header->e_lfanew + sizeof image_nt_headers32_t ||
 			nt_headers->Signature != IMAGE_NT_SIGNATURE)
-			return address_width::invalid;
+			return dasm::address_width::invalid;
 
 		if (nt_headers->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
-			return address_width::x86;
+			return dasm::address_width::x86;
 		else if (nt_headers->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-			return address_width::x64;
+			return dasm::address_width::x64;
 
-		return address_width::invalid;
+		return dasm::address_width::invalid;
 	}
 
 	inline static void debug_print_section_info(image_section_header_t* section_header)

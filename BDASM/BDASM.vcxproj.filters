@@ -37,9 +37,6 @@
     <ClInclude Include="encoder.h">
       <Filter>headers\xed</Filter>
     </ClInclude>
-    <ClInclude Include="size_casting.h">
-      <Filter>headers\xed</Filter>
-    </ClInclude>
     <ClInclude Include="pex.h">
       <Filter>headers</Filter>
     </ClInclude>
@@ -60,6 +57,15 @@
     </ClInclude>
     <ClInclude Include="off.h">
       <Filter>off</Filter>
+    </ClInclude>
+    <ClInclude Include="mdasm.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="dpattern.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="size_casting.h">
+      <Filter>headers\dasm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

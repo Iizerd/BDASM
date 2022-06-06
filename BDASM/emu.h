@@ -10,10 +10,10 @@ namespace obf
 	namespace emu
 	{
 
-		template<address_width Addr_width>
-		inline inst_list_t<Addr_width> emulate_call(inst_t<Addr_width> const& call_inst)
+		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		inline dasm::inst_list_t<Addr_width> emulate_call(dasm::inst_t<Addr_width> const& call_inst)
 		{
-			inst_list_t<Addr_width> result;
+			dasm::inst_list_t<Addr_width> result;
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 			uint32_t disp_size = 0;
 
@@ -69,10 +69,10 @@ namespace obf
 			return result;
 		}
 
-		template<address_width Addr_width = address_width::x64>
-		inline inst_list_t<Addr_width> ret()
+		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		inline dasm::inst_list_t<Addr_width> ret()
 		{
-			inst_list_t<Addr_width> result;
+			dasm::inst_list_t<Addr_width> result;
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 			xed_state_t machine_state = addr_width_to_machine_state<Addr_width>::value;
 
