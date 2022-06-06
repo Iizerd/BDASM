@@ -112,6 +112,7 @@ namespace obf
 			printf("trying to export %llu\n", m_marked_routines.size());
 			for (auto routine : m_marked_routines)
 			{
+				routine->blocks.front().print_block();
 				printf("Exporting. %llu\n", routine->blocks.size());
 
 				auto begin_start = find_begin_marker(routine->blocks.front().instructions);
