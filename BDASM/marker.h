@@ -5,25 +5,20 @@
 #include "addr_width.h"
 #include "inst.h"
 #include "sdk.h"
+#include "dpattern.h"
 
 namespace obf
 {
-
-	template<dasm::address_width Addr_width = dasm::address_width::x64>
-	bool is_begin_marker(dasm::inst_it_t<Addr_width> it)
-	{
-		if (XED_ICLASS_INT3 != xed_decoded_inst_get_iclass(&it->decoded_inst) ||
-			XED_ICLASS_NOP != xed_decoded_inst_get_iclass(&(++it)->decoded_inst) ||
-			XED_ICLASS_XABORT != xed_decoded_inst_get_iclass(&(++it)->decoded_inst) ||
-			XED_ICLASS_XABORT != xed_decoded_inst_get_iclass(&(++it)->decoded_inst) ||
-			XED_ICLASS_INT3 != xed_decoded_inst_get_iclass(&(++it)->decoded_inst))
-			return false;
-		return true;
-	}
-
 	template<dasm::address_width Addr_width = dasm::address_width::x64>
 	dasm::inst_it_t<Addr_width> find_begin_marker(dasm::inst_list_t<Addr_width>& list)
 	{
+		static dasm::static_pattern_t<Addr_width,
+			XED_ICLASS_INT3,
+			XED_ICLASS_NOP,
+			XED_ICLASS_XABORT,
+			XED_ICLASS_XABORT,
+			XED_ICLASS_INT3> begin_pattern;
+
 		if (list.size() < __BDASM_BEGIN_INST_COUNT)
 			return list.end();
 
@@ -32,9 +27,9 @@ namespace obf
 
 		while (search_length)
 		{
-			if (is_begin_marker(it))
+			if (begin_pattern.unsafe_match(it))
 				return it;
-			++it;/* = std::next(it);*/
+			++it;
 			--search_length;
 		}
 		return list.end();
@@ -56,6 +51,12 @@ namespace obf
 	template<dasm::address_width Addr_width = dasm::address_width::x64>
 	dasm::inst_it_t<Addr_width> find_end_marker(dasm::inst_list_t<Addr_width>& list)
 	{
+		static dasm::static_pattern_t<Addr_width,
+			XED_ICLASS_INT3,
+			XED_ICLASS_NOP,
+			XED_ICLASS_NOP,
+			XED_ICLASS_INT3> end_pattern;
+
 		if (list.size() < __BDASM_END_INST_COUNT)
 			return list.end();
 
@@ -66,9 +67,9 @@ namespace obf
 
 		while (search_length)
 		{
-			if (is_end_marker(it))
+			if (end_pattern.unsafe_match(it))
 				return it;
-			--it;/* = std::prev(it);*/
+			--it;
 			--search_length;
 		}
 		return list.end();
@@ -81,7 +82,13 @@ namespace obf
 	template<dasm::address_width Addr_width = dasm::address_width::x64>
 	dasm::inst_it_t<Addr_width> trace_to_end_marker(dasm::inst_it_t<Addr_width> start)
 	{
-		while (!is_end_marker(start))
+		static dasm::static_pattern_t<Addr_width,
+			XED_ICLASS_INT3,
+			XED_ICLASS_NOP,
+			XED_ICLASS_NOP,
+			XED_ICLASS_INT3> end_pattern;
+
+		while (!end_pattern.unsafe_match(start))
 			start = std::next(start);
 		return start;
 	}

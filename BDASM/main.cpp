@@ -36,7 +36,7 @@
 
 int main(int argc, char** argv)
 {
-	/*static constexpr dasm::pattern_t<dasm::address_width::x64, XED_ICLASS_CALL_FAR, XED_ICLASS_JB> pattern;
+	/*static constexpr dasm::static_pattern_t<dasm::address_width::x64, XED_ICLASS_CALL_FAR, XED_ICLASS_JB> pattern;
 
 	std::printf("Pattern Size: %u\n", pattern.size);
 
@@ -44,9 +44,8 @@ int main(int argc, char** argv)
 		std::printf("Pattern Class: %s\n", xed_iclass_enum_t2str(pattern.pattern[i]));
 
 	system("pause");
-	return 1;
+	return 1;*/
 
-	int meme = sizeof(pattern);*/
 
 	xed_tables_init();
 
