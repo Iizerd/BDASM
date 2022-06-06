@@ -47,7 +47,7 @@ namespace obf
 				XED_ICLASS_INT3>::unsafe_match(it))
 				return it;
 
-		}while (it-- != list.begin())
+		} while (it-- != list.begin());
 
 		return list.end();
 	}
