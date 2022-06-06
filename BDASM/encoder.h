@@ -5,7 +5,7 @@
 
 extern "C"
 {
-#include <xed-interface.h>
+#include <xed/xed-interface.h>
 }
 
 #include <cstdint>
