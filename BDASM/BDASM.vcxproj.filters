@@ -58,14 +58,14 @@
     <ClInclude Include="off.h">
       <Filter>off</Filter>
     </ClInclude>
-    <ClInclude Include="mdasm.h">
-      <Filter>headers\dasm</Filter>
-    </ClInclude>
     <ClInclude Include="dpattern.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
     <ClInclude Include="size_casting.h">
       <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="odasm.h">
+      <Filter>old</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -100,6 +100,9 @@
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Testing</Filter>
+    </ClCompile>
+    <ClCompile Include="oldsym.cpp">
+      <Filter>old</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
