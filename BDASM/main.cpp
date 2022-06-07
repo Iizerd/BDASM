@@ -23,14 +23,14 @@
 //uint8_t bytes[] = { 0x48,0xFF ,0x15 ,0x39 ,0x6C ,0xC3 ,0xFF };
 
 //#define image_name "C:\\$Fanta\\FntaDrvr\\x64\\Release\\ShellcodeMaker.exe"
-//#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
+#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
 //#define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
 
-#ifdef _DEBUG
-#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
-#else
-#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
-#endif
+//#ifdef _DEBUG
+//#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
+//#else
+//#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+//#endif
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
 
@@ -85,12 +85,23 @@ int main(int argc, char** argv)
 
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		obf::binary_obfuscator_t<dasm::address_width::x64> obfuscator;
+		obf::binary_obfuscator_t<dasm::address_width::x64, 6> obfuscator;
+		
+		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		obfuscator.load_file(binary_path);
+		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 
-		obfuscator.enumerate_marked_functions();
+		//dasm.print_details();
+		std::printf("it took %ums\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-		obfuscator.export_marked_routine_and_nop_marker("C:\\$Work\\BDASM\\x64\\Release\\");
+		std::printf("Routines Count: %u\n", obfuscator.m_dasm->completed_routines.size());
+
+		/*obfuscator.enumerate_marked_functions();
+
+		obfuscator.export_marked_routine_and_nop_marker("C:\\$Work\\BDASM\\x64\\Release\\");*/
+
+
+
 
 		//std::mutex memelock;
 		//decoder_context_t decode_context(binary.mapped_image, binary.optional_header.get_size_of_image(), &binary.symbol_table, &memelock);

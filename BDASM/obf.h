@@ -20,11 +20,13 @@ namespace obf
 
 	};
 
-	template<dasm::address_width Addr_width = dasm::address_width::x64>
+	template<dasm::address_width Addr_width = dasm::address_width::x64, uint8_t Thread_count = 1>
 	class binary_obfuscator_t
 	{
 		binary_ir_t<Addr_width>* m_binary;
-		dasm::dasm_t<Addr_width>* m_dasm;
+	public:
+		dasm::dasm_t<Addr_width, Thread_count>* m_dasm;
+	private:
 		dasm::decoder_context_t* m_decoder_context;
 		std::vector<dasm::inst_routine_t<Addr_width>*> m_marked_routines;
 	public:
@@ -71,13 +73,18 @@ namespace obf
 
 			m_decoder_context->settings.recurse_calls = true;
 
-			m_dasm = new dasm::dasm_t<Addr_width>(m_decoder_context);
+			m_dasm = new dasm::dasm_t<Addr_width, Thread_count>(m_decoder_context);
 
 			m_dasm->is_executable = std::bind(&binary_ir_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
 
 			m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
 
+			for (auto& exp : m_binary->m_exports.entries)
+				m_dasm->add_routine(exp.rva);
+
 			m_dasm->run();
+
+			m_dasm->wait_for_completion();
 		}
 
 		uint32_t enumerate_marked_functions()

@@ -16,7 +16,9 @@ namespace obf
 			return list.end();
 
 		for (auto it = list.begin(); it != list.end(); ++it)
-			if (dasm::static_ipattern_t<Addr_width,
+			if (dasm::static_pattern_t<Addr_width, 
+				xed_iclass_enum_t, 
+				xed_decoded_inst_get_iclass,
 				XED_ICLASS_INT3,
 				XED_ICLASS_NOP,
 				XED_ICLASS_XABORT,
@@ -40,7 +42,9 @@ namespace obf
 
 		do
 		{
-			if (dasm::static_ipattern_t<Addr_width,
+			if (dasm::static_pattern_t<Addr_width, 
+				xed_iclass_enum_t, 
+				xed_decoded_inst_get_iclass,
 				XED_ICLASS_INT3,
 				XED_ICLASS_NOP,
 				XED_ICLASS_NOP,
@@ -59,13 +63,16 @@ namespace obf
 	template<dasm::address_width Addr_width = dasm::address_width::x64>
 	dasm::inst_it_t<Addr_width> trace_to_end_marker(dasm::inst_it_t<Addr_width> start)
 	{
-		while (!dasm::static_ipattern_t<Addr_width,
+		while (!dasm::static_pattern_t<Addr_width, 
+			xed_iclass_enum_t, 
+			xed_decoded_inst_get_iclass,
 			XED_ICLASS_INT3,
 			XED_ICLASS_NOP,
 			XED_ICLASS_NOP,
 			XED_ICLASS_INT3>::unsafe_match(start))
 			start = std::next(start);
 		return start;
+
 	}
 
 	template<dasm::address_width Addr_width = dasm::address_width::x64>
