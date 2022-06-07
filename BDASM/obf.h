@@ -77,10 +77,22 @@ namespace obf
 
 			m_dasm->is_executable = std::bind(&binary_ir_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
 
-			m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
+			//m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
 
-			for (auto& exp : m_binary->m_exports.entries)
-				m_dasm->add_routine(exp.rva);
+			uint32_t count = 0;
+			auto addr = m_binary->mapped_image + m_binary->optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address();
+			for (image_runtime_function_it_t m_runtime_functions(reinterpret_cast<image_runtime_function_entry_t*>(addr));
+			!m_runtime_functions.is_null(); ++m_runtime_functions)
+			{
+				if (m_binary->is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
+					m_dasm->add_routine(m_runtime_functions.get_begin_address());
+				count++;
+			}
+			std::printf("This many count runtime: %u\n", count);
+
+			/*for (auto& exp : m_binary->m_exports.entries)
+				m_dasm->add_routine(exp.rva);*/
+
 
 			m_dasm->run();
 

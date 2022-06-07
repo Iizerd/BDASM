@@ -418,7 +418,7 @@ public:
 
 	bool is_null()
 	{
-		return (get_begin_address() != 0 && get_end_address() != 0 && get_unwindw_info_address() != 0);
+		return (get_begin_address() == 0 && get_end_address() == 0 && get_unwindw_info_address() == 0);
 	}
 	_RUNTIME_FUNCTION_ITEM_LIST(image_runtime_function_entry_t, this->m_pdata->, _DEFINE_GETTER)
 	_RUNTIME_FUNCTION_ITEM_LIST(image_runtime_function_entry_t, this->m_pdata->, _DEFINE_SETTER)

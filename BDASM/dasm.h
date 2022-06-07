@@ -100,12 +100,13 @@ namespace dasm
 	{
 		const uint64_t m_table_size;
 		lookup_table_entry::type* m_entries;
+		std::vector<uint32_t> m_clear_indices;
 	public:
 		explicit decode_lookup_table(uint64_t table_size)
 			: m_table_size(table_size)
 		{
-
 			m_entries = (lookup_table_entry::type*)calloc(table_size, 1);
+			m_clear_indices.reserve(table_size / 10);
 		}
 		~decode_lookup_table()
 		{
@@ -113,8 +114,10 @@ namespace dasm
 		}
 		finline void clear()
 		{
-			for (int i = 0; i < m_table_size; i++)
+			for (auto i : m_clear_indices)
 				m_entries[i] = lookup_table_entry::none;
+
+			m_clear_indices.clear();
 		}
 		finline bool is_self(uint64_t rva) const
 		{
@@ -131,8 +134,12 @@ namespace dasm
 		finline void update_inst(uint64_t rva, int32_t inst_len)
 		{
 			m_entries[rva] |= lookup_table_entry::is_inst_start;
+			m_clear_indices.push_back(rva);
 			for (int32_t i = 0; i < inst_len; i++)
+			{
 				m_entries[rva + i] |= lookup_table_entry::is_decoded;
+				m_clear_indices.push_back(rva + i);
+			}
 		}
 	};
 
@@ -300,7 +307,7 @@ namespace dasm
 				}
 			}
 		}
-		void decode(decoder_context_t* context, uint64_t rva)
+		void decode(decode_lookup_table* lookup_table, decoder_context_t* context, uint64_t rva)
 		{
 			if (!context->validate_rva(rva))
 			{
@@ -308,8 +315,8 @@ namespace dasm
 				return;
 			}
 
-			decode_lookup_table lookup_table(context->raw_data_size);
-			decode_block(context, rva, &lookup_table);
+			//decode_lookup_table lookup_table(context->raw_data_size);
+			decode_block(context, rva, lookup_table);
 
 			blocks.sort([](inst_block_t<Addr_width> const& b1, inst_block_t<Addr_width> const& b2) -> bool
 				{
@@ -364,6 +371,8 @@ namespace dasm
 		std::vector<uint64_t> m_queued_routines;
 
 		decoder_context_t* m_decoder_context;
+
+		decode_lookup_table m_lookup_table;
 	public:
 		inline static std::atomic_uint32_t queued_routine_count;
 		std::list<inst_routine_t<Addr_width> > finished_routines;
@@ -371,11 +380,13 @@ namespace dasm
 		explicit dasm_thread_t(decoder_context_t* context)
 			: m_decoder_context(context),
 			m_signal_start(false),
-			m_signal_shutdown(false)
+			m_signal_shutdown(false),
+			m_lookup_table(m_decoder_context->raw_data_size)
 		{
 			m_thread = new std::thread(&dasm_thread_t::run, this);
 		}
 		explicit dasm_thread_t(dasm_thread_t const& to_copy)
+			: m_lookup_table(to_copy.m_decoder_context->raw_data_size)
 		{
 			std::printf("Copy constructor called. This is bad.\n");
 		}
@@ -424,7 +435,8 @@ namespace dasm
 				uint64_t routine_rva = 0;
 				if (pop_queued_routine(routine_rva))
 				{
-					finished_routines.emplace_back().decode(m_decoder_context, routine_rva);
+					finished_routines.emplace_back().decode(&m_lookup_table, m_decoder_context, routine_rva);
+					m_lookup_table.clear();
 					--queued_routine_count;
 					continue; //Skip the sleep.
 				}
@@ -510,6 +522,20 @@ namespace dasm
 			}
 
 
+		}
+
+		uint32_t count_instructions()
+		{
+			uint32_t count = 0;
+			for (auto& routine : completed_routines)
+			{
+				for (auto& block : routine.blocks)
+				{
+					for (auto& inst : block.instructions)
+						count++;
+				}
+			}
+			return count;
 		}
 
 		void print_details()

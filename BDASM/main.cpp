@@ -24,6 +24,7 @@
 
 //#define image_name "C:\\$Fanta\\FntaDrvr\\x64\\Release\\ShellcodeMaker.exe"
 #define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
+#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\dxgkrnl.sys"
 //#define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
 
 //#ifdef _DEBUG
@@ -85,16 +86,16 @@ int main(int argc, char** argv)
 
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		obf::binary_obfuscator_t<dasm::address_width::x64, 6> obfuscator;
+		obf::binary_obfuscator_t<dasm::address_width::x64, 8> obfuscator;
 		
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		obfuscator.load_file(binary_path);
 		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 
 		//dasm.print_details();
-		std::printf("it took %ums\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+		std::printf("it took %llums\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
 
-		std::printf("Routines Count: %u\n", obfuscator.m_dasm->completed_routines.size());
+		std::printf("Routines Count: %llu\nInstruction Count: %u\n", obfuscator.m_dasm->completed_routines.size(), obfuscator.m_dasm->count_instructions());
 
 		/*obfuscator.enumerate_marked_functions();
 
