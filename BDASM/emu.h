@@ -17,15 +17,13 @@ namespace obf
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 			uint32_t disp_size = 0;
 
-			encode_inst_in_place(buffer,
+			disp_size += result.emplace_back().decode(buffer, encode_inst_in_place(buffer,
 				addr_width_to_machine_state<Addr_width>::value,
 				XED_ICLASS_XCHG,
 				addr_width_to_bits<Addr_width>::value,
 				xed_mem_b(get_max_reg_size<XED_REG_RSP, Addr_width>::value, addr_width_to_bits<Addr_width>::value),
 				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
-			);
-			disp_size += result.emplace_back().decode(buffer, XED_MAX_INSTRUCTION_BYTES);
-
+			));
 
 			switch (xed_decoded_inst_get_iform_enum(&call_inst->decoded_inst))
 			{
@@ -49,22 +47,20 @@ namespace obf
 			disp_size += result.emplace_back().decode(buffer, XED_MAX_INSTRUCTION_BYTES);
 			result.back().used_symbol = call_inst.used_symbol;
 
-			encode_inst_in_place(buffer,
+			result.emplace_front().decode(buffer, encode_inst_in_place(buffer,
 				addr_width_to_machine_state<Addr_width>::value,
 				XED_ICLASS_LEA,
 				addr_width_to_bits<Addr_width>::value,
 				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
 				xed_mem_bd(get_max_reg_size<XED_REG_RIP, Addr_width>::value, xed_disp(disp_size, 32), addr_width_to_bits<Addr_width>::value)
-			);
-			result.emplace_front().decode(buffer, XED_MAX_INSTRUCTION_BYTES);
+			));
 
-			encode_inst_in_place(buffer,
+			result.emplace_front().decode(buffer, encode_inst_in_place(buffer,
 				addr_width_to_machine_state<Addr_width>::value,
 				XED_ICLASS_PUSH,
 				addr_width_to_bits<Addr_width>::value,
 				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
-			);
-			result.emplace_front().decode(buffer, XED_MAX_INSTRUCTION_BYTES);
+			));
 
 			return result;
 		}

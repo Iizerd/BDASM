@@ -1,3 +1,21 @@
+
+
+
+#pragma once
+
+
+/*
+	This version of dasm utilized multithreading to speed up the disassembly process.
+	Unfortunately, because the symbol table requires locking to access, I put this here
+	and reverted the project to single thread because it is honestly faster at this point.
+
+	One option I will persue is to rebuild the symbol table structure so it locks itself.
+	But only does so when its absolutely needed. This way,
+
+*/
+
+
+
 #pragma once
 
 
@@ -26,11 +44,11 @@ namespace dasm
 		constexpr uint8_t none = 0;
 
 		// Is the start of an instruction
-		// 
+		//
 		constexpr uint8_t is_inst_start = (1 << 0);
 
 		// Is this address inside a decoded inst.
-		// 
+		//
 		constexpr uint8_t is_decoded = (1 << 1);
 
 		// This is to prevent recursive routines messing stuff up
@@ -86,10 +104,6 @@ namespace dasm
 		explicit decode_lookup_table(uint64_t table_size)
 			: m_table_size(table_size)
 		{
-			//Omegalawl? Holy shit this is slow...
-			/*m_entries = new uint8_t[table_size];
-			for (int i = 0; i < table_size; i++)
-				m_entries[i] = lookup_table_entry::none;*/
 
 			m_entries = (lookup_table_entry::type*)calloc(table_size, 1);
 		}
@@ -157,10 +171,7 @@ namespace dasm
 					break;
 				}
 
-				//			std::printf("IClass: %s, Cat: %s\n", 
-				//				xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)), 
-				//				xed_category_enum_t2str(xed_decoded_inst_get_category(&inst.decoded_inst))
-				//			);
+				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
 				inst.my_symbol = context->symbol_table->get_symbol_index_for_rva(symbol_flag::base, rva);
 
@@ -213,7 +224,6 @@ namespace dasm
 							std::printf("Unconditional branch to invalid rva.\n");
 							goto ExitInstDecodeLoop;
 						}
-
 						inst.used_symbol = context->symbol_table->get_symbol_index_for_rva(symbol_flag::base, dest_rva);
 
 						if (!lookup_table->is_inst_start(dest_rva))
@@ -343,13 +353,97 @@ namespace dasm
 	};
 
 	template<address_width Addr_width = address_width::x64>
+	class dasm_thread_t
+	{
+		std::thread* m_thread;
+
+		std::atomic_bool m_signal_start;
+		std::atomic_bool m_signal_shutdown;
+
+		std::mutex m_queued_routines_lock;
+		std::vector<uint64_t> m_queued_routines;
+
+		decoder_context_t* m_decoder_context;
+	public:
+		inline static std::atomic_uint32_t queued_routine_count;
+		std::list<inst_routine_t<Addr_width> > finished_routines;
+
+		explicit dasm_thread_t(decoder_context_t* context)
+			: m_decoder_context(context),
+			m_signal_start(false),
+			m_signal_shutdown(false)
+		{
+			m_thread = new std::thread(&dasm_thread_t::run, this);
+		}
+		explicit dasm_thread_t(dasm_thread_t const& to_copy)
+		{
+			std::printf("Copy constructor called. This is bad.\n");
+		}
+		~dasm_thread_t()
+		{
+			if (m_thread->joinable())
+				m_thread->join();
+			delete m_thread;
+		}
+		bool pop_queued_routine(uint64_t& routine_rva)
+		{
+			if (!m_signal_start)
+				return false;
+
+			std::lock_guard g(m_queued_routines_lock);
+			if (m_queued_routines.size())
+			{
+				routine_rva = m_queued_routines.back();
+				m_queued_routines.pop_back();
+				return true;
+			}
+			return false;
+		}
+
+		void queue_routine(uint64_t routine_rva)
+		{
+			//std::printf("queued for %p\n", this);
+			++queued_routine_count;
+			std::lock_guard g(m_queued_routines_lock);
+			m_queued_routines.push_back(routine_rva);
+		}
+
+		void start()
+		{
+			m_signal_start = true;
+		}
+		void stop()
+		{
+			m_signal_shutdown = true;
+		}
+
+		void run()
+		{
+			while (!m_signal_shutdown)
+			{
+				uint64_t routine_rva = 0;
+				if (pop_queued_routine(routine_rva))
+				{
+					finished_routines.emplace_back().decode(m_decoder_context, routine_rva);
+					--queued_routine_count;
+					continue; //Skip the sleep.
+				}
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+		}
+	};
+
+	template<address_width Addr_width = address_width::x64, uint8_t Thread_count = 1>
 	class dasm_t
 	{
 		decoder_context_t* m_context;
 
-		std::vector<uint64_t> m_queued_routines;
+		uint8_t m_next_thread;
 
-		bool* m_routine_lookup_table;
+		std::vector<dasm_thread_t<Addr_width> > m_threads;
+
+		std::atomic_bool* m_routine_lookup_table;
 
 	public:
 
@@ -358,12 +452,17 @@ namespace dasm
 		std::function<bool(uint64_t)> is_executable;
 
 		explicit dasm_t(decoder_context_t* context)
+			: m_next_thread(0)
 		{
 			m_context = context;
 			m_context->report_function_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
-			m_routine_lookup_table = new bool[m_context->raw_data_size];
-			m_routine_lookup_table = reinterpret_cast<bool*>(std::calloc(m_context->raw_data_size, sizeof(bool)));
+			m_routine_lookup_table = new std::atomic_bool[m_context->raw_data_size];
+			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
+				m_routine_lookup_table[i] = false;
 
+			m_threads.reserve(Thread_count * 2);
+			for (uint8_t i = 0; i < Thread_count; ++i)
+				m_threads.emplace_back(m_context);
 		}
 		~dasm_t()
 		{
@@ -374,12 +473,14 @@ namespace dasm
 		void add_routine(uint64_t routine_rva)
 		{
 			if (m_routine_lookup_table[routine_rva] || !is_executable(routine_rva))
-			{
-				printf("Failed the check.\n");
 				return;
-			}
 
-			m_queued_routines.push_back(routine_rva);
+			m_routine_lookup_table[routine_rva] = true;
+
+			m_threads[m_next_thread].queue_routine(routine_rva);
+			m_next_thread++;
+			if (m_next_thread >= Thread_count)
+				m_next_thread = 0;
 		}
 
 		void add_multiple_routines(std::vector<uint64_t> const& routines_rvas)
@@ -393,12 +494,22 @@ namespace dasm
 
 		void run()
 		{
-			while (m_queued_routines.size())
+			for (auto& thread : m_threads)
+				thread.start();
+		}
+
+		void wait_for_completion()
+		{
+			while (dasm_thread_t<Addr_width>::queued_routine_count)
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+			for (auto& thread : m_threads)
 			{
-				auto rva = m_queued_routines.back();
-				m_queued_routines.pop_back();
-				completed_routines.emplace_back().decode(m_context, rva);
+				completed_routines.splice(completed_routines.end(), thread.finished_routines);
+				thread.stop();
 			}
+
+
 		}
 
 		void print_details()
@@ -416,3 +527,10 @@ namespace dasm
 	};
 
 }
+
+
+
+
+
+
+

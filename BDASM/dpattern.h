@@ -8,23 +8,20 @@
 
 namespace dasm
 {
-
-	// Thanks 'The personified devil#4871'. Stupid comma operator.
-	//
-	template<address_width Addr_width, xed_iclass_enum_t... IClass_list>
-	struct static_ipattern_t
+	template<address_width Addr_width, typename Compare_type, Compare_type Accessor(const xed_decoded_inst_t*), Compare_type... Compare_list>
+	struct static_pattern_t
 	{
-		inline static constexpr uint32_t size = sizeof...(IClass_list);
+		inline static constexpr uint32_t size = sizeof...(Compare_list);
 
 		// Searches a list for a pattern.
 		//
 		inline static const bool match(inst_list_t<Addr_width>& list, inst_it_t<Addr_width> start)
 		{
 			return (
-					(
-						(IClass_list == xed_decoded_inst_get_iclass(&start->decoded_inst)) &&
-						(++start != list.end())
-					) && 
+				(
+					(Compare_list == Accessor(&start->decoded_inst)) &&
+					(++start != list.end())
+					) &&
 					...
 				);
 		}
@@ -33,11 +30,9 @@ namespace dasm
 		//
 		inline static const bool unsafe_match(inst_it_t<Addr_width> start)
 		{
-			return ((IClass_list == xed_decoded_inst_get_iclass(&(start++)->decoded_inst)) && ...);
+			return ((Compare_list == xed_decoded_inst_get_iclass(&(start++)->decoded_inst)) && ...);
 		}
 	};
-
-
 
 
 	template<address_width Addr_width = address_width::x64>
