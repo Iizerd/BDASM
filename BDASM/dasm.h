@@ -181,7 +181,7 @@ namespace dasm
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
-				inst.my_symbol = context->symbol_table->get_symbol_index_for_rva_unsafe(rva);
+				inst.my_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(rva);
 
 				lookup_table->update_inst(rva, ilen);
 
@@ -193,13 +193,13 @@ namespace dasm
 				auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
 				for (uint32_t i = 0; i < num_operands; ++i)
 				{
-					auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
-					if ((XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name) && 
+					
+					if (auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i)); 
+						(XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name) &&
 						get_max_reg_size<XED_REG_RIP, Addr_width>::value == xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0))
 					{
 						int64_t rip_delta = xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);
-						std::printf("Rip Delta %lld\n", rip_delta);
-						inst.used_symbol = context->symbol_table->get_symbol_index_for_rva_unsafe(rva + rip_delta);
+						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(rva + rip_delta);
 						inst.flags |= inst_flag::disp;
 					}
 				}
@@ -218,7 +218,7 @@ namespace dasm
 						goto ExitInstDecodeLoop;
 					}
 
-					inst.used_symbol = context->symbol_table->get_symbol_index_for_rva_unsafe(taken_rva);
+					inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
 					inst.flags |= inst_flag::rel_br;
 
 					if (!lookup_table->is_inst_start(taken_rva))
@@ -252,7 +252,7 @@ namespace dasm
 							std::printf("Unconditional branch to invalid rva.\n");
 							goto ExitInstDecodeLoop;
 						}
-						inst.used_symbol = context->symbol_table->get_symbol_index_for_rva_unsafe(dest_rva);
+						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!lookup_table->is_inst_start(dest_rva))
@@ -295,7 +295,7 @@ namespace dasm
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 
-						inst.used_symbol = context->symbol_table->get_symbol_index_for_rva_unsafe(dest_rva);
+						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!lookup_table->is_self(dest_rva))

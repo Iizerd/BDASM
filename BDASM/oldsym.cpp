@@ -59,7 +59,7 @@
 //	{
 //		return m_entries[symbol_index];
 //	}
-//	finline void set_sym_addr_and_placed(uint32_t symbol_index, uint64_t address)
+//	finline void set_symbol_addr(uint32_t symbol_index, uint64_t address)
 //	{
 //		m_entries[symbol_index].set_flag(symbol_flag::placed).set_address(address);
 //		/*m_entries[symbol_index].address = address;

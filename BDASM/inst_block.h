@@ -52,7 +52,7 @@ namespace dasm
 			for (auto& inst : instructions)
 			{
 				if (inst.my_symbol)
-					symbol_table->set_sym_addr_and_placed(inst.my_symbol, start_address);
+					symbol_table->set_symbol_addr(inst.my_symbol, start_address);
 				start_address += inst.length();
 			}
 			return start_address;
