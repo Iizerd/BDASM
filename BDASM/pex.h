@@ -1,6 +1,12 @@
 #pragma once
 
 // Did you know that pex looks like xed if it was flipped upside down?
+// PEX = PE(X), the X being 32 or 64 bit executables.
+// This is how BDASM interfaces with the PE and its structures.
+// 
+// Can map a PE into memory as if it was a loaded image, modify it,
+// then unmap back to raw data to be written to disk.
+// Notable code is append_section and map/unmap_file
 //
 
 #include <Windows.h>
@@ -747,6 +753,8 @@ namespace pex
 		optional_header_it_t<Addr_width> optional_header;
 
 		// These are the sections header interfaces from the original binary.
+		// TODO: Replace this with a single 'image_section_header_it_t' because
+		// its an array and can be iterated through as such
 		//
 		std::vector<image_section_header_it_t> section_headers;
 
@@ -793,7 +801,7 @@ namespace pex
 			file_header.set(base + dos_header.get_lfanew() + sizeof uint32_t);
 			optional_header.set(base + dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
 
-			uint8_t* section_header_base = (uint8_t*)optional_header.get() + file_header.get_size_of_optional_header();
+			uint8_t* section_header_base = reinterpret_cast<uint8_t*>(optional_header.get()) + file_header.get_size_of_optional_header();
 			for (uint32_t i = 0; i < file_header.get_number_of_sections(); i++)
 			{
 				section_headers[i].set(section_header_base + (i * sizeof image_section_header_t));
@@ -816,12 +824,12 @@ namespace pex
 				if (!enum_func(mapped_image, block_it, it, block_it.get_num_of_relocs()))
 					return;
 
-				printf("base reloc %u %u\n", block_it.get_size_of_block(), block_it.get_virtual_address());
-
 				block_it.set(reinterpret_cast<uint8_t*>(block_it.get()) + block_it.get_size_of_block());
 			}
 		}
 
+		// These are here because i'm not certain that the sections are required to always be in order
+		//
 		uint32_t get_max_virt_addr()
 		{
 			uint32_t max_addr = 0;
@@ -855,7 +863,7 @@ namespace pex
 
 		uint32_t append_section(std::string const& name, uint32_t section_size, uint32_t characteristics, bool is_code = false, bool is_idata = false, bool is_udata = false)
 		{
-			// Make sure there is enough space to append another header.
+			// Make sure there is enough space for another section header.
 			//
 			if (align_up(
 				dos_header.get_lfanew() +
@@ -930,6 +938,8 @@ namespace pex
 			cur_section.set_number_of_relocations(0);
 			cur_section.set_pointer_to_line_numbers(0);
 			cur_section.set_number_of_line_numbers(0);
+
+			symbol_table->resize_image_table(optional_header.get_size_of_image());
 
 			return virt_addr;
 		}
@@ -1014,7 +1024,7 @@ namespace pex
 					{
 						uint32_t len = section_header_it[i].get_virtual_size();
 						for (uint32_t rva = section_header_it[i].get_virtual_address(); rva < len; ++rva)
-							symbol_table->get_symbol_for_rva_unsafe(rva).set_flag(symbol_flag::executable);
+							symbol_table->unsafe_get_symbol_for_rva(rva).set_flag(symbol_flag::executable);
 					}
 				}
 			}
@@ -1026,7 +1036,6 @@ namespace pex
 			}
 
 			// Build the mapped image. Where sections are at their real rvas
-			// This will replace all of this above section nonsense
 			//
 			{
 				mapped_image = new uint8_t[optional_header.get_size_of_image()];
@@ -1060,7 +1069,7 @@ namespace pex
 					for (image_thunk_data_it_t<Addr_width> thunk_data_it(rva_as<thunk_data_conditional_type(Addr_width)>(import_descriptor_it.get_original_first_thunk()));
 						!thunk_data_it.is_null(); ++thunk_data_it)
 					{
-						uint32_t symbol_index = symbol_table->get_symbol_index_for_rva_unsafe(
+						uint32_t symbol_index = symbol_table->unsafe_get_symbol_index_for_rva(
 							static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_it.get()) - mapped_image)
 						);
 
@@ -1117,7 +1126,7 @@ namespace pex
 					uint32_t export_rva = export_address_table[name_ordinal];
 
 					m_exports.add_named_export(name,
-						symbol_table->get_symbol_index_for_rva_unsafe(
+						symbol_table->unsafe_get_symbol_index_for_rva(
 							export_rva, symbol_flag::is_export
 						),
 						export_rva
@@ -1131,7 +1140,7 @@ namespace pex
 					uint32_t export_rva = export_address_table[ordinal];
 
 					m_exports.add_ordinal_export(ordinal,
-						symbol_table->get_symbol_index_for_rva_unsafe(
+						symbol_table->unsafe_get_symbol_index_for_rva(
 							export_rva, symbol_flag::is_export
 						),
 						export_rva

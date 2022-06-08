@@ -116,7 +116,7 @@ public:
 		delete[] m_image_table;
 	}
 
-	void resize_image(uint32_t new_image_size)
+	void resize_image_table(uint32_t new_image_size)
 	{
 		symbol_t* new_image_table = new symbol_t[new_image_size];
 		uint32_t copy_size = min(new_image_size, m_image_size);
@@ -137,23 +137,16 @@ public:
 	{
 		if (address < m_arbitrary_table_idx_offset)
 		{
-			m_image_table[address].set_flag_and_address(flags, address); // set_flag_abs(flags).set_address(address);
+			// So this is pretty useless atm... However to maintain the interface in case I change
+			// it in the future, its staying for now.
+			//
+			m_image_table[address].set_flag_and_address(flags, address);
 			return address;
 		}
 		else
 		{
-			m_lock.lock();
-			auto sym_idx =  get_arbitrary_symbol_index(flags);
-			m_lock.unlock();
+			return get_arbitrary_symbol_index(flags);
 		}
-	}
-
-	// If we are in the binary itself then these are always valid so no need for more time with if
-	//
-	ndiscard uint32_t get_symbol_index_for_rva_unsafe(uint64_t address, symbol_flag::type flags = symbol_flag::none)
-	{
-		m_image_table[address].set_flag_and_address(flags, address);
-		return address;
 	}
 
 	// For symbols created after the fact, these dont get an entry in the lookup table because
@@ -161,16 +154,11 @@ public:
 	//
 	ndiscard uint32_t get_arbitrary_symbol_index(symbol_flag::type flags = symbol_flag::none)
 	{
+		std::lock_guard g(m_lock);
 		m_arbitrary_table.emplace_back(flags, 0);
 		return m_arbitrary_table_idx_offset + (static_cast<uint32_t>(m_arbitrary_table.size()) - 1);
 	}
 
-	// Access symbols within the binary bounds without a check to make sure
-	//
-	ndiscard finline symbol_t& get_symbol_for_rva_unsafe(uint32_t symbol_index)
-	{
-		return m_image_table[symbol_index];
-	}
 
 	// Access any symbol, arbitrary or not.
 	//
@@ -185,11 +173,29 @@ public:
 	// Set placement of something and that it is valid.
 	// There is no unsafe version of this because it would never be used.
 	//
-	finline void set_sym_addr_and_placed(uint32_t symbol_index, uint64_t address)
+	finline void set_symbol_addr(uint32_t symbol_index, uint64_t address)
 	{
 		if (symbol_index < m_arbitrary_table_idx_offset)
 			m_image_table[symbol_index].set_flag_and_address(symbol_flag::placed, address);
 		else
 			m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].set_flag(symbol_flag::placed).set_address(address);
+	}
+
+
+
+
+	// If we are in the binary itself then these are always valid so no need for more time with if
+	//
+	ndiscard finline uint32_t unsafe_get_symbol_index_for_rva(uint64_t address, symbol_flag::type flags = symbol_flag::none)
+	{
+		m_image_table[address].set_flag_and_address(flags, address);
+		return address;
+	}
+
+	// Access symbols within the binary bounds without a check to make sure
+	//
+	ndiscard finline symbol_t& unsafe_get_symbol_for_rva(uint32_t symbol_index)
+	{
+		return m_image_table[symbol_index];
 	}
 };

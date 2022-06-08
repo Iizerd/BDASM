@@ -88,15 +88,15 @@ namespace obf
 					m_dasm->add_routine(m_runtime_functions.get_begin_address());
 				count++;
 			}
-			std::printf("This many count runtime: %u\n", count);
+			//std::printf("This many count runtime: %u\n", count);
 
 
-			m_binary->enum_base_relocs([](uint8_t* base, pex::image_base_reloc_block_it_t block, pex::image_base_reloc_it_t it, uint32_t num)
+			/*m_binary->enum_base_relocs([](uint8_t* base, pex::image_base_reloc_block_it_t block, pex::image_base_reloc_it_t it, uint32_t num)
 				{
 					for (uint32_t i = 0; i < block.get_num_of_relocs(); i++)
 						std::printf("Reloc %p %p %016X, %X, %u, %s\n", block.get(), it[i].get(), block.get_virtual_address() + it[i].get_offset(), it[i].get_offset(), it[i].get_type(), it[i].get_type_name().data());
 					return true;
-				});
+				});*/
 
 			m_dasm->run();
 

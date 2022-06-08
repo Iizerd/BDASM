@@ -127,7 +127,7 @@
 //		return m_entries[*sym];
 //	}
 //
-//	finline void set_sym_addr_and_placed(symbol_t sym, uint64_t address)
+//	finline void set_symbol_addr(symbol_t sym, uint64_t address)
 //	{
 //		uint32_t idx = *sym;
 //		m_entries[idx].rva = address;
