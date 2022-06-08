@@ -23,15 +23,15 @@
 //uint8_t bytes[] = { 0x48,0xFF ,0x15 ,0x39 ,0x6C ,0xC3 ,0xFF };
 
 //#define image_name "C:\\$Fanta\\FntaDrvr\\x64\\Release\\ShellcodeMaker.exe"
-#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
-#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\dxgkrnl.sys"
+//#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\ntoskrnl.exe"
+//#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\dxgkrnl.sys"
 //#define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
 
-//#ifdef _DEBUG
-//#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
-//#else
-//#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
-//#endif
+#ifdef _DEBUG
+#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
+#else
+#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+#endif
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
 
@@ -55,7 +55,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 		binary_path = argv[1];
 
-	dasm::address_width width = binary_ir_t<>::deduce_address_width(binary_path);
+	dasm::address_width width = pex::binary_ir_t<>::deduce_address_width(binary_path);
 	//printf("image size %u %u\n", address_width_to_bits(width), address_width_to_bytes(width));
 
 
@@ -74,13 +74,13 @@ int main(int argc, char** argv)
 
 	if (width == dasm::address_width::x86)
 	{
-		binary_ir_t<dasm::address_width::x86> binary;
+		pex::binary_ir_t<dasm::address_width::x86> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 	}
 	else if (width == dasm::address_width::x64)
 	{
-		binary_ir_t<dasm::address_width::x64> binary;
+		pex::binary_ir_t<dasm::address_width::x64> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 
@@ -97,9 +97,13 @@ int main(int argc, char** argv)
 
 		std::printf("Routines Count: %llu\nInstruction Count: %u\n", obfuscator.m_dasm->completed_routines.size(), obfuscator.m_dasm->count_instructions());
 
-		/*obfuscator.enumerate_marked_functions();
+		obfuscator.enumerate_marked_functions();
 
-		obfuscator.export_marked_routine_and_nop_marker("C:\\$Work\\BDASM\\x64\\Release\\");*/
+		obfuscator.do_it();
+
+		obfuscator.save_file("C:\\$Work\\BDASM\\x64\\Release\\TestExe2.exe");
+
+		//obfuscator.export_marked_routine_and_nop_marker("C:\\$Work\\BDASM\\x64\\Release\\");
 
 
 

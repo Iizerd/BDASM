@@ -47,17 +47,17 @@ namespace dasm
 		// Returns the end of the data needed to store the block
 		// can do end - start to get size
 		//
-		uint64_t place_at(uint64_t start_address, symbol_table_t& symbol_table)
+		uint64_t place_at(uint64_t start_address, symbol_table_t* symbol_table)
 		{
 			for (auto& inst : instructions)
 			{
 				if (inst.my_symbol)
-					symbol_table.set_sym_addr_and_placed(inst.my_symbol, start_address);
+					symbol_table->set_sym_addr_and_placed(inst.my_symbol, start_address);
 				start_address += inst.length();
 			}
 			return start_address;
 		}
-		uint8_t* encode_to(uint8_t* dest, uint64_t start_address, symbol_table_t& symbol_table)
+		uint8_t* encode_to(uint8_t* dest, uint64_t start_address, symbol_table_t* symbol_table)
 		{
 			for (auto& inst : instructions)
 			{
@@ -67,7 +67,7 @@ namespace dasm
 
 				if (inst.flags & inst_flag::rel_br)
 				{
-					int64_t br_disp = (int64_t)symbol_table.get_symbol(inst.used_symbol).address - start_address;
+					int64_t br_disp = (int64_t)symbol_table->get_symbol(inst.used_symbol).address - start_address;
 					if (!xed_patch_relbr(&inst.decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&inst.decoded_inst))))
 					{
 						std::printf("Failed to patch relative br.\n");
@@ -75,7 +75,7 @@ namespace dasm
 				}
 				else if (inst.flags & inst_flag::disp)
 				{
-					int64_t br_disp = (int64_t)symbol_table.get_symbol(inst.used_symbol).address - start_address;
+					int64_t br_disp = (int64_t)symbol_table->get_symbol(inst.used_symbol).address - start_address;
 					if (!xed_patch_disp(&inst.decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0))))
 					{
 						std::printf("Failed to patch displacement.\n");
