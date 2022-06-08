@@ -12,37 +12,30 @@ namespace symbol_flag
 	typedef uint32_t type;
 	constexpr type none = 0;
 
-	// Indicates that the address is relative to
-	// These are used to key into the map and find symbols.
-	// After that they dont matter.
-	//
 	constexpr type base = (1 << 0);
-
-	// import_lookup_key uses this to mask to only the values used in the key.
-	//
-	constexpr type key_mask = (1 << 0);
-
 
 	// This symbol was placed and given an updated rva
 	//
 	constexpr type placed = (1 << 1);
 
 
-	// The type descriptor for debug purposes i think...
-	// Will probably remove this later
+	// Sections where things are found are marked like this...
 	//
-	constexpr type type_export = (1 << 2);
-	constexpr type type_export_data = (1 << 3);
-	constexpr type type_export_function = (1 << 4);
-	constexpr type type_export_mask = (type_export | type_export_data | type_export_function);
+	constexpr type data = (1 << 2);
+	constexpr type executable = (1 << 3);
 
-	constexpr type type_import = (1 << 5);
-	constexpr type type_import_data = (1 << 6);
-	constexpr type type_import_routine = (1 << 7);
-	constexpr type type_import_mask = (type_import | type_import_data | type_import_routine);
-
+	constexpr type is_export = (1 << 4);
 
 	constexpr type mask = 0xffffffff;
+};
+
+class symbol_attribute_t
+{
+public:
+	virtual void print_details()
+	{
+		std::printf("Default symbol attributes.\n");
+	}
 };
 
 // These symbols are basically an intermediate between two things. For example an instruction and another isntruction
@@ -86,14 +79,21 @@ public:
 		address = new_addr;
 		return *this;
 	}
+	finline symbol_t& set_flag_and_address(symbol_flag::type flag, uint64_t addr)
+	{
+		flags |= flag;
+		address = addr;
+		return *this;
+	}
 };
 
 class symbol_table_t
 {
-	const uint32_t m_image_size;
+	uint32_t m_image_size;
 
 	symbol_t* m_image_table;
 
+	inline constexpr static uint32_t m_arbitrary_table_idx_offset = 0xFFFF0000;
 	std::vector<symbol_t> m_arbitrary_table;
 
 	// This is ONLY needed when allocating in the arbitrary_table 
@@ -106,13 +106,38 @@ public:
 		: m_image_size(image_size)
 	{
 		m_image_table = new symbol_t[image_size];
+		for (uint32_t i = 0; i < image_size; i++)
+			m_image_table[i].set_address(i);
+
 		m_arbitrary_table.reserve(arbitrary_table_start_size);
 	}
-	ndiscard uint32_t get_symbol_index_for_rva(symbol_flag::type flags, uint64_t address)
+	~symbol_table_t()
 	{
-		if (address < m_image_size)
+		delete[] m_image_table;
+	}
+
+	void resize_image(uint32_t new_image_size)
+	{
+		symbol_t* new_image_table = new symbol_t[new_image_size];
+		uint32_t copy_size = min(new_image_size, m_image_size);
+		for (uint32_t i = 0; i < copy_size; i++)
+			new_image_table[i] = m_image_table[i];
+
+		// Only the new stuff gets updated with rvas.
+		// 
+		for (uint32_t i = m_image_size; i < new_image_size; i++)
+			new_image_table[i].set_address(i);
+
+		delete[] m_image_table;
+		m_image_table = new_image_table;
+		m_image_size = new_image_size;
+	}
+
+	ndiscard uint32_t get_symbol_index_for_rva(uint64_t address, symbol_flag::type flags = symbol_flag::none)
+	{
+		if (address < m_arbitrary_table_idx_offset)
 		{
-			m_image_table[address].set_flag_abs(flags).set_address(address);
+			m_image_table[address].set_flag_and_address(flags, address); // set_flag_abs(flags).set_address(address);
 			return address;
 		}
 		else
@@ -123,27 +148,48 @@ public:
 		}
 	}
 
+	// If we are in the binary itself then these are always valid so no need for more time with if
+	//
+	ndiscard uint32_t get_symbol_index_for_rva_unsafe(uint64_t address, symbol_flag::type flags = symbol_flag::none)
+	{
+		m_image_table[address].set_flag_and_address(flags, address);
+		return address;
+	}
+
 	// For symbols created after the fact, these dont get an entry in the lookup table because
 	// they are not within the original binary. => dont have an rva.
 	//
 	ndiscard uint32_t get_arbitrary_symbol_index(symbol_flag::type flags = symbol_flag::none)
 	{
 		m_arbitrary_table.emplace_back(flags, 0);
-		return static_cast<uint32_t>(m_arbitrary_table.size()) - 1;
+		return m_arbitrary_table_idx_offset + (static_cast<uint32_t>(m_arbitrary_table.size()) - 1);
 	}
 
+	// Access symbols within the binary bounds without a check to make sure
+	//
+	ndiscard finline symbol_t& get_symbol_for_rva_unsafe(uint32_t symbol_index)
+	{
+		return m_image_table[symbol_index];
+	}
+
+	// Access any symbol, arbitrary or not.
+	//
 	ndiscard finline symbol_t& get_symbol(uint32_t symbol_index)
 	{
-		if (symbol_index < m_image_size)
+		if (symbol_index < m_arbitrary_table_idx_offset)
 			return m_image_table[symbol_index];
 		else
-			return m_arbitrary_table[symbol_index];
+			return m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset];
 	}
+
+	// Set placement of something and that it is valid.
+	// There is no unsafe version of this because it would never be used.
+	//
 	finline void set_sym_addr_and_placed(uint32_t symbol_index, uint64_t address)
 	{
-		if (symbol_index < m_image_size)
-			m_image_table[symbol_index].set_flag(symbol_flag::placed).set_address(address);
+		if (symbol_index < m_arbitrary_table_idx_offset)
+			m_image_table[symbol_index].set_flag_and_address(symbol_flag::placed, address);
 		else
-			m_arbitrary_table[symbol_index].set_flag(symbol_flag::placed).set_address(address);
+			m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].set_flag(symbol_flag::placed).set_address(address);
 	}
 };
