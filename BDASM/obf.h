@@ -7,7 +7,14 @@
 #include "marker.h"
 #include "emu.h"
 #include "gen.h"
+#include "encoder.h"
 
+
+/*
+	TODO: Create a tree that demonstrates what functions call what.
+
+	Create the gadgets for absolute addressing. Data, jumps, relbrs, calls all that.
+*/
 
 namespace obf
 {
@@ -144,9 +151,20 @@ namespace obf
 		{
 			for (auto routine : m_marked_routines)
 			{
-				auto rva = m_binary->append_section(".TEST", routine->blocks.front().get_size(), 0, true);
+				auto rva = m_binary->append_section(".TEST", routine->blocks.front().get_size(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
 				routine->blocks.front().place_at(rva, m_binary->symbol_table);
 				routine->blocks.front().encode_to(m_binary->mapped_image + rva, rva, m_binary->symbol_table);
+
+				uint8_t* jmp_place = m_binary->mapped_image + routine->start;
+
+				printf("%X %X %X\n", routine->start, rva, rva - routine->start);
+
+				encode_inst_in_place(jmp_place,
+					dasm::addr_width_to_machine_state<Addr_width>::value,
+					XED_ICLASS_JMP,
+					32,
+					xed_relbr(rva - routine->start - 5, 32)
+				);
 			}
 		}
 
