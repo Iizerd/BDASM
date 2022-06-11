@@ -160,7 +160,7 @@ namespace obf
 				printf("%X %X %X\n", routine->start, rva, rva - routine->start);
 
 				encode_inst_in_place(jmp_place,
-					dasm::addr_width_to_machine_state<Addr_width>::value,
+					dasm::addr_width::machine_state<Addr_width>::value,
 					XED_ICLASS_JMP,
 					32,
 					xed_relbr(rva - routine->start - 5, 32)

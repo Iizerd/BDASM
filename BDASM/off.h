@@ -33,7 +33,7 @@ template<dasm::address_width Addr_width = dasm::address_width::x64>
 struct ff_jump_in
 {
 	unsigned char inst[6];
-	dasm::address_storage<Addr_width>::type address;
+	dasm::addr_width::storage<Addr_width>::type address;
 };
 static_assert(sizeof(ff_jump_in<dasm::address_width::x86>) == 10);
 static_assert(sizeof(ff_jump_in<dasm::address_width::x64>) == 14);
