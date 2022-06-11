@@ -52,63 +52,25 @@ namespace dasm
 		//uint32_t rva;
 
 		explicit inst_t()
-			: my_symbol(0), used_symbol(0), is_encoder_request(false)
+			: flags(0), 
+			my_symbol(0), 
+			used_symbol(0), 
+			is_encoder_request(false)
 		{}
 
 		explicit inst_t(inst_t& to_copy)
-			: my_symbol(to_copy.my_symbol), used_symbol(to_copy.used_symbol)
-		{
-			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
-
-			// Encode to temp buffer.
-			//
-			to_copy.to_encode_request();
-			to_copy.encode(buffer);
-
-			// Redecode into instruction decoded_inst that was copied from.
-			// 
-			to_copy.decode(buffer, XED_MAX_INSTRUCTION_BYTES);
-
-			// Decode to this instructions decoded_inst;
-			//
-			this->decode(buffer, XED_MAX_INSTRUCTION_BYTES);
-		}
-		explicit inst_t(inst_t&& to_mov)
-		{
-			copy_from_discard_original_state(to_mov);
-		}
-
-		// This encodes the 'to_copy' instruction to a temp buffer,
-		// Decodes it so 'this' represents it,
-		// And does not restore or care about the state of the 'to_copy' instruction
-		// It's assumed that to_copy is discarded after.
-		// Maybe this should be a mov constructor? But I don't know how to use them
-		//
-		void copy_from_discard_original_state(inst_t& to_copy)
-		{
-			my_symbol = to_copy.my_symbol;
-			used_symbol = to_copy.used_symbol;
-
-			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
-
-			// Encode to temp buffer.
-			//
-			if (!is_encoder_request)
-				to_copy.to_encode_request();
-			to_copy.encode(buffer);
-
-			// Decode to this instructions decoded_inst;
-			//
-			this->decode(buffer, XED_MAX_INSTRUCTION_BYTES);
-		}
-
+			: flags(to_copy.flags), 
+			my_symbol(to_copy.my_symbol), 
+			used_symbol(to_copy.used_symbol), 
+			is_encoder_request(0), 
+			decoded_inst(to_copy.decoded_inst)
+		{ }
 
 		void zero_and_set_mode()
 		{
-			xed_decoded_inst_zero_set_mode(&decoded_inst, &addr_width_to_machine_state<Addr_width>::value);
+			xed_decoded_inst_zero_set_mode(&decoded_inst, &addr_width::machine_state<Addr_width>::value);
 			is_encoder_request = false;
 		}
-
 
 		// Initial decode routine
 		//
@@ -252,6 +214,22 @@ namespace dasm
 		return size;
 	}
 
+	template<address_width Addr_width = address_width::x64>
+	uint8_t* dumb_encoder(inst_list_t<Addr_width>& list, uint32_t& size)
+	{
+		size = calc_inst_list_size(list);
 
+		uint8_t* res = new uint8_t[size];
+		uint8_t* base = res;
+
+		for (auto& inst : list)
+		{
+			inst.to_encode_request();
+			auto meme = inst.encode(res);
+			res += meme;
+		}
+
+		return base;
+	}
 }
 

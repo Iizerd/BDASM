@@ -37,18 +37,23 @@
 
 int main(int argc, char** argv)
 {
-	/*static constexpr dasm::static_ipattern_t<dasm::address_width::x64, XED_ICLASS_CALL_FAR, XED_ICLASS_JB> pattern;
+	xed_tables_init();
 
-	std::printf("Pattern Size: %u\n", pattern.size);
+	/*auto res = obf::gen::fastcall_prologue<dasm::address_width::x64>(4, 1776);
 
-	for (uint32_t i = 0; i < pattern.size; i++)
-		std::printf("Pattern Class: %s\n", xed_iclass_enum_t2str(pattern.pattern[i]));
+	
 
-	system("pause");
+	uint32_t size = 0;
+	auto enc = dasm::dumb_encoder(res, size);
+
+	for (uint32_t i = 0; i < size; i++)
+	{
+		std::printf("%02X ", enc[i]);
+	}
+	std::printf("\n");
 	return 1;*/
 
 
-	xed_tables_init();
 
 	std::string binary_path = image_name;
 
