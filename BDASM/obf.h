@@ -60,12 +60,11 @@ namespace obf
 					//printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
 					entry_rva = start_address;
 				}
-				printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
+				//printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
 				auto newp = align_up(block.encode_to(dest, start_address, symbol_table) - dest, 0x10);
 				start_address += newp;
 				dest += newp;
 			}
-			printf("Entry upon leaving %X\n", entry_rva);
 			return dest;
 		}
 	};
@@ -137,15 +136,15 @@ namespace obf
 			!m_runtime_functions.is_null(); ++m_runtime_functions)
 			{
 				if (m_binary->is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
-					m_dasm->add_routine(m_runtime_functions.get_begin_address());
+					m_dasm->add_routine(m_runtime_functions.get_begin_address(), m_runtime_functions.get_end_address());
 				count++;
 			}
+			std::printf("This many count runtime: %u\n", count);
 
-			m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
+			m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point(), 0);
 
 			//printf("Entry point %X\n", m_binary->optional_header.get_address_of_entry_point());
 
-			//std::printf("This many count runtime: %u\n", count);
 
 			m_dasm->run();
 
@@ -229,7 +228,7 @@ namespace obf
 				uint64_t entry = 0;
 				dest = routine.encode_to(dest, rva, m_binary->symbol_table, entry);
 
-				printf("writing jump from %X to %X\n", routine.m_routine.entry_it->start, entry);
+				//printf("writing jump from %X to %X\n", routine.m_routine.entry_it->start, entry);
 				encode_inst_in_place(m_binary->mapped_image + routine.m_routine.entry_it->start,
 					dasm::addr_width::machine_state<Addr_width>::value,
 					XED_ICLASS_JMP,
