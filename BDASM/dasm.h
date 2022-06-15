@@ -161,7 +161,11 @@ namespace dasm
 		std::list<inst_block_t<Addr_width> > blocks;
 		uint64_t start = 0;
 		uint64_t end = 0;
-		uint64_t entry = 0;
+
+		// So we know what block is the entry for this function
+		//
+		std::list<inst_block_t<Addr_width> >::iterator entry_it;
+		uint64_t entry_rva = 0;
 
 		bool complete_disassembly = true;
 
@@ -364,7 +368,7 @@ namespace dasm
 		}
 		void decode(decode_lookup_table* lookup_table, decoder_context_t* context, uint64_t rva)
 		{
-			entry = rva;
+			entry_rva = rva;
 
 			if (!context->validate_rva(rva))
 			{
@@ -391,8 +395,18 @@ namespace dasm
 				{
 					//printf("merging with size %u %u at %X\n", next->start - it->end, context->settings.block_combination_threshold, it->end);
 					it->instructions.splice(it->instructions.end(), next->instructions);
+					it->end = next->end;
 
 					blocks.erase(next);
+				}
+			}
+
+			for (auto it = blocks.begin(); it != blocks.end(); ++it)
+			{
+				if (it->start = entry_rva)
+				{
+					entry_it = it;
+					break;
 				}
 			}
 

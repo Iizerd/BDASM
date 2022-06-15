@@ -23,15 +23,17 @@ namespace obf
 	class obf_routine_t
 	{
 	public:
+		uint64_t entry_rva;
+
 		uint8_t has_marker;
 		uint8_t m_attributes;
 
 		dasm::inst_routine_t<Addr_width>& m_routine;
 
-		dasm::inst_block_t<Addr_width>& m_inst_block;
+		//dasm::inst_block_t<Addr_width>& m_inst_block;
 
 		obf_routine_t(dasm::inst_routine_t<Addr_width>& func)
-			: m_routine(func), m_inst_block(func.blocks.front())
+			: m_routine(func)/*, m_inst_block(func.blocks.front())*/
 		{ 
 			/*if (auto marker = find_marker(m_inst_block.instructions); marker != m_inst_block.instructions.end())
 			{
@@ -46,11 +48,25 @@ namespace obf
 		//
 		void place_and_advance(uint64_t &rva, symbol_table_t* sym_table)
 		{
-			rva = align_up(m_inst_block.place_at(rva, sym_table), 0x10);
+			for (auto& block : m_routine.blocks)
+				rva = align_up(block.place_at(rva, sym_table), 0x10);
 		}
-		uint64_t encode_to(uint8_t* dest, uint64_t start_address, symbol_table_t* symbol_table)
+		uint8_t* encode_to(uint8_t* dest, uint64_t& start_address, symbol_table_t* symbol_table, uint64_t& entry_rva)
 		{
-			return align_up(m_inst_block.encode_to(dest, start_address, symbol_table) - dest, 0x10);
+			for (auto& block : m_routine.blocks)
+			{
+				if (block.start == m_routine.entry_rva)
+				{
+					//printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
+					entry_rva = start_address;
+				}
+				printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
+				auto newp = align_up(block.encode_to(dest, start_address, symbol_table) - dest, 0x10);
+				start_address += newp;
+				dest += newp;
+			}
+			printf("Entry upon leaving %X\n", entry_rva);
+			return dest;
 		}
 	};
 
@@ -167,13 +183,24 @@ namespace obf
 			return has_reloc;
 		}
 
+		bool accepted_rva(uint64_t rva)
+		{
+			switch (rva)
+			{
+			case 0x1398:
+				return true;
+			}
+			return false;
+		}
+
 		void enumerate_obf_functions()
 		{
 			for (auto& routine : m_dasm->completed_routines)
 			{
-				if (routine.complete_disassembly &&
+				if (/*accepted_rva(routine.entry_it->start) &&*/
+					routine.complete_disassembly &&
 					routine.blocks.size() == 1 &&
-					routine.blocks.front().get_size() > 4 && 
+					routine.entry_it->get_size() > 4 &&
 					!contains_relocations(routine))
 				{
 					//std::printf("Func at %X with size %llu\n", routine.start, routine.blocks.front().get_size());
@@ -184,6 +211,7 @@ namespace obf
 			printf("Found %lld functions to obfuscate.\n", m_obf_routines.size());
 		}
 
+		// Say goodbye to exception handling.
 		void do_it()
 		{
 			// First we place them all...
@@ -194,21 +222,23 @@ namespace obf
 				routine.place_and_advance(section_base, m_binary->symbol_table);
 			}
 
-			auto rva = m_binary->append_section(".TEST", section_base - m_binary->next_section_rva(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
+			uint64_t rva = m_binary->append_section(".TEST", section_base - m_binary->next_section_rva(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
 			auto dest = m_binary->mapped_image + rva;
 			for (auto& routine : m_obf_routines)
 			{
-				auto sz = routine.encode_to(dest, rva, m_binary->symbol_table);
+				uint64_t entry = 0;
+				dest = routine.encode_to(dest, rva, m_binary->symbol_table, entry);
 
-				encode_inst_in_place(m_binary->mapped_image + routine.m_routine.start,
+				printf("writing jump from %X to %X\n", routine.m_routine.entry_it->start, entry);
+				encode_inst_in_place(m_binary->mapped_image + routine.m_routine.entry_it->start,
 					dasm::addr_width::machine_state<Addr_width>::value,
 					XED_ICLASS_JMP,
 					32,
-					xed_relbr(rva - routine.m_routine.start - 5, 32)
+					xed_relbr(entry - routine.m_routine.entry_it->start - 5, 32)
 				);
 
-				dest += sz;
-				rva += sz;
+				//dest += sz;
+				//rva += sz;
 			}
 
 

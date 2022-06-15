@@ -67,9 +67,6 @@
     <ClInclude Include="odasm.h">
       <Filter>old</Filter>
     </ClInclude>
-    <ClInclude Include="ptr_list.h">
-      <Filter>headers\dasm</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
