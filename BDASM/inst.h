@@ -58,11 +58,11 @@ namespace dasm
 			is_encoder_request(false)
 		{}
 
-		explicit inst_t(inst_t& to_copy)
+		explicit inst_t(inst_t const& to_copy)
 			: flags(to_copy.flags), 
 			my_symbol(to_copy.my_symbol), 
 			used_symbol(to_copy.used_symbol), 
-			is_encoder_request(0), 
+			is_encoder_request(to_copy.is_encoder_request),
 			decoded_inst(to_copy.decoded_inst)
 		{ }
 
@@ -144,45 +144,7 @@ namespace dasm
 			return xed_decoded_inst_get_length(&this->decoded_inst);
 		}
 
-		finline bool is_abs_mem_call()
-		{
-			switch (xed_decoded_inst_get_iform_enum(&this->decoded_inst))
-			{
-			case XED_IFORM_CALL_FAR_MEMp2:
-			case XED_IFORM_CALL_NEAR_MEMv:
-				return true;
-			default:
-				return false;
-			}
-		}
-		finline bool is_abs_mem_jmp()
-		{
-			switch (xed_decoded_inst_get_iform_enum(&this->decoded_inst))
-			{
-			case XED_IFORM_JMP_MEMv:
-			case XED_IFORM_JMP_FAR_MEMp2:
-				return true;
-			default:
-				return false;
-			}
-		}
-		finline bool is_rel_cond_jump()
-		{
-			return ((XED_CATEGORY_COND_BR == xed_decoded_inst_get_category(&this->decoded_inst)) &&
-				(XED_OPERAND_RELBR == xed_operand_name(xed_inst_operand(xed_decoded_inst_inst(&this->decoded_inst), 0))));
-		}
-		finline bool is_rel_uncond_jump()
-		{
-			return ((XED_CATEGORY_UNCOND_BR == xed_decoded_inst_get_category(&this->decoded_inst)) &&
-				(XED_OPERAND_RELBR == xed_operand_name(xed_inst_operand(xed_decoded_inst_inst(&this->decoded_inst), 0))));
-		}
-
-		finline bool is_rel_call()
-		{
-			auto iclass = xed_decoded_inst_get_iclass(&this->decoded_inst);
-			return ((XED_ICLASS_CALL_FAR == iclass || XED_ICLASS_CALL_NEAR == iclass) &&
-				(XED_OPERAND_RELBR == xed_operand_name(xed_inst_operand(xed_decoded_inst_inst(&this->decoded_inst), 0))));
-		}
+		
 		void print_details() const
 		{
 			std::printf("[0x%08X]\t%u\t%u\t%s\n", /*rva*/0, my_symbol, used_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&this->decoded_inst)));

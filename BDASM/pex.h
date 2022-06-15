@@ -810,7 +810,7 @@ namespace pex
 
 		// Calls enum_func with each reloc block (mapped_image, reloc_block, first_reloc, num_of_relocs);
 		// 
-		void enum_base_relocs(std::function<bool(uint8_t*, image_base_reloc_block_it_t, image_base_reloc_it_t, uint32_t)> enum_func)
+		void enum_base_relocs(std::function<bool(uint8_t*, image_base_reloc_block_it_t, image_base_reloc_it_t)> enum_func)
 		{
 			if ((file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) || !optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
 				return;
@@ -819,9 +819,9 @@ namespace pex
 
 			while (!block_it.is_null())
 			{
-				image_base_reloc_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof(image_base_relocation_t)));
+				image_base_reloc_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof image_base_relocation_t));
 
-				if (!enum_func(mapped_image, block_it, it, block_it.get_num_of_relocs()))
+				if (!enum_func(mapped_image, block_it, it))
 					return;
 
 				block_it.set(reinterpret_cast<uint8_t*>(block_it.get()) + block_it.get_size_of_block());
@@ -859,6 +859,13 @@ namespace pex
 					min_addr = sec_start;
 			}
 			return min_addr;
+		}
+
+		// If we were to append another section, this routine tells us its rva
+		//
+		uint32_t next_section_rva()
+		{
+			return align_up(get_max_virt_addr(), optional_header.get_section_alignment());
 		}
 
 		uint32_t append_section(std::string const& name, uint32_t section_size, uint32_t characteristics, bool is_code = false, bool is_idata = false, bool is_udata = false)

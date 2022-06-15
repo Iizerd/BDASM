@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "addr_width.h"
 #include "pex.h"
 #include "dasm.h"
@@ -8,6 +7,8 @@
 #include "emu.h"
 #include "gen.h"
 #include "encoder.h"
+#include "align.h"
+
 
 
 /*
@@ -18,13 +19,39 @@
 
 namespace obf
 {
-
 	template<dasm::address_width Addr_width = dasm::address_width::x64>
 	class obf_routine_t
 	{
 	public:
-		dasm::inst_routine_t<Addr_width>& routine;
+		uint8_t has_marker;
+		uint8_t m_attributes;
 
+		dasm::inst_routine_t<Addr_width>& m_routine;
+
+		dasm::inst_block_t<Addr_width>& m_inst_block;
+
+		obf_routine_t(dasm::inst_routine_t<Addr_width>& func)
+			: m_routine(func), m_inst_block(func.blocks.front())
+		{ 
+			/*if (auto marker = find_marker(m_inst_block.instructions); marker != m_inst_block.instructions.end())
+			{
+				m_attributes = get_marker_attributes(marker);
+				auto maker_end = marker;
+				std::advance(maker_end, BDASM_MARKER_INST_COUNT);
+				m_inst_block.instructions.erase(marker, maker_end);
+			}*/
+		}
+
+		// Use a single traversal to place the instructions and get the size needed.
+		//
+		void place_and_advance(uint64_t &rva, symbol_table_t* sym_table)
+		{
+			rva = align_up(m_inst_block.place_at(rva, sym_table), 0x10);
+		}
+		uint64_t encode_to(uint8_t* dest, uint64_t start_address, symbol_table_t* symbol_table)
+		{
+			return align_up(m_inst_block.encode_to(dest, start_address, symbol_table) - dest, 0x10);
+		}
 	};
 
 	template<dasm::address_width Addr_width = dasm::address_width::x64, uint8_t Thread_count = 1>
@@ -35,7 +62,8 @@ namespace obf
 		dasm::dasm_t<Addr_width, Thread_count>* m_dasm;
 	private:
 		dasm::decoder_context_t* m_decoder_context;
-		std::vector<dasm::inst_routine_t<Addr_width>*> m_marked_routines;
+		//std::vector<dasm::inst_routine_t<Addr_width>*> m_marked_routines;
+		std::list<obf_routine_t<Addr_width> > m_obf_routines;
 	public:
 		bool force_merge_marked_function_blocks = false;
 
@@ -79,6 +107,7 @@ namespace obf
 			);
 
 			m_decoder_context->settings.recurse_calls = true;
+			m_decoder_context->settings.block_combination_threshold = 0;
 
 			m_dasm = new dasm::dasm_t<Addr_width, Thread_count>(m_decoder_context);
 
@@ -95,15 +124,12 @@ namespace obf
 					m_dasm->add_routine(m_runtime_functions.get_begin_address());
 				count++;
 			}
+
+			m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
+
+			//printf("Entry point %X\n", m_binary->optional_header.get_address_of_entry_point());
+
 			//std::printf("This many count runtime: %u\n", count);
-
-
-			/*m_binary->enum_base_relocs([](uint8_t* base, pex::image_base_reloc_block_it_t block, pex::image_base_reloc_it_t it, uint32_t num)
-				{
-					for (uint32_t i = 0; i < block.get_num_of_relocs(); i++)
-						std::printf("Reloc %p %p %016X, %X, %u, %s\n", block.get(), it[i].get(), block.get_virtual_address() + it[i].get_offset(), it[i].get_offset(), it[i].get_type(), it[i].get_type_name().data());
-					return true;
-				});*/
 
 			m_dasm->run();
 
@@ -121,57 +147,94 @@ namespace obf
 			return true;
 		}
 
-		uint32_t enumerate_marked_functions()
+		bool contains_relocations(dasm::inst_routine_t<Addr_width> const& routine)
+		{
+			bool has_reloc = false;
+			m_binary->enum_base_relocs([&](uint8_t* mapped_base, pex::image_base_reloc_block_it_t block_header, pex::image_base_reloc_it_t reloc) -> bool
+				{
+					uint32_t num_relocs = block_header.get_num_of_relocs();
+					for (uint32_t i = 0; i < num_relocs; i++)
+					{
+						if (uint64_t va = block_header.get_virtual_address() + reloc[i].get_offset();
+							va >= routine.start && va < routine.end)
+						{
+							has_reloc = true;
+							return false;
+						}
+					}
+					return false;
+				});
+			return has_reloc;
+		}
+
+		void enumerate_obf_functions()
 		{
 			for (auto& routine : m_dasm->completed_routines)
 			{
-				for (auto& block : routine.blocks)
+				if (routine.complete_disassembly &&
+					routine.blocks.size() == 1 &&
+					routine.blocks.front().get_size() > 4 && 
+					!contains_relocations(routine))
 				{
-					if (auto begin_marker_start = find_begin_marker(block.instructions); begin_marker_start != block.instructions.end())
-					{
-						if (!(routine.blocks.size() > 1 && !force_merge_marked_function_blocks))
-						{
-							routine.force_merge_blocks();
-							m_marked_routines.emplace_back(&routine);
-
-							auto begin_marker_end = begin_marker_start;
-							std::advance(begin_marker_end, __BDASM_BEGIN_INST_COUNT);
-
-							block.instructions.erase(begin_marker_start, begin_marker_end);
-
-							printf("Found Marked Routine.\n");
-						}
-					}
+					//std::printf("Func at %X with size %llu\n", routine.start, routine.blocks.front().get_size());
+					routine.promote_relbrs();
+					m_obf_routines.emplace_back(routine);
 				}
 			}
-			return 1;
+			printf("Found %lld functions to obfuscate.\n", m_obf_routines.size());
 		}
 
 		void do_it()
 		{
-			for (auto routine : m_marked_routines)
+			// First we place them all...
+			//
+			uint64_t section_base = m_binary->next_section_rva();
+			for (auto& routine : m_obf_routines)
 			{
-				auto rva = m_binary->append_section(".TEST", routine->blocks.front().get_size(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
-				routine->blocks.front().place_at(rva, m_binary->symbol_table);
-				routine->blocks.front().encode_to(m_binary->mapped_image + rva, rva, m_binary->symbol_table);
+				routine.place_and_advance(section_base, m_binary->symbol_table);
+			}
 
-				uint8_t* jmp_place = m_binary->mapped_image + routine->start;
+			auto rva = m_binary->append_section(".TEST", section_base - m_binary->next_section_rva(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
+			auto dest = m_binary->mapped_image + rva;
+			for (auto& routine : m_obf_routines)
+			{
+				auto sz = routine.encode_to(dest, rva, m_binary->symbol_table);
 
-				printf("%X %X %X\n", routine->start, rva, rva - routine->start);
+				encode_inst_in_place(m_binary->mapped_image + routine.m_routine.start,
+					dasm::addr_width::machine_state<Addr_width>::value,
+					XED_ICLASS_JMP,
+					32,
+					xed_relbr(rva - routine.m_routine.start - 5, 32)
+				);
+
+				dest += sz;
+				rva += sz;
+			}
+
+
+			/*for (auto& routine : m_obf_routines)
+			{
+				auto rva = m_binary->append_section(".TEST", routine.routine.blocks.front().get_size(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
+				routine.routine.blocks.front().place_at(rva, m_binary->symbol_table);
+				routine.routine.blocks.front().encode_to(m_binary->mapped_image + rva, rva, m_binary->symbol_table);
+
+				uint8_t* jmp_place = m_binary->mapped_image + routine.routine.start;
+
+				printf("%X %X %X\n", routine.routine.start, rva, rva - routine.routine.start);
 
 				encode_inst_in_place(jmp_place,
 					dasm::addr_width::machine_state<Addr_width>::value,
 					XED_ICLASS_JMP,
 					32,
-					xed_relbr(rva - routine->start - 5, 32)
+					xed_relbr(rva - routine.routine.start - 5, 32)
 				);
-			}
+			}*/
 		}
 
 
 		void export_marked_routine_and_nop_marker(std::string const& dir_path)
 		{
-			printf("trying to export %llu\n", m_marked_routines.size());
+			/*printf("trying to export %llu\n", m_marked_routines.size());
 			for (auto routine : m_marked_routines)
 			{
 				routine->blocks.front().print_block();
@@ -205,7 +268,7 @@ namespace obf
 
 				file.write(reinterpret_cast<char*>(routine_buffer), routine_size);
 				file.close();
-			}
+			}*/
 		}
 	};
 

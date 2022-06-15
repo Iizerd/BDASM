@@ -91,7 +91,7 @@ int main(int argc, char** argv)
 
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		obf::binary_obfuscator_t<dasm::address_width::x64, 8> obfuscator;
+		obf::binary_obfuscator_t<dasm::address_width::x64, 1> obfuscator;
 		
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		obfuscator.load_file(binary_path);
@@ -102,7 +102,7 @@ int main(int argc, char** argv)
 
 		std::printf("Routines Count: %llu\nInstruction Count: %u\n", obfuscator.m_dasm->completed_routines.size(), obfuscator.m_dasm->count_instructions());
 
-		obfuscator.enumerate_marked_functions();
+		obfuscator.enumerate_obf_functions();
 
 		obfuscator.do_it();
 
