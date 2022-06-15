@@ -81,7 +81,7 @@ public:
 	}
 	finline symbol_t& set_flag_and_address(symbol_flag::type flag, uint64_t addr)
 	{
-		flags |= flag;
+		//flags |= flag;
 		address = addr;
 		return *this;
 	}

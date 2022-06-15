@@ -13,6 +13,23 @@
 //
 #define MARKER_ATTRIBUTE_EXECUTED_ONCE			((1 << 1) | MARKER_ATTRIBUTE_SINGLE_THREAD)
 
+
+#define BDASM_MARKER_INST_COUNT				5
+#define BDASM_Mark(							\
+	MarkerAttributes						\
+		)									\
+		{									\
+			_xabort(0xFF);					\
+			__nop();						\
+			_xabort(MarkerAttributes);		\
+			_xabort(0xFF);					\
+		}
+
+
+
+
+
+
 // Tells the obfuscator that it is to extend the group backwards until the 
 // start of the current function. This is useful because the markers will
 // appear in code AFTER the prologue, meaning they would not be within the 
@@ -29,41 +46,19 @@
 // This will ignore BDASM_End macros so you dont need to place one.
 // Implies MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START and MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END
 // 
-#define MARKER_ATTRIBUTE_ENTIRE_FUNCTION		((1 << 4) | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END)
+#define MARKER_ATTRIBUTE_ENTIRE_FUNCTION		(MARKER_ATTRIBUTE_EXTEND_TO_FUNC_START | MARKER_ATTRIBUTE_EXTEND_TO_FUNC_END)
 
 
 
 
-
-// Mutate 
-//
-#define MARKER_OBF_TYPE_MUTATE					(1 << 0)
-
-// Hide instructions that manipulate RSP
-//
-#define MARKER_OBF_HIDE_RSP_ACTIONS				(1 << 1)
-
-#define __BDASM_BEGIN_INST_COUNT			5
-#define BDASM_Begin(						\
-	MarkerAttributes,						\
-	ObfuscationSettings						\
-		)									\
-		{									\
-			__debugbreak();					\
-			__nop();						\
-			_xabort(MarkerAttributes);		\
-			_xabort(ObfuscationSettings);	\
-			__debugbreak();					\
-		}
-
-#define __BDASM_END_INST_COUNT				4
-#define BDASM_End()							\
-		{									\
-			__debugbreak();					\
-			__nop();						\
-			__nop();						\
-			__debugbreak();					\
-		}
+//#define BDASM_END_INST_COUNT				4
+//#define BDASM_End()							\
+//		{									\
+//			_xabort(0xFF);					\
+//			__nop();						\
+//			__nop();						\
+//			_xabort(0xFF);					\
+//		}
 
 
 

@@ -51,6 +51,10 @@ namespace dasm
 		{
 			for (auto& inst : instructions)
 			{
+				// This is unfortunate, but xed drops unused rex prefixes and this is required to fix...
+				// 
+				inst.redecode(); 
+
 				if (inst.my_symbol)
 					symbol_table->set_symbol_addr(inst.my_symbol, start_address);
 				start_address += inst.length();

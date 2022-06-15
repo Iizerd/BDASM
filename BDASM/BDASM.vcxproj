@@ -166,6 +166,7 @@
     <ClInclude Include="old.h" />
     <ClInclude Include="dpattern.h" />
     <ClInclude Include="pex.h" />
+    <ClInclude Include="ptr_list.h" />
     <ClInclude Include="sff.h" />
     <ClInclude Include="size_casting.h" />
     <ClInclude Include="symbol.h" />

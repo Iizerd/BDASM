@@ -5,13 +5,9 @@
 
 
 /*
-	This version of dasm utilized multithreading to speed up the disassembly process.
-	Unfortunately, because the symbol table requires locking to access, I put this here
-	and reverted the project to single thread because it is honestly faster at this point.
-
-	One option I will persue is to rebuild the symbol table structure so it locks itself.
-	But only does so when its absolutely needed. This way,
-
+	TODO: going to break with trailing calls.... Probably a huge problem already
+			im just not seeing it. Going break on INT3 for now...
+			I think that the proper way to handle this is with dpattern.h
 */
 
 
@@ -57,13 +53,20 @@ namespace dasm
 		constexpr uint8_t is_self = (1 << 2);
 	}
 
-	using fn_report_function_rva = void(*)(uint64_t);
-
 	struct decoder_context_t
 	{
 		struct
 		{
+			// Disassembler will follow calls and queue them for disassembly
+			//
 			bool recurse_calls;
+
+			// This is for combining blocks that surround dead code. It rarely happens and
+			// the most likely case for two blocks not being together is that they are from
+			// different functions and the disassembler just didnt see that because it's
+			// pretty crude
+			//
+			int32_t block_combination_threshold;
 		}settings;
 
 		symbol_table_t* symbol_table;
@@ -81,7 +84,10 @@ namespace dasm
 			base_adjustment(adjustment),
 			symbol_table(sym_table),
 			report_function_rva(rva_reporter)
-		{ }
+		{ 
+			settings.recurse_calls = false;
+			settings.block_combination_threshold = 0;
+		}
 		explicit decoder_context_t(decoder_context_t const& to_copy)
 			: raw_data_start(to_copy.raw_data_start),
 			raw_data_end(to_copy.raw_data_end),
@@ -89,7 +95,10 @@ namespace dasm
 			base_adjustment(to_copy.base_adjustment),
 			symbol_table(to_copy.symbol_table),
 			report_function_rva(to_copy.report_function_rva)
-		{ }
+		{
+			settings.recurse_calls = to_copy.settings.recurse_calls;
+			settings.block_combination_threshold = to_copy.settings.block_combination_threshold;
+		}
 
 		bool validate_rva(uint64_t rva)
 		{
@@ -150,8 +159,11 @@ namespace dasm
 	{
 	public:
 		std::list<inst_block_t<Addr_width> > blocks;
-		uint64_t start;
-		uint64_t end;
+		uint64_t start = 0;
+		uint64_t end = 0;
+		uint64_t entry = 0;
+
+		bool complete_disassembly = true;
 
 		void block_trace()
 		{
@@ -193,7 +205,6 @@ namespace dasm
 				auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
 				for (uint32_t i = 0; i < num_operands; ++i)
 				{
-					
 					if (auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i)); 
 						(XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name) &&
 						get_max_reg_size<XED_REG_RIP, Addr_width>::value == xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0))
@@ -204,8 +215,8 @@ namespace dasm
 					}
 				}
 				
-
-
+				// Follow control flow
+				//
 				auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
 				if (cat == XED_CATEGORY_COND_BR)
 				{
@@ -233,12 +244,15 @@ namespace dasm
 					case XED_IFORM_JMP_GPRv:
 						// Jump table.
 						//
-
+						complete_disassembly = false;
+						std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_MEMv:
-						// Import or jump to absolute address...
-						//
-
+						if (!inst.used_symbol)
+						{
+							complete_disassembly = false;
+							std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
+						}
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
 					case XED_IFORM_JMP_RELBRd:
@@ -264,8 +278,8 @@ namespace dasm
 					}
 					case XED_IFORM_JMP_FAR_MEMp2:
 					case XED_IFORM_JMP_FAR_PTRp_IMMw:
-						std::printf("Jump we dont handle.\n");
-
+						complete_disassembly = false;
+						std::printf("Unhandled inst[%08X]: JMP_FAR_MEM/PTR.\n", rva - ilen);
 						goto ExitInstDecodeLoop;
 					}
 				}
@@ -276,10 +290,17 @@ namespace dasm
 					case XED_IFORM_CALL_NEAR_GPRv:
 						// Call table?!
 						//
+						complete_disassembly = false;
+						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
 						break;
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
+						if (!inst.used_symbol)
+						{
+							complete_disassembly = false;
+							std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
+						}
 						break;
 
 					case XED_IFORM_CALL_NEAR_RELBRd:
@@ -306,13 +327,24 @@ namespace dasm
 					}
 					case XED_IFORM_CALL_FAR_MEMp2:
 					case XED_IFORM_CALL_FAR_PTRp_IMMw:
-						std::printf("Call we dont handle.\n");
+						complete_disassembly = false;
+						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
 						break;
 					}
 				}
 				else if (cat == XED_CATEGORY_RET)
 				{
 					break;
+				}
+				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
+				{
+					/*auto last = current_block.instructions.end();
+					std::advance(last, -2);
+					auto prev_iclass = xed_decoded_inst_get_iclass(&last->decoded_inst);
+					if (XED_ICLASS_JMP == prev_iclass || XED_ICLASS_CALL_NEAR == prev_iclass)
+					{*/
+						break;
+					//}
 				}
 			}
 
@@ -332,6 +364,8 @@ namespace dasm
 		}
 		void decode(decode_lookup_table* lookup_table, decoder_context_t* context, uint64_t rva)
 		{
+			entry = rva;
+
 			if (!context->validate_rva(rva))
 			{
 				std::printf("Attempting to decode routine at invalid rva.\n");
@@ -352,8 +386,10 @@ namespace dasm
 				if (next == blocks.end())
 					break;
 
-				if (it->end == next->start)
+				//it->end == next->start
+				if (next->start - it->end <= context->settings.block_combination_threshold)
 				{
+					//printf("merging with size %u %u at %X\n", next->start - it->end, context->settings.block_combination_threshold, it->end);
 					it->instructions.splice(it->instructions.end(), next->instructions);
 
 					blocks.erase(next);
@@ -364,6 +400,22 @@ namespace dasm
 			end = context->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
 		}
 
+
+		void promote_relbrs()
+		{
+			for (auto& block : blocks)
+			{
+				for (auto& inst : block.instructions)
+				{
+					auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
+					if (cat == XED_CATEGORY_COND_BR || cat == XED_CATEGORY_UNCOND_BR)
+					{
+						xed_decoded_inst_set_branch_displacement_bits(&inst.decoded_inst, 0, 32);
+						inst.redecode();
+					}
+				}
+			}
+		}
 		void force_merge_blocks()
 		{
 			if (blocks.size() > 1)

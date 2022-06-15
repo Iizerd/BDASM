@@ -9,6 +9,7 @@
 namespace dasm
 {
 	template<address_width Addr_width, typename Compare_type, Compare_type Accessor(const xed_decoded_inst_t*), Compare_type... Compare_list>
+	//template<address_width Addr_width, typename Accessor, std::invoke_result_t<Accessor, const xed_decoded_inst_t*>... Compare_list>
 	struct static_pattern_t
 	{
 		inline static constexpr uint32_t size = sizeof...(Compare_list);
