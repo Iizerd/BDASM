@@ -75,9 +75,9 @@ namespace dasm
 		const uint8_t* raw_data_end;
 		const uint64_t raw_data_size;
 		const uint64_t base_adjustment;
-		std::function<void(uint64_t)> report_function_rva;
+		std::function<void(uint64_t, uint64_t)> report_function_rva;
 
-		explicit decoder_context_t(uint8_t* data, uint64_t data_size, symbol_table_t* sym_table, std::function<void(uint64_t)> rva_reporter = nullptr, uint64_t adjustment = 0)
+		explicit decoder_context_t(uint8_t* data, uint64_t data_size, symbol_table_t* sym_table, std::function<void(uint64_t, uint64_t)> rva_reporter = nullptr, uint64_t adjustment = 0)
 			: raw_data_start(data),
 			raw_data_end(data + data_size),
 			raw_data_size(data_size),
@@ -157,6 +157,8 @@ namespace dasm
 	template<address_width Addr_width = address_width::x64>
 	class inst_routine_t
 	{
+		uint64_t m_max_rva;
+
 	public:
 		std::list<inst_block_t<Addr_width> > blocks;
 		uint64_t start = 0;
@@ -168,6 +170,11 @@ namespace dasm
 		uint64_t entry_rva = 0;
 
 		bool complete_disassembly = true;
+
+		bool rva_in_function(uint64_t rva)
+		{
+			return (rva >= entry_rva && rva < m_max_rva);
+		}
 
 		void block_trace()
 		{
@@ -183,7 +190,7 @@ namespace dasm
 
 			auto current_block_it = std::prev(blocks.end());
 
-			while (!lookup_table->is_inst_start(rva))
+			while (!lookup_table->is_inst_start(rva) && rva != m_max_rva)
 			{
 				auto& inst = current_block.instructions.emplace_back();
 
@@ -236,7 +243,7 @@ namespace dasm
 					inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
 					inst.flags |= inst_flag::rel_br;
 
-					if (!lookup_table->is_inst_start(taken_rva))
+					if (!lookup_table->is_inst_start(taken_rva) && rva_in_function(taken_rva))
 					{
 						decode_block(context, taken_rva, lookup_table);
 					}
@@ -273,7 +280,7 @@ namespace dasm
 						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
-						if (!lookup_table->is_inst_start(dest_rva))
+						if (!lookup_table->is_inst_start(dest_rva) && rva_in_function(dest_rva))
 						{
 							decode_block(context, dest_rva, lookup_table);
 						}
@@ -325,7 +332,7 @@ namespace dasm
 
 						if (!lookup_table->is_self(dest_rva))
 						{
-							context->report_function_rva(dest_rva);
+							context->report_function_rva(dest_rva, 0);
 						}
 						break;
 					}
@@ -366,10 +373,13 @@ namespace dasm
 				}
 			}
 		}
-		void decode(decode_lookup_table* lookup_table, decoder_context_t* context, uint64_t rva)
+		void decode(decode_lookup_table* lookup_table, decoder_context_t* context, uint64_t rva, uint64_t max_rva = 0)
 		{
 			entry_rva = rva;
-
+			m_max_rva = max_rva;
+			if (0 == m_max_rva)
+				m_max_rva = context->raw_data_size;
+			
 			if (!context->validate_rva(rva))
 			{
 				std::printf("Attempting to decode routine at invalid rva.\n");
@@ -457,7 +467,7 @@ namespace dasm
 		std::atomic_bool m_signal_shutdown;
 
 		std::mutex m_queued_routines_lock;
-		std::vector<uint64_t> m_queued_routines;
+		std::vector<std::pair<uint64_t, uint64_t> > m_queued_routines;
 
 		decoder_context_t* m_decoder_context;
 
@@ -485,7 +495,7 @@ namespace dasm
 				m_thread->join();
 			delete m_thread;
 		}
-		bool pop_queued_routine(uint64_t& routine_rva)
+		bool pop_queued_routine(uint64_t& routine_rva, uint64_t& max_rva)
 		{
 			if (!m_signal_start)
 				return false;
@@ -493,19 +503,19 @@ namespace dasm
 			std::lock_guard g(m_queued_routines_lock);
 			if (m_queued_routines.size())
 			{
-				routine_rva = m_queued_routines.back();
+				std::tie(routine_rva, max_rva) = m_queued_routines.back();
 				m_queued_routines.pop_back();
 				return true;
 			}
 			return false;
 		}
 
-		void queue_routine(uint64_t routine_rva)
+		void queue_routine(uint64_t routine_rva, uint64_t max_rva = 0)
 		{
 			//std::printf("queued for %p\n", this);
 			++queued_routine_count;
 			std::lock_guard g(m_queued_routines_lock);
-			m_queued_routines.push_back(routine_rva);
+			m_queued_routines.emplace_back(routine_rva, max_rva);
 		}
 
 		void start()
@@ -522,9 +532,10 @@ namespace dasm
 			while (!m_signal_shutdown)
 			{
 				uint64_t routine_rva = 0;
-				if (pop_queued_routine(routine_rva))
+				uint64_t max_rva = 0;
+				if (pop_queued_routine(routine_rva, max_rva))
 				{
-					finished_routines.emplace_back().decode(&m_lookup_table, m_decoder_context, routine_rva);
+					finished_routines.emplace_back().decode(&m_lookup_table, m_decoder_context, routine_rva, max_rva);
 					m_lookup_table.clear();
 					--queued_routine_count;
 					continue; //Skip the sleep.
@@ -556,7 +567,7 @@ namespace dasm
 			: m_next_thread(0)
 		{
 			m_context = context;
-			m_context->report_function_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
+			m_context->report_function_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1, std::placeholders::_2);
 			m_routine_lookup_table = new std::atomic_bool[m_context->raw_data_size];
 			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
 				m_routine_lookup_table[i] = false;
@@ -571,14 +582,14 @@ namespace dasm
 				delete[] m_routine_lookup_table;
 		}
 
-		void add_routine(uint64_t routine_rva)
+		void add_routine(uint64_t routine_rva, uint64_t end_rva)
 		{
 			if (m_routine_lookup_table[routine_rva] || !is_executable(routine_rva))
 				return;
 
 			m_routine_lookup_table[routine_rva] = true;
 
-			m_threads[m_next_thread].queue_routine(routine_rva);
+			m_threads[m_next_thread].queue_routine(routine_rva, end_rva);
 			m_next_thread++;
 			if (m_next_thread >= Thread_count)
 				m_next_thread = 0;
