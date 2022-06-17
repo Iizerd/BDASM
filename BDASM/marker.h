@@ -18,7 +18,7 @@ namespace obf
 		auto it_end = list.end();
 		std::advance(it_end, -BDASM_MARKER_INST_COUNT);
 
-		for (auto it = list.begin(); it != it_end; ++it)
+	/*	for (auto it = list.begin(); it != it_end; ++it)
 			if (dasm::static_pattern_t<Addr_width, 
 				xed_iclass_enum_t, 
 				xed_decoded_inst_get_iclass,
@@ -26,7 +26,16 @@ namespace obf
 				XED_ICLASS_NOP,
 				XED_ICLASS_XABORT,
 				XED_ICLASS_XABORT>::unsafe_match(it))
+				return it;*/
+		for (auto it = list.begin(); it != it_end; ++it)
+			if (dasm::static_pattern_t<Addr_width,
+				xed_decoded_inst_get_iclass,
+				XED_ICLASS_XABORT,
+				XED_ICLASS_NOP,
+				XED_ICLASS_XABORT,
+				XED_ICLASS_XABORT>::unsafe_match(it))
 				return it;
+
 
 		return list.end();
 	}

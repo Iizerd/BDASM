@@ -10,6 +10,7 @@ extern "C"
 
 #include "traits.h"
 #include "addr_width.h"
+#include "symbol.h"
 
 namespace dasm
 {
@@ -26,12 +27,21 @@ namespace dasm
 		constexpr type uses_label = (rel_br | disp);
 	}
 
+	//template<address_width Addr_width = address_width::x64>
+	//class inst_attribute_t
+	//{
+	//public:
+	//	void on_assembly(inst_t<Addr_width>& inst, uint8_t* loc, uint8_t* rva);
+	//};
+
 	template<address_width Addr_width = address_width::x64>
 	class inst_t
 	{
 	public:
 
 		inst_flag::type flags;
+
+		//std::vector<inst_attribute_t<Addr_width>* > attributes;
 
 		// Symbol this instruction is responsible for setting the RVA of.
 		//
@@ -117,7 +127,7 @@ namespace dasm
 
 		// Readys the inst for encoding.
 		// 
-		void to_encode_request()
+		void to_encoder_request()
 		{
 			xed_encoder_request_init_from_decode(&this->decoded_inst);
 			is_encoder_request = true;
@@ -125,7 +135,7 @@ namespace dasm
 
 		// Encode the instruction to a place, assumes enough space.
 		//
-		uint32_t encode(uint8_t* target)
+		uint32_t dumb_encode(uint8_t* target)
 		{
 			if (!is_encoder_request)
 				return 0;
@@ -137,6 +147,39 @@ namespace dasm
 				return 0;
 			}
 			return out_size;
+		}
+		uint32_t encode(uint8_t* dest, uint8_t* rva_base, symbol_table_t* symbol_table)
+		{
+			if (!is_encoder_request)
+				to_encoder_request();
+
+			uint32_t ilen = 0;
+			xed_error_enum_t err = xed_encode(&decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
+			if (XED_ERROR_NONE != err)
+			{
+				return 0;
+			}
+
+			if (flags & inst_flag::rel_br)
+			{
+				int64_t ip = dest - rva_base + ilen;
+				int64_t br_disp = (int64_t)symbol_table->get_symbol(used_symbol).address - ip;
+				if (!xed_patch_relbr(&decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst))))
+				{
+					std::printf("Failed to patch relative br.\n");
+				}
+			}
+			else if (flags & inst_flag::disp)
+			{
+				int64_t ip = dest - rva_base + ilen;
+				int64_t br_disp = (int64_t)symbol_table->get_symbol(used_symbol).address - ip;
+				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0))))
+				{
+					std::printf("Failed to patch displacement.\n");
+				}
+			}
+
+			return ilen;
 		}
 
 		uint32_t length() const
@@ -186,8 +229,8 @@ namespace dasm
 
 		for (auto& inst : list)
 		{
-			inst.to_encode_request();
-			auto meme = inst.encode(res);
+			inst.to_encoder_request();
+			auto meme = inst.dumb_encode(res);
 			res += meme;
 		}
 

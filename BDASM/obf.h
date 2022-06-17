@@ -35,13 +35,48 @@ namespace obf
 		obf_routine_t(dasm::inst_routine_t<Addr_width>& func)
 			: m_routine(func)/*, m_inst_block(func.blocks.front())*/
 		{ 
-			/*if (auto marker = find_marker(m_inst_block.instructions); marker != m_inst_block.instructions.end())
+			if (auto marker = find_marker(m_routine.blocks.front().instructions); marker != m_routine.blocks.front().instructions.end())
 			{
-				m_attributes = get_marker_attributes(marker);
+				/*m_attributes = get_marker_attributes(marker);
 				auto maker_end = marker;
 				std::advance(maker_end, BDASM_MARKER_INST_COUNT);
-				m_inst_block.instructions.erase(marker, maker_end);
-			}*/
+				m_inst_block.instructions.erase(marker, maker_end);*/
+				printf("Found a marker.\n");
+			}
+		}
+
+		// Because of xed dropping useless rex prefixes and messing up the size of instructions, 
+		// This is needed.
+		//
+		void prep_for_obf_pass()
+		{
+			for (auto& block : m_routine.blocks)
+			{
+				for (auto& inst : block.instructions)
+				{
+					// Update all relbrs to 32bit
+					auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
+					if (cat == XED_CATEGORY_UNCOND_BR)
+					{
+						xed_decoded_inst_set_branch_displacement_bits(&inst.decoded_inst, 0, 32);
+					}
+					else if (cat == XED_CATEGORY_COND_BR)
+					{
+						switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+						{
+						case XED_IFORM_JMP_RELBRb:
+						case XED_IFORM_JMP_RELBRd:
+						case XED_IFORM_JMP_RELBRz:
+							xed_decoded_inst_set_branch_displacement_bits(&inst.decoded_inst, 0, 32);
+						}
+					}
+
+					// Need to redecude all instructions because xed drops things like unused rex prefixes
+					// found in the crt startup(why tf are the here??) for whatever reason
+					//
+					inst.redecode();
+				}
+			}
 		}
 
 		// Use a single traversal to place the instructions and get the size needed.
@@ -76,8 +111,8 @@ namespace obf
 	public:
 		dasm::dasm_t<Addr_width, Thread_count>* m_dasm;
 	private:
-		dasm::decoder_context_t* m_decoder_context;
-		//std::vector<dasm::inst_routine_t<Addr_width>*> m_marked_routines;
+		dasm::decoder_context_t<Addr_width>* m_decoder_context;
+
 		std::list<obf_routine_t<Addr_width> > m_obf_routines;
 	public:
 		bool force_merge_marked_function_blocks = false;
@@ -114,19 +149,14 @@ namespace obf
 			if (!m_binary->map_image(file_buffer, file_length))
 				return false;
 
-			m_decoder_context = new dasm::decoder_context_t(m_binary->mapped_image,
-				m_binary->optional_header.get_size_of_image(),
-				m_binary->symbol_table,
-				nullptr,
-				m_binary->optional_header.get_image_base()
-			);
+			m_decoder_context = new dasm::decoder_context_t(m_binary);
 
 			m_decoder_context->settings.recurse_calls = true;
 			m_decoder_context->settings.block_combination_threshold = 0;
 
 			m_dasm = new dasm::dasm_t<Addr_width, Thread_count>(m_decoder_context);
 
-			m_dasm->is_executable = std::bind(&pex::binary_ir_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
+			//m_dasm->is_executable = std::bind(&pex::binary_ir_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
 
 			//m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
 
@@ -165,7 +195,7 @@ namespace obf
 		bool contains_relocations(dasm::inst_routine_t<Addr_width> const& routine)
 		{
 			bool has_reloc = false;
-			m_binary->enum_base_relocs([&](uint8_t* mapped_base, pex::image_base_reloc_block_it_t block_header, pex::image_base_reloc_it_t reloc) -> bool
+			m_binary->enum_base_relocs([&](uint8_t* mapped_base, pex::image_base_reloc_block_it_t block_header, pex::image_base_reloc_offset_it_t reloc) -> bool
 				{
 					uint32_t num_relocs = block_header.get_num_of_relocs();
 					for (uint32_t i = 0; i < num_relocs; i++)
@@ -204,7 +234,7 @@ namespace obf
 				{
 					//std::printf("Func at %X with size %llu\n", routine.start, routine.blocks.front().get_size());
 					routine.promote_relbrs();
-					m_obf_routines.emplace_back(routine);
+					m_obf_routines.emplace_back(routine).prep_for_obf_pass();
 				}
 			}
 			printf("Found %lld functions to obfuscate.\n", m_obf_routines.size());
