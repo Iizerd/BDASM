@@ -52,8 +52,9 @@ namespace dasm
 			for (auto& inst : instructions)
 			{
 				// This is unfortunate, but xed drops unused rex prefixes and this is required to fix...
-				// 
-				inst.redecode(); 
+				// Doing this in obf.h prep_for_obfuscation() pass now
+				//
+				//inst.redecode(); 
 
 				if (inst.my_symbol)
 					symbol_table->set_symbol_addr(inst.my_symbol, start_address);
@@ -65,8 +66,8 @@ namespace dasm
 		{
 			for (auto& inst : instructions)
 			{
-				inst.to_encode_request();
-				auto ilen = inst.encode(dest);
+				inst.to_encoder_request();
+				auto ilen = inst.dumb_encode(dest);
 				start_address += ilen;
 
 				if (inst.flags & inst_flag::rel_br)
@@ -87,6 +88,14 @@ namespace dasm
 				}
 
 				dest += ilen;
+			}
+			return dest;
+		}
+		uint8_t* encode_to2(uint8_t* dest, uint8_t* rva_base, symbol_table_t* symbol_table)
+		{
+			for (auto& inst : instructions)
+			{
+				dest += inst.encode(dest, rva_base, symbol_table);
 			}
 			return dest;
 		}

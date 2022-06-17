@@ -9,7 +9,7 @@
 
 namespace symbol_flag
 {
-	typedef uint32_t type;
+	typedef uint64_t type;
 	constexpr type none = 0;
 
 	constexpr type base = (1 << 0);
@@ -25,6 +25,10 @@ namespace symbol_flag
 	constexpr type executable = (1 << 3);
 
 	constexpr type is_export = (1 << 4);
+
+	constexpr type reloc = (1 << 5);
+	constexpr type reloc_type_shift = 6;
+	constexpr type reloc_type_mask = (0xF << reloc_type_shift);
 
 	constexpr type mask = 0xffffffff;
 };
@@ -84,6 +88,15 @@ public:
 		//flags |= flag;
 		address = addr;
 		return *this;
+	}
+	finline void mark_as_reloc(uint8_t reloc_type)
+	{
+		flags |= symbol_flag::reloc;
+		flags = ((flags & ~symbol_flag::reloc_type_mask) | ((reloc_type & 0xF) << symbol_flag::reloc_type_shift));
+	}
+	finline uint8_t get_reloc_type()
+	{
+		return ((flags & symbol_flag::reloc_type_mask) >> symbol_flag::reloc_type_shift);
 	}
 };
 
@@ -149,7 +162,7 @@ public:
 		}
 	}
 
-	// For symbols created after the fact, these dont get an entry in the lookup table because
+	// For symbols created after the fact, these are put in the arbitrary vector because
 	// they are not within the original binary. => dont have an rva.
 	//
 	ndiscard uint32_t get_arbitrary_symbol_index(symbol_flag::type flags = symbol_flag::none)
@@ -158,7 +171,6 @@ public:
 		m_arbitrary_table.emplace_back(flags, 0);
 		return m_arbitrary_table_idx_offset + (static_cast<uint32_t>(m_arbitrary_table.size()) - 1);
 	}
-
 
 	// Access any symbol, arbitrary or not.
 	//
@@ -171,7 +183,6 @@ public:
 	}
 
 	// Set placement of something and that it is valid.
-	// There is no unsafe version of this because it would never be used.
 	//
 	finline void set_symbol_addr(uint32_t symbol_index, uint64_t address)
 	{
@@ -180,6 +191,24 @@ public:
 		else
 			m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].set_flag(symbol_flag::placed).set_address(address);
 	}
+
+
+	finline bool is_executable(uint32_t symbol_index)
+	{
+		if (symbol_index < m_arbitrary_table_idx_offset)
+			return m_image_table[symbol_index].flags & symbol_flag::executable;
+		else
+			return m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].flags & symbol_flag::executable;
+	}
+
+	finline bool inst_uses_reloc(uint32_t inst_rva, uint32_t inst_len)
+	{
+		for (uint32_t i = inst_rva; i < inst_rva + inst_len; ++i)
+			if (m_image_table[i].flags & symbol_flag::reloc);
+				return true;
+		return false;
+	}
+
 
 
 
@@ -198,4 +227,6 @@ public:
 	{
 		return m_image_table[symbol_index];
 	}
+
+
 };

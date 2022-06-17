@@ -29,6 +29,7 @@ extern "C"
 #include "inst.h"
 #include "inst_block.h"
 #include "size_casting.h"
+#include "pex.h"
 
 namespace dasm
 {
@@ -53,6 +54,7 @@ namespace dasm
 		constexpr uint8_t is_self = (1 << 2);
 	}
 
+	template<address_width Addr_width = address_width::x64>
 	struct decoder_context_t
 	{
 		struct
@@ -69,32 +71,27 @@ namespace dasm
 			int32_t block_combination_threshold;
 		}settings;
 
-		symbol_table_t* symbol_table;
+		//symbol_table_t* symbol_table;
+		pex::binary_ir_t<Addr_width>* binary_interface;
 
 		const uint8_t* raw_data_start;
-		const uint8_t* raw_data_end;
 		const uint64_t raw_data_size;
-		const uint64_t base_adjustment;
 		std::function<void(uint64_t, uint64_t)> report_function_rva;
 
-		explicit decoder_context_t(uint8_t* data, uint64_t data_size, symbol_table_t* sym_table, std::function<void(uint64_t, uint64_t)> rva_reporter = nullptr, uint64_t adjustment = 0)
-			: raw_data_start(data),
-			raw_data_end(data + data_size),
-			raw_data_size(data_size),
-			base_adjustment(adjustment),
-			symbol_table(sym_table),
-			report_function_rva(rva_reporter)
+		explicit decoder_context_t(pex::binary_ir_t<Addr_width>* binary, std::function<void(uint64_t, uint64_t)> rva_reporter = nullptr)
+			: binary_interface(binary),
+			report_function_rva(rva_reporter),
+			raw_data_start(binary->mapped_image),
+			raw_data_size(binary->optional_header.get_size_of_image())
 		{ 
 			settings.recurse_calls = false;
 			settings.block_combination_threshold = 0;
 		}
 		explicit decoder_context_t(decoder_context_t const& to_copy)
-			: raw_data_start(to_copy.raw_data_start),
-			raw_data_end(to_copy.raw_data_end),
-			raw_data_size(to_copy.raw_data_size),
-			base_adjustment(to_copy.base_adjustment),
-			symbol_table(to_copy.symbol_table),
-			report_function_rva(to_copy.report_function_rva)
+			: binary_interface(to_copy.binary_interface),
+			report_function_rva(to_copy.report_function_rva),
+			raw_data_start(to_copy.raw_data_start),
+			raw_data_size(to_copy.raw_data_size)
 		{
 			settings.recurse_calls = to_copy.settings.recurse_calls;
 			settings.block_combination_threshold = to_copy.settings.block_combination_threshold;
@@ -153,6 +150,42 @@ namespace dasm
 		}
 	};
 
+	template<address_width Addr_width = address_width::x64>
+	bool iform_switch_nullsub(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, inst_t<Addr_width>& inst, uint64_t rva)
+	{
+		return true;
+	}
+
+	template<address_width Addr_width = address_width::x64>
+	class iform_switch_t
+	{
+		using Cb_type = std::function<bool(decoder_context_t<Addr_width>* context, inst_t<Addr_width>& inst, uint64_t rva)>;
+		Cb_type m_cb_table[XED_IFORM_LAST];
+	public:
+		constexpr iform_switch_t(std::initializer_list<std::pair<std::initializer_list<xed_iform_enum_t>, Cb_type> > list)
+		{
+			for (uint32_t i = 0; i < XED_IFORM_LAST; ++i)
+				m_cb_table[i] = iform_switch_nullsub<Addr_width>;
+
+			for (auto& ele : list)
+			{
+				for (auto& iform : ele.first)
+					set(iform, ele.second);
+			}
+		}
+		void set(xed_iform_enum_t iform, Cb_type cb)
+		{
+			m_cb_table[iform] = cb;
+		}
+		bool operator()(xed_iform_enum_t iform, decoder_context_t<Addr_width>* context, inst_t<Addr_width>& inst, uint64_t rva)
+		{
+			return m_cb_table[iform](context, inst, rva);
+		}
+	};
+
+
+
+
 	// A collection of blocks
 	template<address_width Addr_width = address_width::x64>
 	class inst_routine_t
@@ -183,7 +216,7 @@ namespace dasm
 				std::printf("Block[%p:%p]\n", block.start, block.end);
 			}
 		}
-		void decode_block(decoder_context_t* context, uint64_t rva, decode_lookup_table* lookup_table)
+		void decode_block(decoder_context_t<Addr_width>* context, uint64_t rva, decode_lookup_table* lookup_table)
 		{
 			auto& current_block = blocks.emplace_back();
 			current_block.start = rva;
@@ -204,7 +237,7 @@ namespace dasm
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
-				inst.my_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+				inst.my_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
 
 				lookup_table->update_inst(rva, ilen);
 
@@ -221,11 +254,16 @@ namespace dasm
 						get_max_reg_size<XED_REG_RIP, Addr_width>::value == xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0))
 					{
 						int64_t rip_delta = xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);
-						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(rva + rip_delta);
+						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva + rip_delta);
 						inst.flags |= inst_flag::disp;
 					}
 				}
-				
+
+			/*	for (auto& reloc : context->binary_interface->base_relocs)
+				{
+					if ()
+				}*/
+
 				// Follow control flow
 				//
 				auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
@@ -240,7 +278,7 @@ namespace dasm
 						goto ExitInstDecodeLoop;
 					}
 
-					inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
+					inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
 					inst.flags |= inst_flag::rel_br;
 
 					if (!lookup_table->is_inst_start(taken_rva) && rva_in_function(taken_rva))
@@ -277,7 +315,7 @@ namespace dasm
 							std::printf("Unconditional branch to invalid rva.\n");
 							goto ExitInstDecodeLoop;
 						}
-						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!lookup_table->is_inst_start(dest_rva) && rva_in_function(dest_rva))
@@ -327,7 +365,7 @@ namespace dasm
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 
-						inst.used_symbol = context->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!lookup_table->is_self(dest_rva))
@@ -373,7 +411,7 @@ namespace dasm
 				}
 			}
 		}
-		void decode(decode_lookup_table* lookup_table, decoder_context_t* context, uint64_t rva, uint64_t max_rva = 0)
+		void decode(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, uint64_t rva, uint64_t max_rva = 0)
 		{
 			entry_rva = rva;
 			m_max_rva = max_rva;
@@ -420,8 +458,8 @@ namespace dasm
 				}
 			}
 
-			start = context->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
-			end = context->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
+			start = context->binary_interface->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
+			end = context->binary_interface->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
 		}
 
 
@@ -432,10 +470,21 @@ namespace dasm
 				for (auto& inst : block.instructions)
 				{
 					auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
-					if (cat == XED_CATEGORY_COND_BR || cat == XED_CATEGORY_UNCOND_BR)
+					if (cat == XED_CATEGORY_UNCOND_BR)
 					{
 						xed_decoded_inst_set_branch_displacement_bits(&inst.decoded_inst, 0, 32);
 						inst.redecode();
+					}
+					else if (cat == XED_CATEGORY_COND_BR)
+					{
+						switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+						{
+						case XED_IFORM_JMP_RELBRb:
+						case XED_IFORM_JMP_RELBRd:
+						case XED_IFORM_JMP_RELBRz:
+							xed_decoded_inst_set_branch_displacement_bits(&inst.decoded_inst, 0, 32);
+							inst.redecode();
+						}
 					}
 				}
 			}
@@ -469,14 +518,14 @@ namespace dasm
 		std::mutex m_queued_routines_lock;
 		std::vector<std::pair<uint64_t, uint64_t> > m_queued_routines;
 
-		decoder_context_t* m_decoder_context;
+		decoder_context_t<Addr_width>* m_decoder_context;
 
 		decode_lookup_table m_lookup_table;
 	public:
 		inline static std::atomic_uint32_t queued_routine_count;
 		std::list<inst_routine_t<Addr_width> > finished_routines;
 
-		explicit dasm_thread_t(decoder_context_t* context)
+		explicit dasm_thread_t(decoder_context_t<Addr_width>* context)
 			: m_decoder_context(context),
 			m_signal_start(false),
 			m_signal_shutdown(false),
@@ -535,7 +584,7 @@ namespace dasm
 				uint64_t max_rva = 0;
 				if (pop_queued_routine(routine_rva, max_rva))
 				{
-					finished_routines.emplace_back().decode(&m_lookup_table, m_decoder_context, routine_rva, max_rva);
+					finished_routines.emplace_back().decode(m_decoder_context, &m_lookup_table, routine_rva, max_rva);
 					m_lookup_table.clear();
 					--queued_routine_count;
 					continue; //Skip the sleep.
@@ -549,7 +598,7 @@ namespace dasm
 	template<address_width Addr_width = address_width::x64, uint8_t Thread_count = 1>
 	class dasm_t
 	{
-		decoder_context_t* m_context;
+		decoder_context_t<Addr_width>* m_context;
 
 		uint8_t m_next_thread;
 
@@ -561,9 +610,7 @@ namespace dasm
 
 		std::list<inst_routine_t<Addr_width> > completed_routines;
 
-		std::function<bool(uint64_t)> is_executable;
-
-		explicit dasm_t(decoder_context_t* context)
+		explicit dasm_t(decoder_context_t<Addr_width>* context)
 			: m_next_thread(0)
 		{
 			m_context = context;
@@ -584,7 +631,7 @@ namespace dasm
 
 		void add_routine(uint64_t routine_rva, uint64_t end_rva)
 		{
-			if (m_routine_lookup_table[routine_rva] || !is_executable(routine_rva))
+			if (m_routine_lookup_table[routine_rva] || m_context->binary_interface->symbol_table->is_executable(routine_rva))
 				return;
 
 			m_routine_lookup_table[routine_rva] = true;

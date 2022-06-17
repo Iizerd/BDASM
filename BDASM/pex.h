@@ -463,20 +463,20 @@ namespace pex
 		"IMAGE_REL_BASED_LOW",
 		"IMAGE_REL_BASED_HIGHLOW",
 		"IMAGE_REL_BASED_HIGHADJ",
-		"IMAGE_REL_BASED_MIPS_JMPADDR",
-		"RESERVED",
-		"IMAGE_REL_BASED_THUMB_MOV32",
-		"IMAGE_REL_BASED_RISCV_LOW12S",
-		"IMAGE_REL_BASED_MIPS_JMPADDR16",
+		"IMAGE_REL_BASED_MACHINE_SPECIFIC_5",
+		"IMAGE_REL_BASED_RESERVED",
+		"IMAGE_REL_BASED_MACHINE_SPECIFIC_7",
+		"IMAGE_REL_BASED_MACHINE_SPECIFIC_8",
+		"IMAGE_REL_BASED_MACHINE_SPECIFIC_9",
 		"IMAGE_REL_BASED_DIR64",
 	};
-	class image_base_reloc_it_t : public base_it_t<uint16_t, image_base_reloc_it_t>
+	class image_base_reloc_offset_it_t : public base_it_t<uint16_t, image_base_reloc_offset_it_t>
 	{
-		image_base_reloc_it_t()
+		image_base_reloc_offset_it_t()
 			: base_it_t(nullptr) {}
 
 	public:
-		image_base_reloc_it_t(uint16_t* entry)
+		image_base_reloc_offset_it_t(uint16_t* entry)
 			: base_it_t(entry) {}
 
 		uint8_t get_type()
@@ -761,6 +761,8 @@ namespace pex
 		std::vector<import_module_t<Addr_width>> m_imports;
 		exports_t m_exports;
 
+		std::vector<uint32_t> base_relocs;
+
 		template<typename Ptr_type>
 		Ptr_type* rva_as(uint32_t rva)
 		{
@@ -810,7 +812,7 @@ namespace pex
 
 		// Calls enum_func with each reloc block (mapped_image, reloc_block, first_reloc, num_of_relocs);
 		// 
-		void enum_base_relocs(std::function<bool(uint8_t*, image_base_reloc_block_it_t, image_base_reloc_it_t)> enum_func)
+		void enum_base_relocs(std::function<bool(uint8_t*, image_base_reloc_block_it_t, image_base_reloc_offset_it_t)> enum_func)
 		{
 			if ((file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) || !optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
 				return;
@@ -819,7 +821,7 @@ namespace pex
 
 			while (!block_it.is_null())
 			{
-				image_base_reloc_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof image_base_relocation_t));
+				image_base_reloc_offset_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof image_base_relocation_t));
 
 				if (!enum_func(mapped_image, block_it, it))
 					return;
@@ -948,6 +950,16 @@ namespace pex
 
 			symbol_table->resize_image_table(optional_header.get_size_of_image());
 
+			// Update symbol table if this section is executable
+			//
+			if (characteristics & (IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE))
+			{
+				for (uint32_t i = 0; i < section_size; i++)
+				{
+					symbol_table->unsafe_get_symbol_for_rva(virt_addr + i).set_flag(symbol_flag::executable);
+				}
+			}
+
 			return virt_addr;
 		}
 
@@ -1015,7 +1027,7 @@ namespace pex
 				(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != dasm::address_width::x64))
 				return false;
 
-			symbol_table = new symbol_table_t(image_size, 3000);
+			symbol_table = new symbol_table_t(optional_header.get_size_of_image(), 3000);
 
 			// Enumerate all sections
 			//
@@ -1061,6 +1073,26 @@ namespace pex
 				}
 			}
 
+			if (!(file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) && optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
+			{
+				image_base_reloc_block_it_t block_it(reinterpret_cast<image_base_relocation_t*>(mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_virtual_address()));
+
+				while (!block_it.is_null())
+				{
+					image_base_reloc_offset_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof image_base_relocation_t));
+
+					auto num_relocs = block_it.get_num_of_relocs();
+					auto virt_addr = block_it.get_virtual_address();
+					for (uint32_t i = 0; i < num_relocs; ++i)
+					{
+						auto reloc_addr = virt_addr + it[i].get_offset();
+						base_relocs.push_back(reloc_addr);
+						symbol_table->unsafe_get_symbol_for_rva(reloc_addr).mark_as_reloc(it[i].get_type());
+					}
+
+					block_it.set(reinterpret_cast<uint8_t*>(block_it.get()) + block_it.get_size_of_block());
+				}
+			}
 
 			// Fill normal imports
 			//

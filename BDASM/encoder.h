@@ -26,7 +26,7 @@ extern "C"
 //	uint32_t out_length = 0;
 //	if (auto err = xed_encode(&encoder_request, encode_buffer, XED_MAX_INSTRUCTION_BYTES, &out_length); XED_ERROR_NONE != err)
 //	{
-//		std::printf("Failed to encode instruction with error: %s\n", xed_error_enum_t2str(err));
+//		std::printf("Failed to dumb_encode instruction with error: %s\n", xed_error_enum_t2str(err));
 //		delete[] encode_buffer;
 //		return nullptr;
 //	}
