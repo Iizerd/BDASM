@@ -11,6 +11,7 @@ extern "C"
 #include "traits.h"
 #include "addr_width.h"
 #include "symbol.h"
+#include "pex.h"
 
 namespace dasm
 {
@@ -24,24 +25,22 @@ namespace dasm
 		//
 		constexpr type rel_br = (1 << 0);
 		constexpr type disp = (1 << 1);
-		constexpr type uses_label = (rel_br | disp);
-	}
 
-	//template<address_width Addr_width = address_width::x64>
-	//class inst_attribute_t
-	//{
-	//public:
-	//	void on_assembly(inst_t<Addr_width>& inst, uint8_t* loc, uint8_t* rva);
-	//};
+		// This is for instructions that have relocs inside of them do these even exist?
+		// Seems that encoding mov rax,[64b] is valid instruction so i assume so?
+		// used_symbol is for the rva they pointed to in the original binary
+		//
+		constexpr type reloc_disp = (1 << 2);	// Form:		mov		rax,[base+rva]
+		constexpr type reloc_imm = (1 << 3);	// Form:		movabs	rax,base+rva
+
+		constexpr type uses_symbol = (rel_br | disp | reloc_disp | reloc_imm);
+	}
 
 	template<address_width Addr_width = address_width::x64>
 	class inst_t
 	{
 	public:
-
 		inst_flag::type flags;
-
-		//std::vector<inst_attribute_t<Addr_width>* > attributes;
 
 		// Symbol this instruction is responsible for setting the RVA of.
 		//
@@ -57,9 +56,13 @@ namespace dasm
 
 		xed_decoded_inst_t decoded_inst;
 
-		//This was for debugging
-		//
-		//uint32_t rva;
+		union inst_additional_data_t
+		{
+			struct reloc_data_t
+			{
+				uint8_t offset;
+			}reloc;
+		}additional_data;
 
 		explicit inst_t()
 			: flags(0), 
@@ -148,7 +151,7 @@ namespace dasm
 			}
 			return out_size;
 		}
-		uint32_t encode(uint8_t* dest, uint8_t* rva_base, symbol_table_t* symbol_table)
+		uint32_t encode_to_binary(pex::binary_t<Addr_width>* binary, uint8_t* dest/*, symbol_table_t* symbol_table*/)
 		{
 			if (!is_encoder_request)
 				to_encoder_request();
@@ -162,20 +165,36 @@ namespace dasm
 
 			if (flags & inst_flag::rel_br)
 			{
-				int64_t ip = dest - rva_base + ilen;
-				int64_t br_disp = (int64_t)symbol_table->get_symbol(used_symbol).address - ip;
+				int64_t ip = dest - binary->mapped_image + ilen;
+				int64_t br_disp = (int64_t)binary->symbol_table->get_symbol(used_symbol).address - ip;
 				if (!xed_patch_relbr(&decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst))))
 				{
-					std::printf("Failed to patch relative br.\n");
+					std::printf("Failed to patch relbr.\n");
 				}
 			}
 			else if (flags & inst_flag::disp)
 			{
-				int64_t ip = dest - rva_base + ilen;
-				int64_t br_disp = (int64_t)symbol_table->get_symbol(used_symbol).address - ip;
+				int64_t ip = dest - binary->mapped_image + ilen;
+				int64_t br_disp = (int64_t)binary->symbol_table->get_symbol(used_symbol).address - ip;
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0))))
 				{
 					std::printf("Failed to patch displacement.\n");
+				}
+			}
+			else if (flags & inst_flag::reloc_disp)
+			{
+				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->symbol_table->get_symbol(used_symbol).address);
+				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
+				{
+					std::printf("Failed to patch reloc displacement.\n");
+				}
+			}
+			else if (flags & inst_flag::reloc_imm)
+			{
+				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->symbol_table->get_symbol(used_symbol).address);
+				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
+				{
+					std::printf("Failed to patch reloc imm.\n");
 				}
 			}
 
@@ -193,7 +212,6 @@ namespace dasm
 			std::printf("[0x%08X]\t%u\t%u\t%s\n", /*rva*/0, my_symbol, used_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&this->decoded_inst)));
 		}
 	};
-
 
 	template<address_width Addr_width>
 	using inst_list_t = std::list<inst_t<Addr_width> >;

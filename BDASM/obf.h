@@ -84,21 +84,18 @@ namespace obf
 		void place_and_advance(uint64_t &rva, symbol_table_t* sym_table)
 		{
 			for (auto& block : m_routine.blocks)
-				rva = align_up(block.place_at(rva, sym_table), 0x10);
+				rva = align_up(block.place_in_binary(rva, sym_table), 0x10);
 		}
-		uint8_t* encode_to(uint8_t* dest, uint64_t& start_address, symbol_table_t* symbol_table, uint64_t& entry_rva)
+		
+		// Second traversal to encode_to_binary the instructions where they were placed
+		//
+		uint8_t* encode_to_binary(pex::binary_t<Addr_width>* binary, uint8_t* dest, uint64_t& entry_rva)
 		{
 			for (auto& block : m_routine.blocks)
 			{
-				if (block.start == m_routine.entry_rva)
-				{
-					//printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
-					entry_rva = start_address;
-				}
-				//printf("Found matching entry %X %X %X\n", block.start, m_routine.entry_rva, start_address);
-				auto newp = align_up(block.encode_to(dest, start_address, symbol_table) - dest, 0x10);
-				start_address += newp;
-				dest += newp;
+				if (auto block_rva = dest - binary->mapped_image; block.start == m_routine.entry_rva)
+					entry_rva = block_rva;
+				dest = align_up_ptr(block.encode_to_binary(binary, dest), 0x10);
 			}
 			return dest;
 		}
@@ -107,20 +104,21 @@ namespace obf
 	template<dasm::address_width Addr_width = dasm::address_width::x64, uint8_t Thread_count = 1>
 	class binary_obfuscator_t
 	{
-		pex::binary_ir_t<Addr_width>* m_binary;
 	public:
-		dasm::dasm_t<Addr_width, Thread_count>* m_dasm;
-	private:
+		pex::binary_t<Addr_width>* m_binary;
+
 		dasm::decoder_context_t<Addr_width>* m_decoder_context;
 
 		std::list<obf_routine_t<Addr_width> > m_obf_routines;
 	public:
+		dasm::dasm_t<Addr_width, Thread_count>* m_dasm;
+
 		bool force_merge_marked_function_blocks = false;
 
 		binary_obfuscator_t()
 			:m_dasm(nullptr), m_decoder_context(nullptr)
 		{
-			m_binary = new pex::binary_ir_t<Addr_width>();
+			m_binary = new pex::binary_t<Addr_width>();
 		}
 		~binary_obfuscator_t()
 		{
@@ -156,14 +154,14 @@ namespace obf
 
 			m_dasm = new dasm::dasm_t<Addr_width, Thread_count>(m_decoder_context);
 
-			//m_dasm->is_executable = std::bind(&pex::binary_ir_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
+			//m_dasm->is_executable = std::bind(&pex::binary_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
 
 			//m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
 
 			uint32_t count = 0;
 			auto addr = m_binary->mapped_image + m_binary->optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address();
 			for (pex::image_runtime_function_it_t m_runtime_functions(reinterpret_cast<pex::image_runtime_function_entry_t*>(addr));
-			!m_runtime_functions.is_null(); ++m_runtime_functions)
+				!m_runtime_functions.is_null(); ++m_runtime_functions)
 			{
 				if (m_binary->is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
 					m_dasm->add_routine(m_runtime_functions.get_begin_address(), m_runtime_functions.get_end_address());
@@ -171,7 +169,8 @@ namespace obf
 			}
 			std::printf("This many count runtime: %u\n", count);
 
-			m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point(), 0);
+			if (auto entry = m_binary->optional_header.get_address_of_entry_point(); entry)
+				m_dasm->add_routine(entry, 0);
 
 			//printf("Entry point %X\n", m_binary->optional_header.get_address_of_entry_point());
 
@@ -233,7 +232,7 @@ namespace obf
 					!contains_relocations(routine))
 				{
 					//std::printf("Func at %X with size %llu\n", routine.start, routine.blocks.front().get_size());
-					routine.promote_relbrs();
+					//routine.promote_relbrs();
 					m_obf_routines.emplace_back(routine).prep_for_obf_pass();
 				}
 			}
@@ -256,38 +255,17 @@ namespace obf
 			for (auto& routine : m_obf_routines)
 			{
 				uint64_t entry = 0;
-				dest = routine.encode_to(dest, rva, m_binary->symbol_table, entry);
-
+				dest = routine.encode_to_binary(m_binary, dest, entry);
+				
 				//printf("writing jump from %X to %X\n", routine.m_routine.entry_it->start, entry);
+
 				encode_inst_in_place(m_binary->mapped_image + routine.m_routine.entry_it->start,
 					dasm::addr_width::machine_state<Addr_width>::value,
 					XED_ICLASS_JMP,
 					32,
 					xed_relbr(entry - routine.m_routine.entry_it->start - 5, 32)
 				);
-
-				//dest += sz;
-				//rva += sz;
 			}
-
-
-			/*for (auto& routine : m_obf_routines)
-			{
-				auto rva = m_binary->append_section(".TEST", routine.routine.blocks.front().get_size(), IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
-				routine.routine.blocks.front().place_at(rva, m_binary->symbol_table);
-				routine.routine.blocks.front().encode_to(m_binary->mapped_image + rva, rva, m_binary->symbol_table);
-
-				uint8_t* jmp_place = m_binary->mapped_image + routine.routine.start;
-
-				printf("%X %X %X\n", routine.routine.start, rva, rva - routine.routine.start);
-
-				encode_inst_in_place(jmp_place,
-					dasm::addr_width::machine_state<Addr_width>::value,
-					XED_ICLASS_JMP,
-					32,
-					xed_relbr(rva - routine.routine.start - 5, 32)
-				);
-			}*/
 		}
 
 
