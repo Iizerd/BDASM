@@ -36,7 +36,7 @@ namespace dasm
 		constexpr type uses_symbol = (rel_br | disp | reloc_disp | reloc_imm);
 	}
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class inst_t
 	{
 	public:
@@ -197,6 +197,7 @@ namespace dasm
 					std::printf("Failed to patch reloc imm.\n");
 				}
 			}
+			// TODO: make these^ manipulate the reloc vector inside of the binary.
 
 			return ilen;
 		}
@@ -213,22 +214,22 @@ namespace dasm
 		}
 	};
 
-	template<address_width Addr_width>
+	template<addr_width::type Addr_width>
 	using inst_list_t = std::list<inst_t<Addr_width> >;
 
-	template<address_width Addr_width>
+	template<addr_width::type Addr_width>
 	using inst_it_t = inst_list_t<Addr_width>::iterator;
 
-	using inst32_t = inst_t<address_width::x86>;
-	using inst64_t = inst_t<address_width::x64>;
+	using inst32_t = inst_t<addr_width::x86>;
+	using inst64_t = inst_t<addr_width::x64>;
 
-	using inst_list32_t = inst_list_t<address_width::x86>;
-	using inst_list64_t = inst_list_t<address_width::x64>;
+	using inst_list32_t = inst_list_t<addr_width::x86>;
+	using inst_list64_t = inst_list_t<addr_width::x64>;
 
 	using inst_it32_t = inst_list32_t::iterator;
 	using inst_it64_t = inst_list64_t::iterator;
 
-	template<address_width Addr_width>
+	template<addr_width::type Addr_width>
 	uint32_t calc_inst_list_size(inst_list_t<Addr_width>const& list)
 	{
 		uint32_t size = 0;
@@ -237,7 +238,7 @@ namespace dasm
 		return size;
 	}
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	uint8_t* dumb_encoder(inst_list_t<Addr_width>& list, uint32_t& size)
 	{
 		size = calc_inst_list_size(list);

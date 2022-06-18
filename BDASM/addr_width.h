@@ -9,66 +9,50 @@ extern "C"
 
 namespace dasm
 {
-
-	enum class address_width : uint32_t
-	{
-		x86 = 0,
-		x64 = 1,
-		invalid,
-	};
-
-	constexpr uint32_t __addr_width_table_bits[2] = { 32, 64 };
-	constexpr uint32_t __addr_width_table_bytes[2] = { 4, 8 };
-
 	namespace addr_width
 	{
-
-		template<address_width Addr_width>
-		struct bytes
+		enum class type : uint32_t
 		{
-			inline constexpr static uint32_t value = __addr_width_table_bytes[static_cast<uint32_t>(Addr_width)];
+			__x86 = 0,
+			__x64 = 1,
+			__invalid,
 		};
 
-		template<address_width Addr_width>
-		struct bits
+		constexpr type x86 = type::__x86;
+		constexpr type x64 = type::__x64;
+		constexpr type invalid = type::__invalid;
+
+		template<type Addr_width> struct bits;
+		template<> struct bits<x86> { constexpr static uint32_t value = 32; };
+		template<> struct bits<x64> { constexpr static uint32_t value = 64; };
+
+		template<type Addr_width> struct bytes;
+		template<> struct bytes<x86> { constexpr static uint32_t value = 4; };
+		template<> struct bytes<x64> { constexpr static uint32_t value = 8; };
+
+		template<type Addr_width> struct storage;
+		template<> struct storage<x86> { using type = uint32_t; };
+		template<> struct storage<x64> { using type = uint64_t; };
+
+		template<type Addr_width> struct machine_state;
+		template<> struct machine_state<x86>
 		{
-			inline constexpr static uint32_t value = __addr_width_table_bits[static_cast<uint32_t>(Addr_width)];
+			constexpr static xed_state_t value = { XED_MACHINE_MODE_LONG_COMPAT_32, XED_ADDRESS_WIDTH_32b };
+		};
+		template<> struct machine_state<x64>
+		{
+			constexpr static xed_state_t value = { XED_MACHINE_MODE_LONG_64, XED_ADDRESS_WIDTH_64b };
 		};
 
-		template<address_width Addr_width>
-		struct machine_state;
-		template<>
-		struct machine_state<address_width::x86>
+		template<type Addr_width> struct fastcall_regs;
+		template<> struct fastcall_regs<x86>
 		{
-			inline constexpr static xed_state_t value = { XED_MACHINE_MODE_LONG_COMPAT_32, XED_ADDRESS_WIDTH_32b };
+			constexpr static xed_reg_enum_t regs[] = { XED_REG_EDX, XED_REG_ECX };
 		};
-		template<>
-		struct machine_state<address_width::x64>
+		template<> struct fastcall_regs<x64>
 		{
-			inline constexpr static xed_state_t value = { XED_MACHINE_MODE_LONG_64, XED_ADDRESS_WIDTH_64b };
+			constexpr static xed_reg_enum_t regs[] = { XED_REG_R9, XED_REG_R8, XED_REG_RDX, XED_REG_RCX };
 		};
-
-		template<address_width Addr_width>
-		struct fastcall_regs;
-		template<>
-		struct fastcall_regs<address_width::x86>
-		{
-			inline constexpr static xed_reg_enum_t regs[] = { XED_REG_EDX, XED_REG_ECX };
-		};
-		template<>
-		struct fastcall_regs<address_width::x64>
-		{
-			inline constexpr static xed_reg_enum_t regs[] = { XED_REG_R9, XED_REG_R8, XED_REG_RDX, XED_REG_RCX };
-		};
-
-
-
-		template<address_width Addr_width>
-		struct storage;
-		template<>
-		struct storage<address_width::x86> { using type = uint32_t; };
-		template<>
-		struct storage<address_width::x64> { using type = uint64_t; };
 
 	}
 }

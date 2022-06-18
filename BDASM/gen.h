@@ -10,7 +10,7 @@ namespace obf
 	{
 		// Bp based stack frame
 		//
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> enter_stack_frame(int32_t alloc_size)
 		{
 			// push rbp
@@ -53,7 +53,7 @@ namespace obf
 
 			return result;
 		}
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> leave_stack_frame(int32_t alloc_size)
 		{
 			// mov rsp,rbp
@@ -87,20 +87,20 @@ namespace obf
 
 		// Real generic prologue that stores fastcall registers into the home space
 		//
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> fastcall_prologue(int32_t arg_count, int32_t alloc_size)
 		{
 			dasm::inst_list_t<Addr_width> result;
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 
-			if constexpr (Addr_width == dasm::address_width::x64)
+			if constexpr (Addr_width == dasm::addr_width::x64)
 			{
 				if (arg_count > 4)
 					arg_count = 4;
 
 				static constexpr xed_reg_enum_t regs[] = { XED_REG_R9, XED_REG_R8, XED_REG_RDX, XED_REG_RCX };
 			}
-			if constexpr (Addr_width == dasm::address_width::x86)
+			if constexpr (Addr_width == dasm::addr_width::x86)
 			{
 				if (arg_count > 2)
 					arg_count = 2;
@@ -136,7 +136,7 @@ namespace obf
 
 
 		inline constexpr uint32_t max_nop_size = 9;
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> nops(uint32_t length)
 		{
 			dasm::inst_list_t<Addr_width> result;
@@ -161,7 +161,7 @@ namespace obf
 		// This is for creating an obfuscated jump within the original binary. One that will jump
 		// to the new place where the function is in a "stealthy way"
 		//
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> routine_jump(dasm::inst_routine_t<Addr_width>& routine)
 		{
 
@@ -171,12 +171,12 @@ namespace obf
 		// These are for replacing access to the data section with gadgets that load the data from an
 		// absolute address. For example one patched in by the IFF loader.
 		//
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> abs_data_lea(dasm::inst_t<Addr_width>& accessing_inst)
 		{
 
 		}
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> abs_data_mov(dasm::inst_t<Addr_width>& accessing_inst)
 		{
 
@@ -186,7 +186,7 @@ namespace obf
 		// these to delete the function after its run, probably some gadget that replaces each ret inst.
 		// This can be used on the aforementioned routine_jump gadgets
 		//
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> inst_deleter(dasm::inst_list_t<Addr_width>& list_to_delete)
 		{
 			// For now ill just do a simple loop to zero it, maybe do advanced moving in the future

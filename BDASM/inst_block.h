@@ -10,7 +10,7 @@ namespace dasm
 	// occupy contiguous memory.
 	// The COULD be basic blocks... if divided up.
 	//
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class inst_block_t
 	{
 	public:
