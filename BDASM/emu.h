@@ -10,7 +10,7 @@ namespace obf
 	namespace emu
 	{
 
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> emulate_call(dasm::inst_t<Addr_width> const& call_inst)
 		{
 			dasm::inst_list_t<Addr_width> result;
@@ -65,7 +65,7 @@ namespace obf
 			return result;
 		}
 
-		template<dasm::address_width Addr_width = dasm::address_width::x64>
+		template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 		inline dasm::inst_list_t<Addr_width> ret()
 		{
 			dasm::inst_list_t<Addr_width> result;

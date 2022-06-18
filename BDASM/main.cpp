@@ -60,7 +60,7 @@ int main(int argc, char** argv)
 
 	//return 1;
 
-	/*auto res = obf::gen::fastcall_prologue<dasm::address_width::x64>(4, 1776);
+	/*auto res = obf::gen::fastcall_prologue<dasm::addr_width::x64>(4, 1776);
 
 	
 
@@ -81,7 +81,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 		binary_path = argv[1];
 
-	dasm::address_width width = pex::binary_t<>::deduce_address_width(binary_path);
+	dasm::addr_width::type width = pex::binary_t<>::deduce_address_width(binary_path);
 	//printf("image size %u %u\n", address_width_to_bits(width), address_width_to_bytes(width));
 
 
@@ -98,21 +98,21 @@ int main(int argc, char** argv)
 
 
 
-	if (width == dasm::address_width::x86)
+	if (width == dasm::addr_width::x86)
 	{
-		pex::binary_t<dasm::address_width::x86> binary;
+		pex::binary_t<dasm::addr_width::x86> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 	}
-	else if (width == dasm::address_width::x64)
+	else if (width == dasm::addr_width::x64)
 	{
-		pex::binary_t<dasm::address_width::x64> binary;
+		pex::binary_t<dasm::addr_width::x64> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		obf::binary_obfuscator_t<dasm::address_width::x64, 1> obfuscator;
+		obf::binary_obfuscator_t<dasm::addr_width::x64, 1> obfuscator;
 		
 		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 		obfuscator.load_file(binary_path);

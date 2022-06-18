@@ -9,7 +9,7 @@
 
 namespace obf
 {
-	template<dasm::address_width Addr_width = dasm::address_width::x64>
+	template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 	dasm::inst_it_t<Addr_width> find_marker(dasm::inst_list_t<Addr_width>& list)
 	{
 		if (list.size() < BDASM_MARKER_INST_COUNT)
@@ -40,14 +40,14 @@ namespace obf
 		return list.end();
 	}
 
-	template<dasm::address_width Addr_width = dasm::address_width::x64>
+	template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 	uint8_t get_marker_attributes(dasm::inst_it_t<Addr_width> begin_start)
 	{
 		std::advance(begin_start, 2);
 		return static_cast<uint8_t>(xed_decoded_inst_get_unsigned_immediate(&begin_start->decoded_inst));
 	}
 
-	//template<dasm::address_width Addr_width = dasm::address_width::x64>
+	//template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 	//dasm::inst_it_t<Addr_width> find_next_begin(dasm::inst_list_t<Addr_width>& list, dasm::inst_it_t<Addr_width> start)
 	//{
 	//	if (list.size() < BDASM_BEGIN_INST_COUNT)
@@ -69,7 +69,7 @@ namespace obf
 
 	//// Search backwards for these cuz it would most likely be closer to the end...
 	////
-	//template<dasm::address_width Addr_width = dasm::address_width::x64>
+	//template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 	//dasm::inst_it_t<Addr_width> find_end_marker(dasm::inst_list_t<Addr_width>& list)
 	//{
 	//	if (list.size() < BDASM_END_INST_COUNT)
@@ -98,7 +98,7 @@ namespace obf
 	//// when you are 100% sure there is an end marker somewhere before the end of
 	//// the instruction list.
 	//// 
-	//template<dasm::address_width Addr_width = dasm::address_width::x64>
+	//template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 	//dasm::inst_it_t<Addr_width> trace_to_end_marker(dasm::inst_it_t<Addr_width> start)
 	//{
 	//	while (!dasm::static_pattern_t<Addr_width, 

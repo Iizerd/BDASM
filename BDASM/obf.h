@@ -19,7 +19,7 @@
 
 namespace obf
 {
-	template<dasm::address_width Addr_width = dasm::address_width::x64>
+	template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 	class obf_routine_t
 	{
 	public:
@@ -101,7 +101,7 @@ namespace obf
 		}
 	};
 
-	template<dasm::address_width Addr_width = dasm::address_width::x64, uint8_t Thread_count = 1>
+	template<dasm::addr_width::type Addr_width = dasm::addr_width::x64, uint8_t Thread_count = 1>
 	class binary_obfuscator_t
 	{
 	public:
@@ -154,7 +154,7 @@ namespace obf
 
 			m_dasm = new dasm::dasm_t<Addr_width, Thread_count>(m_decoder_context);
 
-			//m_dasm->is_executable = std::bind(&pex::binary_t<dasm::address_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
+			//m_dasm->is_executable = std::bind(&pex::binary_t<dasm::addr_width::x64>::is_rva_in_executable_section, m_binary, std::placeholders::_1);
 
 			//m_dasm->add_routine(m_binary->optional_header.get_address_of_entry_point());
 

@@ -54,7 +54,7 @@ namespace dasm
 		constexpr uint8_t is_self = (1 << 2);
 	}
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	struct decoder_context_t
 	{
 		struct
@@ -150,13 +150,13 @@ namespace dasm
 		}
 	};
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	bool iform_switch_nullsub(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, inst_t<Addr_width>& inst, uint64_t rva)
 	{
 		return true;
 	}
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class iform_switch_t
 	{
 		using Cb_type = std::function<bool(decoder_context_t<Addr_width>* context, inst_t<Addr_width>& inst, uint64_t rva)>;
@@ -184,7 +184,7 @@ namespace dasm
 	};
 
 	// A collection of blocks
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class inst_routine_t
 	{
 		uint64_t m_max_rva;
@@ -542,7 +542,7 @@ namespace dasm
 		}
 	};
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class dasm_thread_t
 	{
 		std::thread* m_thread;
@@ -630,7 +630,7 @@ namespace dasm
 		}
 	};
 
-	template<address_width Addr_width = address_width::x64, uint8_t Thread_count = 1>
+	template<addr_width::type Addr_width = addr_width::x64, uint8_t Thread_count = 1>
 	class dasm_t
 	{
 		decoder_context_t<Addr_width>* m_context;

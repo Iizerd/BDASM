@@ -8,11 +8,9 @@
 
 namespace dasm
 {
-	template<address_width Addr_width, auto Accessor, std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>... Compare_list>
+	template<addr_width::type Addr_width, auto Accessor, std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>... Compare_list>
 	struct static_pattern_t
 	{
-		inline static constexpr uint32_t size = sizeof...(Compare_list);
-
 		// Searches a list for a pattern.
 		//
 		inline static const bool match(inst_list_t<Addr_width>& list, inst_it_t<Addr_width> start)
@@ -35,7 +33,7 @@ namespace dasm
 	};
 
 
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class ipattern_t
 	{
 	public:
@@ -85,7 +83,7 @@ namespace dasm
 	// The idea will be to use this to detect prologues so I can weed out exports that
 	// are data vs exports that are functions
 	//
-	template<address_width Addr_width = address_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class pattern_tracker_t
 	{
 		std::vector<ipattern_t<Addr_width> > m_pattern_list;

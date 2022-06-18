@@ -29,14 +29,14 @@
 // This is for functions inside the original binary that need to call functions
 // obfuscated with OFF
 //
-template<dasm::address_width Addr_width = dasm::address_width::x64>
+template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 struct ff_jump_in
 {
 	unsigned char inst[6];
 	dasm::addr_width::storage<Addr_width>::type address;
 };
-static_assert(sizeof(ff_jump_in<dasm::address_width::x86>) == 10);
-static_assert(sizeof(ff_jump_in<dasm::address_width::x64>) == 14);
+static_assert(sizeof(ff_jump_in<dasm::addr_width::x86>) == 10);
+static_assert(sizeof(ff_jump_in<dasm::addr_width::x64>) == 14);
 
 
 struct ff_jump_out
@@ -144,15 +144,15 @@ struct ff_format_descriptor
 //
 
 
-template<dasm::address_width Addr_width>
+template<dasm::addr_width::type Addr_width>
 struct ff_block_allocator;
 template<>
-struct ff_block_allocator<dasm::address_width::x86> { using type = uint32_t(*)(uint32_t); };
+struct ff_block_allocator<dasm::addr_width::x86> { using type = uint32_t(*)(uint32_t); };
 template<>
-struct ff_block_allocator<dasm::address_width::x64> { using type = uint64_t(*)(uint32_t); };
+struct ff_block_allocator<dasm::addr_width::x64> { using type = uint64_t(*)(uint32_t); };
 
 
-template<dasm::address_width Addr_width = dasm::address_width::x64>
+template<dasm::addr_width::type Addr_width = dasm::addr_width::x64>
 void place_routines(uint8_t* image_base, ff_format_descriptor* ff_descriptor, uint64_t(*allocator)(uint32_t))
 {
 	// First fine all of the tables

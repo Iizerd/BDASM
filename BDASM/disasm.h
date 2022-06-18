@@ -11,7 +11,7 @@
 //#include "inst.h"
 //#include "symbol.h"
 //
-//template<address_width Addr_width = address_width::x64>
+//template<addr_width::type Addr_width = addr_width::x64>
 //class x86_dasm_t;
 //
 //// This just makes things easier... holy shit enum class so close to being useful,,, but then just isnt.
@@ -35,7 +35,7 @@
 //}
 //
 //
-//template<address_width Addr_width = address_width::x64>
+//template<addr_width::type Addr_width = addr_width::x64>
 //class inst_block_t
 //{
 //public:
@@ -61,7 +61,7 @@
 //	}
 //};
 //
-//template <address_width Addr_width = address_width::x64>
+//template <addr_width::type Addr_width = addr_width::x64>
 //struct routine_t
 //{
 //public:
@@ -127,7 +127,7 @@
 //	}
 //};
 //
-//template<address_width Addr_width = address_width::x64>
+//template<addr_width::type Addr_width = addr_width::x64>
 //class decode_thread_t
 //{
 //	std::mutex m_rvas_lock;
@@ -209,7 +209,7 @@
 //	}
 //};
 //
-//template<address_width Addr_width = address_width::x64>
+//template<addr_width::type Addr_width = addr_width::x64>
 //class decode_thread_manager_t
 //{
 //	std::vector<decode_thread_t<Addr_width> > m_threads;
@@ -282,11 +282,11 @@
 //
 //using dasm_routine_progress_callback = std::function<void(uint32_t)>;
 //
-//template<address_width Addr_width = address_width::x64>
+//template<addr_width::type Addr_width = addr_width::x64>
 //using dasm_block_progress_callback = std::function<void(inst_block_t<Addr_width> const&)>;
 //
 //
-//template<address_width Addr_width>
+//template<addr_width::type Addr_width>
 //class x86_dasm_t
 //{
 //	std::atomic_bool* m_routine_lookup_table;

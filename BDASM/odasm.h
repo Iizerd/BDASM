@@ -130,7 +130,7 @@
 //	};
 //
 //	// A collection of blocks
-//	template<address_width Addr_width = address_width::x64>
+//	template<addr_width::type Addr_width = addr_width::x64>
 //	class inst_routine_t
 //	{
 //	public:
@@ -349,7 +349,7 @@
 //		}
 //	};
 //
-//	template<address_width Addr_width = address_width::x64>
+//	template<addr_width::type Addr_width = addr_width::x64>
 //	class dasm_t
 //	{
 //		decoder_context_t* m_context;
