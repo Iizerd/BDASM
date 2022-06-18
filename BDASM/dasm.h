@@ -72,15 +72,15 @@ namespace dasm
 		}settings;
 
 		//symbol_table_t* symbol_table;
-		pex::binary_ir_t<Addr_width>* binary_interface;
+		pex::binary_t<Addr_width>* binary_interface;
 
 		const uint8_t* raw_data_start;
 		const uint64_t raw_data_size;
-		std::function<void(uint64_t, uint64_t)> report_function_rva;
+		std::function<void(uint64_t, uint64_t)> report_routine_rva;
 
-		explicit decoder_context_t(pex::binary_ir_t<Addr_width>* binary, std::function<void(uint64_t, uint64_t)> rva_reporter = nullptr)
+		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t, uint64_t)> rva_reporter = nullptr)
 			: binary_interface(binary),
-			report_function_rva(rva_reporter),
+			report_routine_rva(rva_reporter),
 			raw_data_start(binary->mapped_image),
 			raw_data_size(binary->optional_header.get_size_of_image())
 		{ 
@@ -89,7 +89,7 @@ namespace dasm
 		}
 		explicit decoder_context_t(decoder_context_t const& to_copy)
 			: binary_interface(to_copy.binary_interface),
-			report_function_rva(to_copy.report_function_rva),
+			report_routine_rva(to_copy.report_routine_rva),
 			raw_data_start(to_copy.raw_data_start),
 			raw_data_size(to_copy.raw_data_size)
 		{
@@ -183,9 +183,6 @@ namespace dasm
 		}
 	};
 
-
-
-
 	// A collection of blocks
 	template<address_width Addr_width = address_width::x64>
 	class inst_routine_t
@@ -241,21 +238,51 @@ namespace dasm
 
 				lookup_table->update_inst(rva, ilen);
 
+				bool has_reloc = context->binary_interface->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset);
+
 				rva += ilen;
 
-				// Parse operands for rip relative addressing
+				// Parse operands for rip relative addressing and relocs
 				//
 				uint32_t num_operands = xed_decoded_inst_noperands(&inst.decoded_inst);
 				auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
 				for (uint32_t i = 0; i < num_operands; ++i)
 				{
-					if (auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i)); 
-						(XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name) &&
-						get_max_reg_size<XED_REG_RIP, Addr_width>::value == xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0))
+					auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
+					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
 					{
-						int64_t rip_delta = xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);
-						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva + rip_delta);
-						inst.flags |= inst_flag::disp;
+						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
+						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
+						{
+							inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+								rva + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
+							);
+							inst.flags |= inst_flag::disp;
+						}
+						else if (XED_REG_INVALID == base_reg && xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
+						{
+							if (has_reloc)
+							{
+								inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
+									context->binary_interface->optional_header.get_image_base()
+								);
+								inst.flags |= inst_flag::reloc_disp;
+							}
+							else
+							{
+								complete_disassembly = false;
+							}
+						}
+					}
+					else if (has_reloc && XED_OPERAND_IMM0 == operand_name && 
+						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
+					{
+						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
+							context->binary_interface->optional_header.get_image_base()
+						);
+						inst.flags |= inst_flag::reloc_imm;
 					}
 				}
 
@@ -318,9 +345,17 @@ namespace dasm
 						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
-						if (!lookup_table->is_inst_start(dest_rva) && rva_in_function(dest_rva))
+						/*if (!lookup_table->is_inst_start(dest_rva) && rva_in_function(dest_rva))
 						{
 							decode_block(context, dest_rva, lookup_table);
+						}*/
+
+						if (!lookup_table->is_inst_start(dest_rva))
+						{
+							if (rva_in_function(dest_rva))
+								decode_block(context, dest_rva, lookup_table);
+							else
+								context->report_routine_rva(dest_rva, 0); // This is most likely an optimized jmp to a function at end of current function
 						}
 
 						goto ExitInstDecodeLoop;
@@ -370,7 +405,7 @@ namespace dasm
 
 						if (!lookup_table->is_self(dest_rva))
 						{
-							context->report_function_rva(dest_rva, 0);
+							context->report_routine_rva(dest_rva, 0);
 						}
 						break;
 					}
@@ -614,7 +649,7 @@ namespace dasm
 			: m_next_thread(0)
 		{
 			m_context = context;
-			m_context->report_function_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1, std::placeholders::_2);
+			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1, std::placeholders::_2);
 			m_routine_lookup_table = new std::atomic_bool[m_context->raw_data_size];
 			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
 				m_routine_lookup_table[i] = false;
@@ -700,10 +735,4 @@ namespace dasm
 	};
 
 }
-
-
-
-
-
-
 

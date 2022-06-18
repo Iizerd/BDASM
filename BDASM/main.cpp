@@ -29,15 +29,36 @@
 
 #ifdef _DEBUG
 #define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
+#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 #else
 #define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+#define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe2.exe"
 #endif
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
 
+uint8_t meme[] = {0x48, 0xA1, 0xAB, 0xBA, 0xAB, 0xFA, 0xFF, 0xFF, 0xFF, 0x0F};
+
 int main(int argc, char** argv)
 {
 	xed_tables_init();
+
+	//dasm::inst64_t inst;
+	//inst.decode(meme, sizeof(meme));
+
+	//uint32_t num_operands = xed_decoded_inst_noperands(&inst.decoded_inst);
+	//auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
+	//for (uint32_t i = 0; i < num_operands; ++i)
+	//{
+	//	auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
+	//	printf("Operand: %s\n", xed_operand_enum_t2str(operand_name));
+	//	if (operand_name == XED_OPERAND_MEM0)
+	//		printf("\t width: %d, val %p", xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0), 
+	//			static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)));
+
+	//}
+
+	//return 1;
 
 	/*auto res = obf::gen::fastcall_prologue<dasm::address_width::x64>(4, 1776);
 
@@ -60,7 +81,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 		binary_path = argv[1];
 
-	dasm::address_width width = pex::binary_ir_t<>::deduce_address_width(binary_path);
+	dasm::address_width width = pex::binary_t<>::deduce_address_width(binary_path);
 	//printf("image size %u %u\n", address_width_to_bits(width), address_width_to_bytes(width));
 
 
@@ -79,13 +100,13 @@ int main(int argc, char** argv)
 
 	if (width == dasm::address_width::x86)
 	{
-		pex::binary_ir_t<dasm::address_width::x86> binary;
+		pex::binary_t<dasm::address_width::x86> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 	}
 	else if (width == dasm::address_width::x64)
 	{
-		pex::binary_ir_t<dasm::address_width::x64> binary;
+		pex::binary_t<dasm::address_width::x64> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 
@@ -106,7 +127,9 @@ int main(int argc, char** argv)
 
 		obfuscator.do_it();
 
-		obfuscator.save_file("C:\\$Work\\BDASM\\x64\\Release\\TestExe2.exe");
+		//std::printf("Rva %X\n", obfuscator.m_binary->append_section(".TEST", 0x10000, 0));
+
+		obfuscator.save_file(image_out);
 
 		//obfuscator.export_marked_routine_and_nop_marker("C:\\$Work\\BDASM\\x64\\Release\\");
 
@@ -118,7 +141,7 @@ int main(int argc, char** argv)
 		//decode_context.settings.recurse_calls = true;
 
 		//dasm_t<address_width::x64, 1> dasm(&decode_context);
-		//dasm.is_executable = std::bind(&binary_ir_t<address_width::x64>::is_rva_in_executable_section, &binary, std::placeholders::_1);
+		//dasm.is_executable = std::bind(&binary_t<address_width::x64>::is_rva_in_executable_section, &binary, std::placeholders::_1);
 
 		//dasm.add_routine(binary.optional_header.get_address_of_entry_point());
 

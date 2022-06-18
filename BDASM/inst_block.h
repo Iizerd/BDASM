@@ -44,58 +44,24 @@ namespace dasm
 			return size;
 		}
 		// This updates the symbols for each isntruction.
-		// Returns the end of the data needed to store the block
-		// can do end - start to get size
+		// BEWARE: make sure that the instructions the size reported by decoded_inst_get_length
+		// is the actual size the instruction will be...
 		//
-		uint64_t place_at(uint64_t start_address, symbol_table_t* symbol_table)
+		uint64_t place_in_binary(uint64_t start_address, symbol_table_t* symbol_table)
 		{
 			for (auto& inst : instructions)
 			{
-				// This is unfortunate, but xed drops unused rex prefixes and this is required to fix...
-				// Doing this in obf.h prep_for_obfuscation() pass now
-				//
-				//inst.redecode(); 
-
 				if (inst.my_symbol)
 					symbol_table->set_symbol_addr(inst.my_symbol, start_address);
 				start_address += inst.length();
 			}
 			return start_address;
 		}
-		uint8_t* encode_to(uint8_t* dest, uint64_t start_address, symbol_table_t* symbol_table)
+		uint8_t* encode_to_binary(pex::binary_t<Addr_width>* binary, uint8_t* dest/*, symbol_table_t* symbol_table*/)
 		{
 			for (auto& inst : instructions)
 			{
-				inst.to_encoder_request();
-				auto ilen = inst.dumb_encode(dest);
-				start_address += ilen;
-
-				if (inst.flags & inst_flag::rel_br)
-				{
-					int64_t br_disp = (int64_t)symbol_table->get_symbol(inst.used_symbol).address - start_address;
-					if (!xed_patch_relbr(&inst.decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&inst.decoded_inst))))
-					{
-						std::printf("Failed to patch relative br.\n");
-					}
-				}
-				else if (inst.flags & inst_flag::disp)
-				{
-					int64_t br_disp = (int64_t)symbol_table->get_symbol(inst.used_symbol).address - start_address;
-					if (!xed_patch_disp(&inst.decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0))))
-					{
-						std::printf("Failed to patch displacement.\n");
-					}
-				}
-
-				dest += ilen;
-			}
-			return dest;
-		}
-		uint8_t* encode_to2(uint8_t* dest, uint8_t* rva_base, symbol_table_t* symbol_table)
-		{
-			for (auto& inst : instructions)
-			{
-				dest += inst.encode(dest, rva_base, symbol_table);
+				dest += inst.encode_to_binary(binary, dest/*, symbol_table*/);
 			}
 			return dest;
 		}

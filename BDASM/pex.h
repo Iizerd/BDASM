@@ -15,6 +15,7 @@
 #include <vector>
 #include <variant>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <map>
 #include <set>
@@ -575,7 +576,7 @@ namespace pex
 		//
 		bool m_is_present;
 
-		// This is the index of a section_ir_t inside of binary_ir_t::_default_sections
+		// This is the index of a section_ir_t inside of binary_t::_default_sections
 		//
 		uint32_t m_target_section;
 
@@ -738,12 +739,13 @@ namespace pex
 	};
 
 	template <dasm::address_width Addr_width = dasm::address_width::x64>
-	class binary_ir_t
+	class binary_t
 	{
 	public:
+		// Pointer to the image mapping as if it were to be executed.
+		//
 		uint8_t* mapped_image;
 
-		std::mutex symbol_lock;
 		symbol_table_t* symbol_table;
 
 		// Header iterators/interfaces
@@ -753,8 +755,6 @@ namespace pex
 		optional_header_it_t<Addr_width> optional_header;
 
 		// These are the sections header interfaces from the original binary.
-		// TODO: Replace this with a single 'image_section_header_it_t' because
-		// its an array and can be iterated through as such
 		//
 		std::vector<image_section_header_it_t> section_headers;
 
@@ -769,12 +769,12 @@ namespace pex
 			return reinterpret_cast<Ptr_type*>(mapped_image + rva);
 		}
 	public:
-		binary_ir_t()
+		binary_t()
 			: optional_header(nullptr),
 			file_header(nullptr),
 			dos_header(nullptr)
 		{}
-		~binary_ir_t() {}
+		~binary_t() {}
 
 		bool is_rva_in_executable_section(uint64_t rva)
 		{
@@ -803,10 +803,12 @@ namespace pex
 			file_header.set(base + dos_header.get_lfanew() + sizeof uint32_t);
 			optional_header.set(base + dos_header.get_lfanew() + sizeof uint32_t + sizeof image_file_header_t);
 
+			section_headers.clear();
+
 			uint8_t* section_header_base = reinterpret_cast<uint8_t*>(optional_header.get()) + file_header.get_size_of_optional_header();
 			for (uint32_t i = 0; i < file_header.get_number_of_sections(); i++)
 			{
-				section_headers[i].set(section_header_base + (i * sizeof image_section_header_t));
+				section_headers.emplace_back(reinterpret_cast<image_section_header_t*>(section_header_base + (i * sizeof image_section_header_t)));
 			}
 		}
 
@@ -854,10 +856,11 @@ namespace pex
 		}
 		uint32_t get_lowest_section_start()
 		{
-			uint32_t min_addr = section_headers.front().get_pointer_to_raw_data();
+			uint32_t min_addr = 0xFFFFFFFF; // section_headers.front().get_pointer_to_raw_data();
 			for (auto& sec : section_headers)
 			{
-				if (uint32_t sec_start = sec.get_pointer_to_raw_data(); sec_start < min_addr)
+				// Have to check for >0 because of some .bss section bs
+				if (uint32_t sec_start = sec.get_pointer_to_raw_data(); sec_start < min_addr && sec_start > 0)
 					min_addr = sec_start;
 			}
 			return min_addr;
@@ -874,15 +877,18 @@ namespace pex
 		{
 			// Make sure there is enough space for another section header.
 			//
-			if (align_up(
+			if (auto header_size = align_up(
 				dos_header.get_lfanew() +
 				sizeof uint32_t +
 				sizeof image_file_header_t +
 				file_header.get_size_of_optional_header() +
 				sizeof image_section_header_t * (file_header.get_number_of_sections() + 1),
-				optional_header.get_file_alignment()) > get_lowest_section_start()
+				optional_header.get_file_alignment()); header_size > get_lowest_section_start()
 				)
+			{
+				std::printf("Not enough space to append section. %016X %X\n", header_size, get_lowest_section_start());
 				return 0;
+			}
 
 			auto last_section = section_headers.back();
 			uint32_t virt_addr = align_up(get_max_virt_addr(), optional_header.get_section_alignment());
@@ -1200,6 +1206,8 @@ namespace pex
 
 			uint8_t* output_image = new uint8_t[raw_image_size];
 
+			printf("Memes %u %p\n", raw_image_size, output_image);
+
 			// Copy default headers
 			//
 			std::memcpy(output_image, mapped_image, optional_header.get_size_of_headers());
@@ -1271,6 +1279,12 @@ namespace pex
 				return dasm::address_width::x64;
 
 			return dasm::address_width::invalid;
+		}
+
+		void print_section_info()
+		{
+			for (auto sec : section_headers)
+				debug_print_section_info(sec.get());
 		}
 
 		inline static void debug_print_section_info(image_section_header_t* section_header)

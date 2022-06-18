@@ -60,7 +60,7 @@
 //		const uint8_t* raw_data_end;
 //		const uint64_t raw_data_size;
 //		const uint64_t base_adjustment;
-//		std::function<void(uint64_t)> report_function_rva;
+//		std::function<void(uint64_t)> report_routine_rva;
 //
 //		explicit decoder_context_t(uint8_t* data, uint64_t data_size, symbol_table_t* sym_table, std::function<void(uint64_t)> rva_reporter = nullptr, uint64_t adjustment = 0)
 //			: raw_data_start(data),
@@ -68,7 +68,7 @@
 //			raw_data_size(data_size),
 //			base_adjustment(adjustment),
 //			symbol_table(sym_table),
-//			report_function_rva(rva_reporter)
+//			report_routine_rva(rva_reporter)
 //		{ }
 //		explicit decoder_context_t(decoder_context_t const& to_copy)
 //			: raw_data_start(to_copy.raw_data_start),
@@ -76,7 +76,7 @@
 //			raw_data_size(to_copy.raw_data_size),
 //			base_adjustment(to_copy.base_adjustment),
 //			symbol_table(to_copy.symbol_table),
-//			report_function_rva(to_copy.report_function_rva)
+//			report_routine_rva(to_copy.report_routine_rva)
 //		{ }
 //
 //		bool validate_rva(uint64_t rva)
@@ -267,7 +267,7 @@
 //
 //						if (!lookup_table->is_self(dest_rva))
 //						{
-//							context->report_function_rva(dest_rva);
+//							context->report_routine_rva(dest_rva);
 //						}
 //						break;
 //					}
@@ -367,7 +367,7 @@
 //		explicit dasm_t(decoder_context_t* context)
 //		{
 //			m_context = context;
-//			m_context->report_function_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
+//			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
 //			m_routine_lookup_table = new bool[m_context->raw_data_size];
 //			m_routine_lookup_table = reinterpret_cast<bool*>(std::calloc(m_context->raw_data_size, sizeof(bool)));
 //
