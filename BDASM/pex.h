@@ -346,6 +346,15 @@ namespace pex
 		image_section_header_it_t(image_section_header_t* header)
 			: base_it_t(header) {}
 
+		bool compare_name(std::string const& str)
+		{
+			char temp[9];
+			for (uint32_t i = 0; i < 9; i++)
+				temp[i] = '\0';
+			memcpy(temp, get_name(), 8);
+
+			return (str == temp);
+		}
 		uint8_t* get_name() { return this->m_pdata->Name; }
 		void set_name(uint8_t* new_name, uint32_t name_length)
 		{
@@ -434,6 +443,14 @@ namespace pex
 			_RUNTIME_FUNCTION_ITEM_LIST(image_runtime_function_entry_t, this->m_pdata->, _DEFINE_SETTER)
 	};
 
+
+#define reloc_block_size(Reloc_count) \
+	align_up(sizeof image_base_relocation_t + (Reloc_count * sizeof(uint16_t)), 32)
+#define reloc_block_pad_count(Reloc_count) \
+	(reloc_block_size(Reloc_count) -	\
+	(sizeof image_base_relocation_t + (Reloc_count * sizeof(uint16_t)))	/				\
+	sizeof uint16_t)
+
 #define _BASE_RELOCATION_ITEM_LIST(_Sd, _Sn, _M)		\
 	_M(_Sd, _Sn, VirtualAddress, virtual_address)		\
 	_M(_Sd, _Sn, SizeOfBlock, size_of_block)
@@ -501,71 +518,6 @@ namespace pex
 			return base_reloc_type_name_map[get_type()];
 		}
 	};
-
-	// Representation definitions for when we need our own representation.
-	//
-	//class dos_header_rep_t : public dos_header_it_t
-	//{
-	//	image_dos_header_t m_header;
-
-	//public:
-	//	explicit dos_header_rep_t()
-	//		: dos_header_it_t(&this->m_header) {}
-	//	explicit dos_header_rep_t(dos_header_rep_t const& to_copy)
-	//		: dos_header_it_t(&this->m_header)
-	//	{
-	//		this->copy_from_data(to_copy.m_pdata);
-	//	}
-	//};
-	//class file_header_rep_t : public file_header_it_t
-	//{
-	//	image_file_header_t m_header;
-
-	//public:
-	//	explicit file_header_rep_t()
-	//		: file_header_it_t(&this->m_header) {}
-	//	explicit file_header_rep_t(file_header_rep_t const& to_copy)
-	//		: file_header_it_t(&this->m_header)
-	//	{
-	//		this->copy_from_data(to_copy.m_pdata);
-	//	}
-	//};
-	//template <dasm::addr_width::type Addr_width = dasm::addr_width::x64>
-	//class optional_header_rep_t : public optional_header_it_t<Addr_width>
-	//{
-	//	using _Header_type = std::conditional<Addr_width == dasm::addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type;
-	//	_Header_type m_header;
-
-	//public:
-	//	explicit optional_header_rep_t()
-	//		: optional_header_it_t<Addr_width>(&this->m_header) {}
-	//	explicit optional_header_rep_t(optional_header_rep_t const& to_copy)
-	//		: optional_header_it_t<Addr_width>(&this->m_header)
-	//	{
-	//		this->copy_from_data(to_copy.m_pdata);
-	//	}
-	//};
-	//class section_header_rep_t : public image_section_header_it_t
-	//{
-	//	image_section_header_t m_header;
-
-	//public:
-	//	explicit section_header_rep_t()
-	//		: image_section_header_it_t(&this->m_header) {}
-
-	//	explicit section_header_rep_t(image_section_header_it_t section_header)
-	//		: image_section_header_it_t(&this->m_header)
-	//	{
-	//		this->copy_from_data(section_header.get());
-	//	}
-
-	//	explicit section_header_rep_t(section_header_rep_t const& to_copy)
-	//		: image_section_header_it_t(&this->m_header)
-	//	{
-	//		this->copy_from_data(to_copy.m_pdata);
-	//	}
-	//};
-
 
 	// This is the base class that describes data directories. All of them inherit from this
 	//
@@ -761,7 +713,8 @@ namespace pex
 		std::vector<import_module_t<Addr_width>> m_imports;
 		exports_t m_exports;
 
-		std::vector<uint32_t> base_relocs;
+		bool relocs_changed;
+		std::vector<std::pair<uint8_t, uint32_t> > base_relocs;
 
 		template<typename Ptr_type>
 		Ptr_type* rva_as(uint32_t rva)
@@ -809,26 +762,6 @@ namespace pex
 			for (uint32_t i = 0; i < file_header.get_number_of_sections(); i++)
 			{
 				section_headers.emplace_back(reinterpret_cast<image_section_header_t*>(section_header_base + (i * sizeof image_section_header_t)));
-			}
-		}
-
-		// Calls enum_func with each reloc block (mapped_image, reloc_block, first_reloc, num_of_relocs);
-		// 
-		void enum_base_relocs(std::function<bool(uint8_t*, image_base_reloc_block_it_t, image_base_reloc_offset_it_t)> enum_func)
-		{
-			if ((file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) || !optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
-				return;
-
-			image_base_reloc_block_it_t block_it(reinterpret_cast<image_base_relocation_t*>(mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_virtual_address()));
-
-			while (!block_it.is_null())
-			{
-				image_base_reloc_offset_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof image_base_relocation_t));
-
-				if (!enum_func(mapped_image, block_it, it))
-					return;
-
-				block_it.set(reinterpret_cast<uint8_t*>(block_it.get()) + block_it.get_size_of_block());
 			}
 		}
 
@@ -969,6 +902,108 @@ namespace pex
 			return virt_addr;
 		}
 
+		void rebuild_base_reloc_section()
+		{
+			if (!base_relocs.size() || !relocs_changed)
+				return;
+
+			std::sort(base_relocs.begin(), base_relocs.end(), [](std::pair<uint8_t, uint32_t> const& left, std::pair<uint8_t, uint32_t> const& right)
+				{
+					return (left.second < right.second);
+				});
+
+			std::vector<
+				std::pair<
+					uint32_t, 
+					std::vector<
+						std::pair<
+							uint8_t, 
+							uint16_t
+						> 
+					> 
+				>
+			> reloc_blocks;
+			
+			
+			uint32_t cur_base = base_relocs.front().second;
+			reloc_blocks.emplace_back(cur_base, std::vector<std::pair<uint8_t, uint16_t> >());
+			for (auto const& reloc : base_relocs)
+			{
+				if (auto offset = reloc.second - cur_base; offset < 0x1000)
+					reloc_blocks.back().second.emplace_back(reloc.first, offset);
+				else
+				{
+					cur_base = reloc.second;
+					reloc_blocks.emplace_back(cur_base, std::vector<std::pair<uint8_t, uint16_t> >());
+					reloc_blocks.back().second.emplace_back(reloc.first, 0);
+				}
+			}
+
+			uint32_t total_reloc_section_size = 0;
+			for (auto const& block : reloc_blocks)
+			{
+				total_reloc_section_size += reloc_block_size(block.second.size());
+			}
+			//printf("The reloc section is %X and was %X\n", total_reloc_section_size, optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size());
+			//printf("Counts of relocs %X %X %X\n", entry_count, base_relocs.size(), reloc_blocks.size());
+
+			// Space for the null section at the end
+			//
+			total_reloc_section_size += sizeof image_base_relocation_t;
+
+			image_section_header_it_t reloc_section_header(nullptr);
+			for (auto sec : section_headers)
+			{
+				if (sec.compare_name(".reloc"))
+				{
+					reloc_section_header.set(sec.get());
+					break;
+				}
+			}
+
+			uint32_t null_name = 0;
+			reloc_section_header.set_name(reinterpret_cast<uint8_t*>(&null_name), 8);
+
+			auto new_reloc_section_rva = append_section(".reloc", total_reloc_section_size, reloc_section_header.get_characteristics());
+
+			optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).set_size(total_reloc_section_size);
+			optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).set_virtual_address(new_reloc_section_rva);
+
+			for (auto const& block : reloc_blocks)
+			{
+				
+				image_base_reloc_block_it_t block_header_it(reinterpret_cast<image_base_relocation_t*>(mapped_image + new_reloc_section_rva));
+				block_header_it.set_size_of_block(reloc_block_size(block.second.size()));
+				block_header_it.set_virtual_address(block.first);
+
+				image_base_reloc_offset_it_t offset_it(reinterpret_cast<uint16_t*>(mapped_image + new_reloc_section_rva + sizeof image_base_relocation_t));
+				for (uint32_t i = 0; i < block.second.size(); ++i)
+				{
+					offset_it[i].set_type(block.second[i].first);
+					offset_it[i].set_offset(block.second[i].second);
+				}
+
+				for (uint32_t i = 0; i < reloc_block_pad_count(block.second.size()); ++i)
+				{
+					offset_it[block.second.size() + i].set_type(IMAGE_REL_BASED_ABSOLUTE);
+					offset_it[block.second.size() + i].set_offset(0);
+				}
+				new_reloc_section_rva += reloc_block_size(block.second.size());
+			}
+			image_base_reloc_block_it_t null_block_header(reinterpret_cast<image_base_relocation_t*>(mapped_image + new_reloc_section_rva));
+			null_block_header.set_size_of_block(0);
+			null_block_header.set_virtual_address(0);
+		}
+		void remap_reloc(uint32_t original_rva, uint32_t new_rva, uint8_t reloc_type)
+		{
+			relocs_changed = true;
+			for (auto it = base_relocs.begin(); it != base_relocs.end(); ++it)
+				if (it->second == original_rva)
+					base_relocs.erase(it);
+
+			base_relocs.emplace_back(reloc_type, new_rva);
+		}
+
 		bool from_file(std::string const& file_path)
 		{
 			if (!std::filesystem::exists(file_path))
@@ -1079,6 +1114,7 @@ namespace pex
 				}
 			}
 
+			relocs_changed = false;
 			if (!(file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) && optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
 			{
 				image_base_reloc_block_it_t block_it(reinterpret_cast<image_base_relocation_t*>(mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_virtual_address()));
@@ -1092,7 +1128,7 @@ namespace pex
 					for (uint32_t i = 0; i < num_relocs; ++i)
 					{
 						auto reloc_addr = virt_addr + it[i].get_offset();
-						base_relocs.push_back(reloc_addr);
+						base_relocs.emplace_back(it[i].get_type(), reloc_addr);
 						symbol_table->unsafe_get_symbol_for_rva(reloc_addr).mark_as_reloc(it[i].get_type());
 					}
 
@@ -1202,6 +1238,10 @@ namespace pex
 		}
 		uint8_t* unmap_image(uint32_t& raw_image_size)
 		{
+			// Rebuild reloc section
+			//
+			rebuild_base_reloc_section();
+
 			raw_image_size = get_max_file_addr();
 
 			uint8_t* output_image = new uint8_t[raw_image_size];

@@ -30,8 +30,8 @@ namespace dasm
 		// Seems that encoding mov rax,[64b] is valid instruction so i assume so?
 		// used_symbol is for the rva they pointed to in the original binary
 		//
-		constexpr type reloc_disp = (1 << 2);	// Form:		mov		rax,[base+rva]
-		constexpr type reloc_imm = (1 << 3);	// Form:		movabs	rax,base+rva
+		constexpr type reloc_disp = (1 << 2);	// Form:	mov		rax,[base+rva]
+		constexpr type reloc_imm = (1 << 3);	// Form:	movabs	rax,base+rva
 
 		constexpr type uses_symbol = (rel_br | disp | reloc_disp | reloc_imm);
 	}
@@ -60,8 +60,11 @@ namespace dasm
 		{
 			struct reloc_data_t
 			{
-				uint8_t offset;
+				uint8_t offset_in_inst;
+				uint8_t type;
+				uint32_t original_rva;
 			}reloc;
+
 		}additional_data;
 
 		explicit inst_t()
@@ -109,10 +112,10 @@ namespace dasm
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 
 			if (!is_encoder_request)
-				xed_encoder_request_init_from_decode(&this->decoded_inst);
+				xed_encoder_request_init_from_decode(&decoded_inst);
 
 			uint32_t out_size = 0;
-			xed_error_enum_t err = xed_encode(&this->decoded_inst, buffer, XED_MAX_INSTRUCTION_BYTES, &out_size);
+			xed_error_enum_t err = xed_encode(&decoded_inst, buffer, XED_MAX_INSTRUCTION_BYTES, &out_size);
 			if (XED_ERROR_NONE != err)
 			{
 				return false;
@@ -132,7 +135,7 @@ namespace dasm
 		// 
 		void to_encoder_request()
 		{
-			xed_encoder_request_init_from_decode(&this->decoded_inst);
+			xed_encoder_request_init_from_decode(&decoded_inst);
 			is_encoder_request = true;
 		}
 
@@ -144,7 +147,7 @@ namespace dasm
 				return 0;
 
 			uint32_t out_size = 0;
-			xed_error_enum_t err = xed_encode(&this->decoded_inst, target, XED_MAX_INSTRUCTION_BYTES, &out_size);
+			xed_error_enum_t err = xed_encode(&decoded_inst, target, XED_MAX_INSTRUCTION_BYTES, &out_size);
 			if (XED_ERROR_NONE != err)
 			{
 				return 0;
@@ -188,6 +191,7 @@ namespace dasm
 				{
 					std::printf("Failed to patch reloc displacement.\n");
 				}
+				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
 			}
 			else if (flags & inst_flag::reloc_imm)
 			{
@@ -196,6 +200,7 @@ namespace dasm
 				{
 					std::printf("Failed to patch reloc imm.\n");
 				}
+				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
 			}
 			// TODO: make these^ manipulate the reloc vector inside of the binary.
 
@@ -204,13 +209,13 @@ namespace dasm
 
 		uint32_t length() const
 		{
-			return xed_decoded_inst_get_length(&this->decoded_inst);
+			return xed_decoded_inst_get_length(&decoded_inst);
 		}
 
 		
 		void print_details() const
 		{
-			std::printf("[0x%08X]\t%u\t%u\t%s\n", /*rva*/0, my_symbol, used_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&this->decoded_inst)));
+			std::printf("[0x%08X]\t%u\t%u\t%s\n", /*rva*/0, my_symbol, used_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&decoded_inst)));
 		}
 	};
 

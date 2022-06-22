@@ -238,9 +238,7 @@ namespace dasm
 
 				lookup_table->update_inst(rva, ilen);
 
-				bool has_reloc = context->binary_interface->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset);
-
-				rva += ilen;
+				bool has_reloc = context->binary_interface->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
 
 				// Parse operands for rip relative addressing and relocs
 				//
@@ -255,11 +253,12 @@ namespace dasm
 						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 						{
 							inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
-								rva + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
+								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
 							);
 							inst.flags |= inst_flag::disp;
 						}
-						else if (XED_REG_INVALID == base_reg && xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
+						else if (XED_REG_INVALID == base_reg && 
+							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
 						{
 							if (has_reloc)
 							{
@@ -267,6 +266,7 @@ namespace dasm
 									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 									context->binary_interface->optional_header.get_image_base()
 								);
+								inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
 								inst.flags |= inst_flag::reloc_disp;
 							}
 							else
@@ -282,14 +282,12 @@ namespace dasm
 							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 							context->binary_interface->optional_header.get_image_base()
 						);
+						inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
 						inst.flags |= inst_flag::reloc_imm;
 					}
 				}
 
-			/*	for (auto& reloc : context->binary_interface->base_relocs)
-				{
-					if ()
-				}*/
+				rva += ilen;
 
 				// Follow control flow
 				//
@@ -459,7 +457,6 @@ namespace dasm
 				return;
 			}
 
-			//decode_lookup_table lookup_table(context->raw_data_size);
 			decode_block(context, rva, lookup_table);
 
 			blocks.sort([](inst_block_t<Addr_width> const& b1, inst_block_t<Addr_width> const& b2) -> bool
@@ -473,10 +470,8 @@ namespace dasm
 				if (next == blocks.end())
 					break;
 
-				//it->end == next->start
 				if (next->start - it->end <= context->settings.block_combination_threshold)
 				{
-					//printf("merging with size %u %u at %X\n", next->start - it->end, context->settings.block_combination_threshold, it->end);
 					it->instructions.splice(it->instructions.end(), next->instructions);
 					it->end = next->end;
 
@@ -492,6 +487,10 @@ namespace dasm
 					break;
 				}
 			}
+
+			// Im thinking maybe do a "post processing" pass here to discover blocks that really are from separate functions
+			// Maybe, one block ends with a jump which goes somewhere far away.
+			//
 
 			start = context->binary_interface->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
 			end = context->binary_interface->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();

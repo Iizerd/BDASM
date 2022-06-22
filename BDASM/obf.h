@@ -193,22 +193,14 @@ namespace obf
 
 		bool contains_relocations(dasm::inst_routine_t<Addr_width> const& routine)
 		{
-			bool has_reloc = false;
-			m_binary->enum_base_relocs([&](uint8_t* mapped_base, pex::image_base_reloc_block_it_t block_header, pex::image_base_reloc_offset_it_t reloc) -> bool
+			for (auto const& reloc : m_binary->base_relocs)
+			{
+				if (reloc.second >= routine.start && reloc.second < routine.end)
 				{
-					uint32_t num_relocs = block_header.get_num_of_relocs();
-					for (uint32_t i = 0; i < num_relocs; i++)
-					{
-						if (uint64_t va = block_header.get_virtual_address() + reloc[i].get_offset();
-							va >= routine.start && va < routine.end)
-						{
-							has_reloc = true;
-							return false;
-						}
-					}
-					return false;
-				});
-			return has_reloc;
+					return true;
+				}
+			}
+			return false;
 		}
 
 		bool accepted_rva(uint64_t rva)
