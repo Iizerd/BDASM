@@ -92,7 +92,7 @@ public:
 	finline void mark_as_reloc(uint8_t reloc_type)
 	{
 		flags |= symbol_flag::reloc;
-		flags = ((flags & ~symbol_flag::reloc_type_mask) | ((reloc_type & 0xF) << symbol_flag::reloc_type_shift));
+		flags = ((flags & ~symbol_flag::reloc_type_mask) | (static_cast<symbol_flag::type>(reloc_type & 0xF) << symbol_flag::reloc_type_shift));
 	}
 	finline uint8_t get_reloc_type()
 	{
@@ -106,7 +106,7 @@ class symbol_table_t
 
 	symbol_t* m_image_table;
 
-	inline constexpr static uint32_t m_arbitrary_table_idx_offset = 0xFFFF0000;
+	inline constexpr static uint32_t m_arbitrary_table_idx_offset = 0xFF000000;
 	std::vector<symbol_t> m_arbitrary_table;
 
 	// This is ONLY needed when allocating in the arbitrary_table 
