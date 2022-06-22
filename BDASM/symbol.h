@@ -201,11 +201,12 @@ public:
 			return m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].flags & symbol_flag::executable;
 	}
 
-	finline bool inst_uses_reloc(uint32_t inst_rva, uint32_t inst_len, uint8_t& offset)
+	finline bool inst_uses_reloc(uint32_t inst_rva, uint32_t inst_len, uint8_t& offset, uint8_t& type)
 	{
 		for (uint32_t i = inst_rva; i < inst_rva + inst_len; ++i)
 			if (m_image_table[i].flags & symbol_flag::reloc)
 			{
+				type = m_image_table[i].get_reloc_type();
 				offset = i;
 				return true;
 			}
