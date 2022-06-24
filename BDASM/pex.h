@@ -443,6 +443,24 @@ namespace pex
 			_RUNTIME_FUNCTION_ITEM_LIST(image_runtime_function_entry_t, this->m_pdata->, _DEFINE_SETTER)
 	};
 
+	struct unwind_info
+	{
+		uint8_t version : 3;				//0
+		uint8_t flags : 5;					//
+		uint8_t size_of_prolog;				//1
+		uint8_t unwind_code_count;			//2
+		uint8_t frame_register : 4;			//
+		uint8_t frame_register_offset : 4;	//3
+	};
+	struct unwind_code
+	{
+		uint8_t offset_in_prolog;
+		uint8_t operation_code : 4;
+		uint8_t operation_info : 4;
+	};
+
+	int temp = sizeof(unwind_info);
+
 
 #define reloc_block_size(Reloc_count) \
 	align_up(sizeof image_base_relocation_t + (Reloc_count * sizeof(uint16_t)), 32)
@@ -1114,6 +1132,17 @@ namespace pex
 				}
 			}
 
+			// Insert runtime function data into the symbol table
+			//
+			for (pex::image_runtime_function_it_t m_runtime_functions(reinterpret_cast<pex::image_runtime_function_entry_t*>(
+				mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
+				!m_runtime_functions.is_null(); ++m_runtime_functions)
+			{
+				symbol_table->set_func_data_and_start(m_runtime_functions.get_begin_address(), reinterpret_cast<uint64_t>(m_runtime_functions.get()) - reinterpret_cast<uint64_t>(mapped_image));
+			}
+
+			// Insert reloc data into symbol table
+			//
 			relocs_changed = false;
 			if (!(file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) && optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
 			{
@@ -1135,6 +1164,8 @@ namespace pex
 					block_it.set(reinterpret_cast<uint8_t*>(block_it.get()) + block_it.get_size_of_block());
 				}
 			}
+
+
 
 			// Fill normal imports
 			//
