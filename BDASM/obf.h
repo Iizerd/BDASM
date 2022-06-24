@@ -164,13 +164,13 @@ namespace obf
 				!m_runtime_functions.is_null(); ++m_runtime_functions)
 			{
 				if (m_binary->is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
-					m_dasm->add_routine(m_runtime_functions.get_begin_address(), m_runtime_functions.get_end_address());
+					m_dasm->add_routine(m_runtime_functions.get_begin_address());
 				count++;
 			}
 			std::printf("This many count runtime: %u\n", count);
 
 			if (auto entry = m_binary->optional_header.get_address_of_entry_point(); entry)
-				m_dasm->add_routine(entry, 0);
+				m_dasm->add_routine(entry);
 
 			//printf("Entry point %X\n", m_binary->optional_header.get_address_of_entry_point());
 
@@ -195,7 +195,7 @@ namespace obf
 		{
 			for (auto const& reloc : m_binary->base_relocs)
 			{
-				if (reloc.second >= routine.start && reloc.second < routine.end)
+				if (reloc.second >= routine.range_start && reloc.second < routine.range_end)
 				{
 					return true;
 				}

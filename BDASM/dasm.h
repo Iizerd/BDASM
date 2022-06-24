@@ -76,9 +76,9 @@ namespace dasm
 
 		const uint8_t* raw_data_start;
 		const uint64_t raw_data_size;
-		std::function<void(uint64_t, uint64_t)> report_routine_rva;
+		std::function<void(uint64_t)> report_routine_rva;
 
-		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t, uint64_t)> rva_reporter = nullptr)
+		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t)> rva_reporter = nullptr)
 			: binary_interface(binary),
 			report_routine_rva(rva_reporter),
 			raw_data_start(binary->mapped_image),
@@ -191,8 +191,8 @@ namespace dasm
 
 	public:
 		std::list<inst_block_t<Addr_width> > blocks;
-		uint64_t start = 0;
-		uint64_t end = 0;
+		uint64_t range_start = 0;
+		uint64_t range_end = 0;
 
 		// So we know what block is the entry for this function
 		//
@@ -353,7 +353,7 @@ namespace dasm
 							if (rva_in_function(dest_rva))
 								decode_block(context, dest_rva, lookup_table);
 							else
-								context->report_routine_rva(dest_rva, 0); // This is most likely an optimized jmp to a function at end of current function
+								context->report_routine_rva(dest_rva); // This is most likely an optimized jmp to a function at end of current function
 						}
 
 						goto ExitInstDecodeLoop;
@@ -403,7 +403,7 @@ namespace dasm
 
 						if (!lookup_table->is_self(dest_rva))
 						{
-							context->report_routine_rva(dest_rva, 0);
+							context->report_routine_rva(dest_rva);
 						}
 						break;
 					}
@@ -444,17 +444,27 @@ namespace dasm
 				}
 			}
 		}
-		void decode(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, uint64_t rva, uint64_t max_rva = 0)
+		void decode(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, uint64_t rva)
 		{
-			entry_rva = rva;
-			m_max_rva = max_rva;
-			if (0 == m_max_rva)
-				m_max_rva = context->raw_data_size;
-			
 			if (!context->validate_rva(rva))
 			{
 				std::printf("Attempting to decode routine at invalid rva.\n");
 				return;
+			}
+
+			entry_rva = rva;
+			//auto& sym = context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva);
+			pex::image_runtime_function_it_t runtime_func(nullptr);
+			if (context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
+			{
+				runtime_func.set(context->binary_interface->mapped_image +
+					context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
+
+				m_max_rva = runtime_func.get_end_address();
+			}
+			else
+			{
+				m_max_rva = context->raw_data_size;
 			}
 
 			decode_block(context, rva, lookup_table);
@@ -474,7 +484,6 @@ namespace dasm
 				{
 					it->instructions.splice(it->instructions.end(), next->instructions);
 					it->end = next->end;
-
 					blocks.erase(next);
 				}
 			}
@@ -492,8 +501,9 @@ namespace dasm
 			// Maybe, one block ends with a jump which goes somewhere far away.
 			//
 
-			start = context->binary_interface->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
-			end = context->binary_interface->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
+			range_start = context->binary_interface->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
+			range_end = context->binary_interface->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
+
 		}
 
 
@@ -550,7 +560,7 @@ namespace dasm
 		std::atomic_bool m_signal_shutdown;
 
 		std::mutex m_queued_routines_lock;
-		std::vector<std::pair<uint64_t, uint64_t> > m_queued_routines;
+		std::vector<uint64_t> m_queued_routines;
 
 		decoder_context_t<Addr_width>* m_decoder_context;
 
@@ -578,7 +588,7 @@ namespace dasm
 				m_thread->join();
 			delete m_thread;
 		}
-		bool pop_queued_routine(uint64_t& routine_rva, uint64_t& max_rva)
+		bool pop_queued_routine(uint64_t& routine_rva)
 		{
 			if (!m_signal_start)
 				return false;
@@ -586,19 +596,18 @@ namespace dasm
 			std::lock_guard g(m_queued_routines_lock);
 			if (m_queued_routines.size())
 			{
-				std::tie(routine_rva, max_rva) = m_queued_routines.back();
+				routine_rva = m_queued_routines.back();
 				m_queued_routines.pop_back();
 				return true;
 			}
 			return false;
 		}
 
-		void queue_routine(uint64_t routine_rva, uint64_t max_rva = 0)
+		void queue_routine(uint64_t routine_rva)
 		{
-			//std::printf("queued for %p\n", this);
 			++queued_routine_count;
 			std::lock_guard g(m_queued_routines_lock);
-			m_queued_routines.emplace_back(routine_rva, max_rva);
+			m_queued_routines.emplace_back(routine_rva);
 		}
 
 		void start()
@@ -615,10 +624,9 @@ namespace dasm
 			while (!m_signal_shutdown)
 			{
 				uint64_t routine_rva = 0;
-				uint64_t max_rva = 0;
-				if (pop_queued_routine(routine_rva, max_rva))
+				if (pop_queued_routine(routine_rva))
 				{
-					finished_routines.emplace_back().decode(m_decoder_context, &m_lookup_table, routine_rva, max_rva);
+					finished_routines.emplace_back().decode(m_decoder_context, &m_lookup_table, routine_rva);
 					m_lookup_table.clear();
 					--queued_routine_count;
 					continue; //Skip the sleep.
@@ -648,7 +656,7 @@ namespace dasm
 			: m_next_thread(0)
 		{
 			m_context = context;
-			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1, std::placeholders::_2);
+			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
 			m_routine_lookup_table = new std::atomic_bool[m_context->raw_data_size];
 			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
 				m_routine_lookup_table[i] = false;
@@ -663,14 +671,14 @@ namespace dasm
 				delete[] m_routine_lookup_table;
 		}
 
-		void add_routine(uint64_t routine_rva, uint64_t end_rva)
+		void add_routine(uint64_t routine_rva)
 		{
 			if (m_routine_lookup_table[routine_rva] || m_context->binary_interface->symbol_table->is_executable(routine_rva))
 				return;
 
 			m_routine_lookup_table[routine_rva] = true;
 
-			m_threads[m_next_thread].queue_routine(routine_rva, end_rva);
+			m_threads[m_next_thread].queue_routine(routine_rva);
 			m_next_thread++;
 			if (m_next_thread >= Thread_count)
 				m_next_thread = 0;

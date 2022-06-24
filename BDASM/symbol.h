@@ -24,22 +24,21 @@ namespace symbol_flag
 	constexpr type data = (1 << 2);
 	constexpr type executable = (1 << 3);
 
-	constexpr type is_export = (1 << 4);
 
-	constexpr type reloc = (1 << 5);
-	constexpr type reloc_type_shift = 6;
+	constexpr type function_start = (1 << 4);
+
+	constexpr type is_export = (1 << 5);
+
+
+	constexpr type reloc = (1 << 6);
+	constexpr type reloc_type_shift = 7;
 	constexpr type reloc_type_mask = (0xF << reloc_type_shift);
 
-	constexpr type mask = 0xffffffff;
-};
+	constexpr type func_data = (1 << 12);
+	constexpr type func_data_shift = 13;
+	constexpr type func_data_mask = (0xFFFF << func_data_shift); //imposes upper limit on function count of 2^16
 
-class symbol_attribute_t
-{
-public:
-	virtual void print_details()
-	{
-		std::printf("Default symbol attributes.\n");
-	}
+	constexpr type mask = 0xffffffffffffffff;
 };
 
 // These symbols are basically an intermediate between two things. For example an instruction and another isntruction
@@ -98,6 +97,32 @@ public:
 	{
 		return ((flags & symbol_flag::reloc_type_mask) >> symbol_flag::reloc_type_shift);
 	}
+
+	// Accessing function data
+	//
+	finline bool has_func_data()
+	{
+		return (flags & symbol_flag::func_data);
+	}
+	finline uint16_t get_func_data_idx()
+	{
+		return ((flags & symbol_flag::func_data_mask) >> symbol_flag::func_data_shift);
+	}
+	finline void set_func_data_idx(uint16_t idx)
+	{
+		flags = ((flags & ~symbol_flag::func_data_mask) | (static_cast<symbol_flag::type>(idx) << symbol_flag::func_data_shift));
+	}
+};
+
+struct func_sym_data_t
+{
+	uint32_t runtime_function_rva;
+	func_sym_data_t(uint32_t rva)
+		: runtime_function_rva(rva)
+	{}
+	func_sym_data_t(func_sym_data_t const& to_copy)
+		: runtime_function_rva(to_copy.runtime_function_rva)
+	{}
 };
 
 class symbol_table_t
@@ -108,6 +133,8 @@ class symbol_table_t
 
 	inline constexpr static uint32_t m_arbitrary_table_idx_offset = 0xFF000000;
 	std::vector<symbol_t> m_arbitrary_table;
+
+	std::vector<func_sym_data_t> m_func_data;
 
 	// This is ONLY needed when allocating in the arbitrary_table 
 	// So now the multi threads can access the image table without locking
@@ -132,7 +159,10 @@ public:
 	void resize_image_table(uint32_t new_image_size)
 	{
 		symbol_t* new_image_table = new symbol_t[new_image_size];
-		uint32_t copy_size = min(new_image_size, m_image_size);
+		uint32_t copy_size = new_image_size;
+		if (m_image_size < new_image_size)
+			copy_size = m_image_size;
+
 		for (uint32_t i = 0; i < copy_size; i++)
 			new_image_table[i] = m_image_table[i];
 
@@ -192,7 +222,6 @@ public:
 			m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].set_flag(symbol_flag::placed).set_address(address);
 	}
 
-
 	finline bool is_executable(uint32_t symbol_index)
 	{
 		if (symbol_index < m_arbitrary_table_idx_offset)
@@ -213,7 +242,32 @@ public:
 		return false;
 	}
 
+	finline bool has_func_data(uint32_t inst_rva)
+	{
+		return m_image_table[inst_rva].flags & symbol_flag::func_data;
+	}
 
+	finline func_sym_data_t& get_func_data(uint32_t inst_rva)
+	{
+		return m_func_data[m_image_table[inst_rva].get_func_data_idx()];
+	}
+
+	finline void set_func_data_and_start(uint32_t inst_rva, uint32_t runtime_func_rva)
+	{
+		auto& sym = m_image_table[inst_rva];
+		sym.flags |= symbol_flag::function_start;
+		if (sym.flags & symbol_flag::func_data)
+		{
+			m_func_data[sym.get_func_data_idx()] = { runtime_func_rva };
+		}
+		else
+		{
+			auto idx = m_func_data.size();
+			m_func_data.emplace_back(runtime_func_rva);
+			sym.set_func_data_idx(idx);
+			sym.set_flag(symbol_flag::func_data);
+		}
+	}
 
 
 

@@ -27,13 +27,13 @@
 //#define image_name "C:\\Users\\Iizerd\\Desktop\\revers windas\\dxgkrnl.sys"
 //#define image_name "C:\\$Fanta\\CV2\\x64\\Release\\CV2.exe"
 
-#ifdef _DEBUG
-#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
-#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
-#else
+//#ifdef _DEBUG
+//#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
+//#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
+//#else
 #define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
 #define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe2.exe"
-#endif
+//#endif
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
 
