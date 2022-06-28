@@ -27,7 +27,6 @@ extern "C"
 #include "symbol.h"
 #include "addr_width.h"
 #include "inst.h"
-#include "inst_list.h"
 #include "size_casting.h"
 #include "pex.h"
 
