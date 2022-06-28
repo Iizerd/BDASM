@@ -212,6 +212,13 @@ namespace dasm
 			return xed_decoded_inst_get_length(&decoded_inst);
 		}
 
+		// I think this will always hold true...
+		//
+		uint8_t calc_reloc_offset() const
+		{
+			return length() - addr_width::bytes<Addr_width>::value;
+		}
+
 		
 		void print_details() const
 		{
@@ -219,14 +226,14 @@ namespace dasm
 		}
 	};
 
+	using inst32_t = inst_t<addr_width::x86>;
+	using inst64_t = inst_t<addr_width::x64>;
+
 	template<addr_width::type Addr_width>
 	using inst_list_t = std::list<inst_t<Addr_width> >;
 
 	template<addr_width::type Addr_width>
 	using inst_it_t = inst_list_t<Addr_width>::iterator;
-
-	using inst32_t = inst_t<addr_width::x86>;
-	using inst64_t = inst_t<addr_width::x64>;
 
 	using inst_list32_t = inst_list_t<addr_width::x86>;
 	using inst_list64_t = inst_list_t<addr_width::x64>;

@@ -94,7 +94,7 @@ namespace pex
 		{
 			std::memcpy(m_pdata, raw_data, sizeof Class_type);
 		}
-		Class_type* get()
+		Class_type* get() const
 		{
 			return m_pdata;
 		}

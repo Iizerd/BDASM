@@ -11,12 +11,8 @@
 #include "inst.h"
 #include "sff.h"
 #include "symbol.h"
-#include "disasm.h"
 #include "dasm.h"
 #include "pex.h"
-#include "marker.h"
-#include "obf.h"
-#include "off.h"
 
 #include "dpattern.h"
 //uint8_t bytes[] = { 0xFF, 0x15, 0x00 ,0x30 ,0x40 ,0x00 };
@@ -31,50 +27,15 @@
 //#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
 //#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 //#else
-#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
-#define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe2.exe"
+#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
+#define image_out "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe2.exe"
 //#endif
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
 
-uint8_t meme[] = {0x48, 0xA1, 0xAB, 0xBA, 0xAB, 0xFA, 0xFF, 0xFF, 0xFF, 0x0F};
-
 int main(int argc, char** argv)
 {
 	xed_tables_init();
-
-	//dasm::inst64_t inst;
-	//inst.decode(meme, sizeof(meme));
-
-	//uint32_t num_operands = xed_decoded_inst_noperands(&inst.decoded_inst);
-	//auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
-	//for (uint32_t i = 0; i < num_operands; ++i)
-	//{
-	//	auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
-	//	printf("Operand: %s\n", xed_operand_enum_t2str(operand_name));
-	//	if (operand_name == XED_OPERAND_MEM0)
-	//		printf("\t width: %d, val %p", xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0), 
-	//			static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)));
-
-	//}
-
-	//return 1;
-
-	/*auto res = obf::gen::fastcall_prologue<dasm::addr_width::x64>(4, 1776);
-
-	
-
-	uint32_t size = 0;
-	auto enc = dasm::dumb_encoder(res, size);
-
-	for (uint32_t i = 0; i < size; i++)
-	{
-		std::printf("%02X ", enc[i]);
-	}
-	std::printf("\n");
-	return 1;*/
-
-
 
 	std::string binary_path = image_name;
 
@@ -112,87 +73,17 @@ int main(int argc, char** argv)
 
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		obf::binary_obfuscator_t<dasm::addr_width::x64, 1> obfuscator;
+		dasm::decoder_context_t<dasm::addr_width::x64> context(&binary);
+		context.settings.recurse_calls = true;
+
+		dasm::dasm_t<dasm::addr_width::x64> disassembler(&context);
+
+		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
 		
-		std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-		obfuscator.load_file(binary_path);
-		std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+		disassembler.run();
+		disassembler.wait_for_completion();
 
-		//dasm.print_details();
-		std::printf("it took %llums\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-
-		std::printf("Routines Count: %llu\nInstruction Count: %u\n", obfuscator.m_dasm->completed_routines.size(), obfuscator.m_dasm->count_instructions());
-
-		obfuscator.enumerate_obf_functions();
-
-		obfuscator.do_it();
-
-		//std::printf("Rva %X\n", obfuscator.m_binary->append_section(".TEST", 0x10000, 0));
-
-		obfuscator.save_file(image_out);
-
-		//obfuscator.export_marked_routine_and_nop_marker("C:\\$Work\\BDASM\\x64\\Release\\");
-
-
-
-
-		//std::mutex memelock;
-		//decoder_context_t decode_context(binary.mapped_image, binary.optional_header.get_size_of_image(), &binary.symbol_table, &memelock);
-		//decode_context.settings.recurse_calls = true;
-
-		//dasm_t<address_width::x64, 1> dasm(&decode_context);
-		//dasm.is_executable = std::bind(&binary_t<address_width::x64>::is_rva_in_executable_section, &binary, std::placeholders::_1);
-
-		//dasm.add_routine(binary.optional_header.get_address_of_entry_point());
-
-	
-		///*for (image_runtime_function_it_t m_runtime_functions(reinterpret_cast<image_runtime_function_entry_t*>(binary.mapped_image + binary.optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
-		//	!m_runtime_functions.is_null(); ++m_runtime_functions)
-		//{
-		//	if (binary.is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
-		//		dasm.add_routine(m_runtime_functions.get_begin_address());
-		//}*/
-
-		//
-		///*for (auto& i : binary.m_exports.entries)
-		//{
-		//	if (binary.is_rva_in_executable_section(i.rva))
-		//		dasm.add_routine(i.rva);
-		//}*/
-		//
-		//std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-
-		//dasm.run();
-
-		//dasm.wait_for_completion();
-
-		//std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-
-		//dasm.print_details();
-		//std::printf("it took %ums\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-
-
-		//for (auto& routine : dasm.completed_routines)
-		//{
-		//	if (routine.blocks.size() > 1)
-		//	{
-		//		routine.block_trace();
-		//		//system("pause");
-		//	}
-		//	for (auto& block : routine.blocks)
-		//	{
-		//		if (find_begin_marker(block.instructions) != block.instructions.end())
-		//		{
-		//			std::printf("Found a begin marker. %llu blocks.\n", routine.blocks.size());
-		//		}
-		//		if (find_end_marker(block.instructions) != block.instructions.end())
-		//		{
-		//			std::printf("Found an end marker. %llu blocks.\n", routine.blocks.size());
-		//		}
-		//		std::printf("Checked routine with %llu blocks.\n", routine.blocks.size());
-		//		
-		//	}
-		//}
+		printf("Found %d routines.\n", disassembler.completed_routines.size());
 	}
 	else
 		printf("invalid addr width.");

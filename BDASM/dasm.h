@@ -5,9 +5,9 @@
 
 
 /*
-	TODO: going to break with trailing calls.... Probably a huge problem already
-			im just not seeing it. Going break on INT3 for now...
-			I think that the proper way to handle this is with dpattern.h
+	A + B | ~A - ~B
+
+	~A | A ^ ~0
 */
 
 
@@ -27,7 +27,7 @@ extern "C"
 #include "symbol.h"
 #include "addr_width.h"
 #include "inst.h"
-#include "inst_block.h"
+#include "inst_list.h"
 #include "size_casting.h"
 #include "pex.h"
 
@@ -63,15 +63,8 @@ namespace dasm
 			//
 			bool recurse_calls;
 
-			// This is for combining blocks that surround dead code. It rarely happens and
-			// the most likely case for two blocks not being together is that they are from
-			// different functions and the disassembler just didnt see that because it's
-			// pretty crude
-			//
-			int32_t block_combination_threshold;
 		}settings;
 
-		//symbol_table_t* symbol_table;
 		pex::binary_t<Addr_width>* binary_interface;
 
 		const uint8_t* raw_data_start;
@@ -85,7 +78,6 @@ namespace dasm
 			raw_data_size(binary->optional_header.get_size_of_image())
 		{ 
 			settings.recurse_calls = false;
-			settings.block_combination_threshold = 0;
 		}
 		explicit decoder_context_t(decoder_context_t const& to_copy)
 			: binary_interface(to_copy.binary_interface),
@@ -94,7 +86,6 @@ namespace dasm
 			raw_data_size(to_copy.raw_data_size)
 		{
 			settings.recurse_calls = to_copy.settings.recurse_calls;
-			settings.block_combination_threshold = to_copy.settings.block_combination_threshold;
 		}
 
 		bool validate_rva(uint64_t rva)
@@ -150,368 +141,26 @@ namespace dasm
 		}
 	};
 
+	// Make an iterator for this so we can iterate without worrying about blocks...
+	// The blocks by the way are not basic blocks, they are position independent blocks.
+	// Meaning their are jumped to, and jump out by their end. They can be encoded and
+	// placed anywhere as long as all symbols are updated.
+	//
 	template<addr_width::type Addr_width = addr_width::x64>
-	bool iform_switch_nullsub(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, inst_t<Addr_width>& inst, uint64_t rva)
+	class routine_t
 	{
-		return true;
-	}
-
-	template<addr_width::type Addr_width = addr_width::x64>
-	class iform_switch_t
-	{
-		using Cb_type = std::function<bool(decoder_context_t<Addr_width>* context, inst_t<Addr_width>& inst, uint64_t rva)>;
-		Cb_type m_cb_table[XED_IFORM_LAST];
 	public:
-		constexpr iform_switch_t(std::initializer_list<std::pair<std::initializer_list<xed_iform_enum_t>, Cb_type> > list)
-		{
-			for (uint32_t i = 0; i < XED_IFORM_LAST; ++i)
-				m_cb_table[i] = iform_switch_nullsub<Addr_width>;
+		std::list<inst_list_t<Addr_width> > blocks;
+		uint64_t range_start;
+		uint64_t range_end;
 
-			for (auto& ele : list)
-			{
-				for (auto& iform : ele.first)
-					set(iform, ele.second);
-			}
-		}
-		void set(xed_iform_enum_t iform, Cb_type cb)
-		{
-			m_cb_table[iform] = cb;
-		}
-		bool operator()(xed_iform_enum_t iform, decoder_context_t<Addr_width>* context, inst_t<Addr_width>& inst, uint64_t rva)
-		{
-			return m_cb_table[iform](context, inst, rva);
-		}
-	};
-
-	// A collection of blocks
-	template<addr_width::type Addr_width = addr_width::x64>
-	class inst_routine_t
-	{
-		uint64_t m_max_rva;
-
-	public:
-		std::list<inst_block_t<Addr_width> > blocks;
-		uint64_t range_start = 0;
-		uint64_t range_end = 0;
-
-		// So we know what block is the entry for this function
-		//
-		std::list<inst_block_t<Addr_width> >::iterator entry_it;
-		uint64_t entry_rva = 0;
-
-		bool complete_disassembly = true;
-
-		bool rva_in_function(uint64_t rva)
-		{
-			return (rva >= entry_rva && rva < m_max_rva);
-		}
-
-		void block_trace()
-		{
-			for (auto& block : blocks)
-			{
-				std::printf("Block[%p:%p]\n", block.start, block.end);
-			}
-		}
-		void decode_block(decoder_context_t<Addr_width>* context, uint64_t rva, decode_lookup_table* lookup_table)
-		{
-			auto& current_block = blocks.emplace_back();
-			current_block.start = rva;
-
-			auto current_block_it = std::prev(blocks.end());
-
-			while (!lookup_table->is_inst_start(rva) && rva != m_max_rva)
-			{
-				auto& inst = current_block.instructions.emplace_back();
-
-				int32_t ilen = inst.decode(const_cast<uint8_t*>(context->raw_data_start + rva), context->raw_data_size - rva);
-				if (ilen == 0)
-				{
-					std::printf("Failed to decode, 0 inst length. RVA: 0x%016X, Block Start: 0x%016X, Size: %llu\n", rva, current_block.start, current_block.instructions.size());
-					block_trace();
-					break;
-				}
-
-				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
-
-				inst.my_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
-
-				lookup_table->update_inst(rva, ilen);
-
-				bool has_reloc = context->binary_interface->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
-
-				// Parse operands for rip relative addressing and relocs
-				//
-				uint32_t num_operands = xed_decoded_inst_noperands(&inst.decoded_inst);
-				auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
-				for (uint32_t i = 0; i < num_operands; ++i)
-				{
-					auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
-					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
-					{
-						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
-						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
-						{
-							inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
-								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
-							);
-							inst.flags |= inst_flag::disp;
-						}
-						else if (XED_REG_INVALID == base_reg && 
-							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
-						{
-							if (has_reloc)
-							{
-								inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
-									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
-									context->binary_interface->optional_header.get_image_base()
-								);
-								inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
-								inst.flags |= inst_flag::reloc_disp;
-							}
-							else
-							{
-								complete_disassembly = false;
-							}
-						}
-					}
-					else if (has_reloc && XED_OPERAND_IMM0 == operand_name && 
-						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
-					{
-						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
-							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
-							context->binary_interface->optional_header.get_image_base()
-						);
-						inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
-						inst.flags |= inst_flag::reloc_imm;
-					}
-				}
-
-				rva += ilen;
-
-				// Follow control flow
-				//
-				auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
-				if (cat == XED_CATEGORY_COND_BR)
-				{
-					int32_t br_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
-					uint64_t taken_rva = rva + br_disp;
-
-					if (!context->validate_rva(taken_rva))
-					{
-						std::printf("Conditional branch to invalid rva.\n");
-						goto ExitInstDecodeLoop;
-					}
-
-					inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
-					inst.flags |= inst_flag::rel_br;
-
-					if (!lookup_table->is_inst_start(taken_rva) && rva_in_function(taken_rva))
-					{
-						decode_block(context, taken_rva, lookup_table);
-					}
-				}
-				else if (cat == XED_CATEGORY_UNCOND_BR)
-				{
-					switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
-					{
-					case XED_IFORM_JMP_GPRv:
-						// Jump table.
-						//
-						complete_disassembly = false;
-						std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
-						goto ExitInstDecodeLoop;
-					case XED_IFORM_JMP_MEMv:
-						if (!inst.used_symbol)
-						{
-							complete_disassembly = false;
-							std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
-						}
-						goto ExitInstDecodeLoop;
-					case XED_IFORM_JMP_RELBRb:
-					case XED_IFORM_JMP_RELBRd:
-					case XED_IFORM_JMP_RELBRz:
-					{
-						int32_t jmp_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
-						uint64_t dest_rva = rva + jmp_disp;
-
-						if (!context->validate_rva(dest_rva))
-						{
-							std::printf("Unconditional branch to invalid rva.\n");
-							goto ExitInstDecodeLoop;
-						}
-						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
-						inst.flags |= inst_flag::rel_br;
-
-						/*if (!lookup_table->is_inst_start(dest_rva) && rva_in_function(dest_rva))
-						{
-							decode_block(context, dest_rva, lookup_table);
-						}*/
-
-						if (!lookup_table->is_inst_start(dest_rva))
-						{
-							if (rva_in_function(dest_rva))
-								decode_block(context, dest_rva, lookup_table);
-							else
-								context->report_routine_rva(dest_rva); // This is most likely an optimized jmp to a function at end of current function
-						}
-
-						goto ExitInstDecodeLoop;
-					}
-					case XED_IFORM_JMP_FAR_MEMp2:
-					case XED_IFORM_JMP_FAR_PTRp_IMMw:
-						complete_disassembly = false;
-						std::printf("Unhandled inst[%08X]: JMP_FAR_MEM/PTR.\n", rva - ilen);
-						goto ExitInstDecodeLoop;
-					}
-				}
-				else if (cat == XED_CATEGORY_CALL && context->settings.recurse_calls)
-				{
-					switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
-					{
-					case XED_IFORM_CALL_NEAR_GPRv:
-						// Call table?!
-						//
-						complete_disassembly = false;
-						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
-						break;
-					case XED_IFORM_CALL_NEAR_MEMv:
-						// Import or call to absolute address...
-						//
-						if (!inst.used_symbol)
-						{
-							complete_disassembly = false;
-							std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
-						}
-						break;
-
-					case XED_IFORM_CALL_NEAR_RELBRd:
-					case XED_IFORM_CALL_NEAR_RELBRz:
-					{
-						int32_t call_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
-						uint64_t dest_rva = rva + call_disp;
-						if (!context->validate_rva(dest_rva))
-						{
-							std::printf("Call to invalid rva.\n");
-							goto ExitInstDecodeLoop;
-						}
-
-						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
-
-						inst.used_symbol = context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
-						inst.flags |= inst_flag::rel_br;
-
-						if (!lookup_table->is_self(dest_rva))
-						{
-							context->report_routine_rva(dest_rva);
-						}
-						break;
-					}
-					case XED_IFORM_CALL_FAR_MEMp2:
-					case XED_IFORM_CALL_FAR_PTRp_IMMw:
-						complete_disassembly = false;
-						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
-						break;
-					}
-				}
-				else if (cat == XED_CATEGORY_RET)
-				{
-					break;
-				}
-				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
-				{
-					/*auto last = current_block.instructions.end();
-					std::advance(last, -2);
-					auto prev_iclass = xed_decoded_inst_get_iclass(&last->decoded_inst);
-					if (XED_ICLASS_JMP == prev_iclass || XED_ICLASS_CALL_NEAR == prev_iclass)
-					{*/
-						break;
-					//}
-				}
-			}
-
-		ExitInstDecodeLoop:
-
-			current_block.end = rva;
-
-			for (auto it = blocks.begin(); it != blocks.end(); ++it)
-			{
-				if (it->start == rva && it != current_block_it)
-				{
-					it->instructions.splice(it->instructions.begin(), current_block.instructions);
-					it->start = current_block.start;
-					blocks.erase(current_block_it);
-				}
-			}
-		}
-		void decode(decoder_context_t<Addr_width>* context, decode_lookup_table* lookup_table, uint64_t rva)
-		{
-			if (!context->validate_rva(rva))
-			{
-				std::printf("Attempting to decode routine at invalid rva.\n");
-				return;
-			}
-
-			entry_rva = rva;
-			//auto& sym = context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva);
-			pex::image_runtime_function_it_t runtime_func(nullptr);
-			if (context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
-			{
-				runtime_func.set(context->binary_interface->mapped_image +
-					context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
-
-				m_max_rva = runtime_func.get_end_address();
-			}
-			else
-			{
-				m_max_rva = context->raw_data_size;
-			}
-
-			decode_block(context, rva, lookup_table);
-
-			blocks.sort([](inst_block_t<Addr_width> const& b1, inst_block_t<Addr_width> const& b2) -> bool
-				{
-					return (b1.start < b2.start);
-				});
-
-			for (auto it = blocks.begin(); it != blocks.end(); ++it)
-			{
-				auto next = std::next(it);
-				if (next == blocks.end())
-					break;
-
-				if (next->start - it->end <= context->settings.block_combination_threshold)
-				{
-					it->instructions.splice(it->instructions.end(), next->instructions);
-					it->end = next->end;
-					blocks.erase(next);
-				}
-			}
-
-			for (auto it = blocks.begin(); it != blocks.end(); ++it)
-			{
-				if (it->start = entry_rva)
-				{
-					entry_it = it;
-					break;
-				}
-			}
-
-			// Im thinking maybe do a "post processing" pass here to discover blocks that really are from separate functions
-			// Maybe, one block ends with a jump which goes somewhere far away.
-			//
-
-			range_start = context->binary_interface->symbol_table->get_symbol(blocks.front().instructions.front().my_symbol).address;
-			range_end = context->binary_interface->symbol_table->get_symbol(blocks.back().instructions.back().my_symbol).address + blocks.back().instructions.back().length();
-
-		}
-
-
+		uint64_t original_entry_rva;
+		std::vector<uint32_t> entry_symbols;
 		void promote_relbrs()
 		{
 			for (auto& block : blocks)
 			{
-				for (auto& inst : block.instructions)
+				for (auto& inst : block)
 				{
 					auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
 					if (cat == XED_CATEGORY_UNCOND_BR)
@@ -533,27 +182,62 @@ namespace dasm
 				}
 			}
 		}
-		void force_merge_blocks()
-		{
-			if (blocks.size() > 1)
-			{
-				auto start = blocks.begin();
+	};
 
-				for (auto it = std::next(blocks.begin()); it != blocks.end();)
-				{
-					auto next = std::next(it);
-					std::printf("Merging blocks with gap: %u\n", next->end - it->start);
-					start->instructions.splice(start->instructions.end(), it->instructions);
-					blocks.erase(it);
-					it = next;
-				}
-			}
+	
+
+	// Rewrite JMP_RELBR and COND_BR
+	template<addr_width::type Addr_width = addr_width::x64>
+	struct inst_block_t
+	{
+		inst_list_t<Addr_width> instructions;
+		uint64_t start;
+		uint64_t end;
+		explicit inst_block_t()
+		{
+			start = end = 0;
 		}
+	};
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	class inst_routine_t
+	{
+	public:
+		uint64_t range_start = 0;
+		uint64_t range_end = 0;
+
+		uint64_t entry_rva = 0;
+
+		bool valid_disassembly = true;
+
+		// move these decode functions into the decode_thread structure. which will now create
+		// routine_t structures
+		//
+
 	};
 
 	template<addr_width::type Addr_width = addr_width::x64>
 	class dasm_thread_t
 	{
+		// Temp data for decoding.
+		//
+		std::list<inst_block_t<Addr_width> > m_blocks;
+
+		// If this function starts in an seh block(RUNTIME_FUNCTION), it is described here
+		// However functions, as we see in dxgkrnl.sys, can be scattered about and have
+		// multiple blocks in different places. Thus having multiple RUNTIME_FUNCTION
+		// entries. So we must treat the bounds specified in RUNTIME_FUNCTION as weak bounds
+		// that can be steped outside of if deemed necessary.
+		//
+		uint64_t e_range_start;
+		uint64_t e_range_end;
+
+		pex::image_runtime_function_it_t e_runtime_func;
+
+		// Unwind info rva.
+		uint64_t e_unwind_info;
+
+
 		std::thread* m_thread;
 
 		std::atomic_bool m_signal_start;
@@ -567,18 +251,28 @@ namespace dasm
 		decode_lookup_table m_lookup_table;
 	public:
 		inline static std::atomic_uint32_t queued_routine_count;
-		std::list<inst_routine_t<Addr_width> > finished_routines;
+
+		// The list of completed routines to be merged at the end
+		//
+		std::list<routine_t<Addr_width> > completed_routines;
+
+		// The number of times we stopped decoding a block => function because of an unhandled
+		// instruction. Want to get this number as low as possible :)
+		//
+		uint32_t invalid_routine_count;
 
 		explicit dasm_thread_t(decoder_context_t<Addr_width>* context)
 			: m_decoder_context(context),
 			m_signal_start(false),
 			m_signal_shutdown(false),
-			m_lookup_table(m_decoder_context->raw_data_size)
+			m_lookup_table(m_decoder_context->raw_data_size),
+			e_runtime_func(nullptr)
 		{
 			m_thread = new std::thread(&dasm_thread_t::run, this);
 		}
 		explicit dasm_thread_t(dasm_thread_t const& to_copy)
-			: m_lookup_table(to_copy.m_decoder_context->raw_data_size)
+			: m_lookup_table(to_copy.m_decoder_context->raw_data_size),
+			e_runtime_func(to_copy.e_runtime_func.get())
 		{
 			std::printf("Copy constructor called. This is bad.\n");
 		}
@@ -626,8 +320,9 @@ namespace dasm
 				uint64_t routine_rva = 0;
 				if (pop_queued_routine(routine_rva))
 				{
-					finished_routines.emplace_back().decode(m_decoder_context, &m_lookup_table, routine_rva);
+					decode(routine_rva);
 					m_lookup_table.clear();
+					m_blocks.clear();
 					--queued_routine_count;
 					continue; //Skip the sleep.
 				}
@@ -635,6 +330,250 @@ namespace dasm
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 		}
+
+		bool decode_block(uint64_t rva)
+		{
+			auto& current_block = m_blocks.emplace_back();
+
+			while (!m_lookup_table.is_inst_start(rva))
+			{
+				auto& inst = current_block.instructions.emplace_back();
+
+				int32_t ilen = inst.decode(const_cast<uint8_t*>(m_decoder_context->raw_data_start + rva), m_decoder_context->raw_data_size - rva);
+				if (ilen == 0)
+				{
+					std::printf("Failed to decode, 0 inst length. RVA: 0x%p\n", rva);
+					break;
+				}
+
+				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+
+				inst.my_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+
+				m_lookup_table.update_inst(rva, ilen);
+
+				bool has_reloc = m_decoder_context->binary_interface->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
+
+				// Parse operands for rip relative addressing and relocs
+				//
+				uint32_t num_operands = xed_decoded_inst_noperands(&inst.decoded_inst);
+				auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
+				for (uint32_t i = 0; i < num_operands; ++i)
+				{
+					auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
+					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
+					{
+						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
+						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
+						{
+							inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
+							);
+							inst.flags |= inst_flag::disp;
+						}
+						else if (XED_REG_INVALID == base_reg &&
+							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
+						{
+							if (has_reloc)
+							{
+								inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
+									m_decoder_context->binary_interface->optional_header.get_image_base()
+								);
+								inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
+								inst.flags |= inst_flag::reloc_disp;
+							}
+						}
+					}
+					else if (has_reloc && XED_OPERAND_IMM0 == operand_name &&
+						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
+					{
+						inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
+							m_decoder_context->binary_interface->optional_header.get_image_base()
+						);
+						inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
+						inst.flags |= inst_flag::reloc_imm;
+					}
+				}
+
+				rva += ilen;
+
+				// Follow control flow
+				//
+				auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
+				if (cat == XED_CATEGORY_COND_BR)
+				{
+					int32_t br_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
+					uint64_t taken_rva = rva + br_disp;
+
+					if (!m_decoder_context->validate_rva(taken_rva))
+					{
+						std::printf("Conditional branch to invalid rva.\n");
+						goto ExitInstDecodeLoop;
+					}
+
+					inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
+					inst.flags |= inst_flag::rel_br;
+
+					//REWRITE LOGIC
+					if (!m_lookup_table.is_inst_start(taken_rva))
+					{
+						if (!decode_block(taken_rva))
+							return false;
+					}
+				}
+				else if (cat == XED_CATEGORY_UNCOND_BR)
+				{
+					switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+					{
+					case XED_IFORM_JMP_GPRv:
+						// Jump table.
+						//
+						std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
+						goto ExitInstDecodeLoop;
+					case XED_IFORM_JMP_MEMv:
+						if (!inst.used_symbol)
+						{
+							std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
+						}
+						goto ExitInstDecodeLoop;
+					case XED_IFORM_JMP_RELBRb:
+					case XED_IFORM_JMP_RELBRd:
+					case XED_IFORM_JMP_RELBRz:
+					{
+						int32_t jmp_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
+						uint64_t dest_rva = rva + jmp_disp;
+
+						if (!m_decoder_context->validate_rva(dest_rva))
+						{
+							std::printf("Unconditional branch to invalid rva.\n");
+							goto ExitInstDecodeLoop;
+						}
+						inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.flags |= inst_flag::rel_br;
+
+
+						// REWRITE ME
+						if (!m_lookup_table.is_inst_start(dest_rva))
+						{
+							//if (rva_in_function(dest_rva))
+							if (!decode_block(dest_rva))
+								return false;
+							//else
+							//	m_decoder_context->report_routine_rva(dest_rva); // This is most likely an optimized jmp to a function at end of current function
+						}
+
+						goto ExitInstDecodeLoop;
+					}
+					case XED_IFORM_JMP_FAR_MEMp2:
+					case XED_IFORM_JMP_FAR_PTRp_IMMw:
+						std::printf("Unhandled inst[%08X]: JMP_FAR_MEM/PTR.\n", rva - ilen);
+						goto ExitInstDecodeLoop;
+					}
+				}
+				else if (cat == XED_CATEGORY_CALL && m_decoder_context->settings.recurse_calls)
+				{
+					switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+					{
+					case XED_IFORM_CALL_NEAR_GPRv:
+						// Call table?!
+						//
+						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
+						break;
+					case XED_IFORM_CALL_NEAR_MEMv:
+						// Import or call to absolute address...
+						//
+						if (!inst.used_symbol)
+						{
+							std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
+						}
+						break;
+
+					case XED_IFORM_CALL_NEAR_RELBRd:
+					case XED_IFORM_CALL_NEAR_RELBRz:
+					{
+						int32_t call_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
+						uint64_t dest_rva = rva + call_disp;
+						if (!m_decoder_context->validate_rva(dest_rva))
+						{
+							std::printf("Call to invalid rva.\n");
+							goto ExitInstDecodeLoop;
+						}
+
+						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
+
+						inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.flags |= inst_flag::rel_br;
+
+						if (!m_lookup_table.is_self(dest_rva))
+						{
+							m_decoder_context->report_routine_rva(dest_rva);
+						}
+						break;
+					}
+					case XED_IFORM_CALL_FAR_MEMp2:
+					case XED_IFORM_CALL_FAR_PTRp_IMMw:
+						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
+						break;
+					}
+				}
+				else if (cat == XED_CATEGORY_RET)
+				{
+					break;
+				}
+				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
+				{
+					/*auto last = current_block.instructions.end();
+					std::advance(last, -2);
+					auto prev_iclass = xed_decoded_inst_get_iclass(&last->decoded_inst);
+					if (XED_ICLASS_JMP == prev_iclass || XED_ICLASS_CALL_NEAR == prev_iclass)
+					{*/
+					break;
+					//}
+				}
+			}
+
+		ExitInstDecodeLoop:
+			return true;
+		}
+		void decode(uint64_t rva)
+		{
+			if (!m_decoder_context->validate_rva(rva))
+			{
+				std::printf("Attempting to decode routine at invalid rva.\n");
+				return;
+			}
+
+			pex::image_runtime_function_it_t runtime_func(nullptr);
+			if (m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
+			{
+				runtime_func.set(m_decoder_context->binary_interface->mapped_image +
+					m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
+			}
+			else
+			{
+
+			}
+
+			if (!decode_block(rva))
+				return;
+
+			auto& routine = completed_routines.emplace_back();
+
+			routine.range_start = m_decoder_context->binary_interface->symbol_table->get_symbol(m_blocks.front().instructions.front().my_symbol).address;
+			routine.range_end = m_decoder_context->binary_interface->symbol_table->get_symbol(m_blocks.back().instructions.back().my_symbol).address + m_blocks.back().instructions.back().length();
+			routine.original_entry_rva = rva;
+			routine.entry_symbols.push_back(m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva));
+
+			for (auto& block : m_blocks)
+			{
+				auto& new_block = routine.blocks.emplace_back();
+				new_block.splice(new_block.end(), block.instructions);
+			}
+
+		}
+
 	};
 
 	template<addr_width::type Addr_width = addr_width::x64, uint8_t Thread_count = 1>
@@ -650,7 +589,7 @@ namespace dasm
 
 	public:
 
-		std::list<inst_routine_t<Addr_width> > completed_routines;
+		std::list<routine_t<Addr_width> > completed_routines;
 
 		explicit dasm_t(decoder_context_t<Addr_width>* context)
 			: m_next_thread(0)
@@ -706,7 +645,7 @@ namespace dasm
 
 			for (auto& thread : m_threads)
 			{
-				completed_routines.splice(completed_routines.end(), thread.finished_routines);
+				completed_routines.splice(completed_routines.end(), thread.completed_routines);
 				thread.stop();
 			}
 

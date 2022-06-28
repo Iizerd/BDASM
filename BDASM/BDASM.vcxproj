@@ -152,29 +152,19 @@
     <ClInclude Include="..\sdk.h" />
     <ClInclude Include="addr_width.h" />
     <ClInclude Include="dasm.h" />
-    <ClInclude Include="disasm.h" />
     <ClInclude Include="align.h" />
-    <ClInclude Include="emu.h" />
-    <ClInclude Include="odasm.h" />
-    <ClInclude Include="off.h" />
-    <ClInclude Include="gen.h" />
+    <ClInclude Include="inst_list.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="inst.h" />
-    <ClInclude Include="inst_block.h" />
-    <ClInclude Include="marker.h" />
-    <ClInclude Include="obf.h" />
-    <ClInclude Include="old.h" />
     <ClInclude Include="dpattern.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
     <ClInclude Include="size_casting.h" />
     <ClInclude Include="symbol.h" />
-    <ClInclude Include="symbol2.h" />
     <ClInclude Include="traits.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="oldsym.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
