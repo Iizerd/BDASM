@@ -75,6 +75,9 @@ namespace pex
 		Class_type* m_pdata;
 
 	public:
+
+		using My_type = It_type;
+
 		base_it_t(Class_type* ptr)
 			: m_pdata(ptr) {}
 		base_it_t(base_it_t const& to_copy)
@@ -815,6 +818,12 @@ namespace pex
 					min_addr = sec_start;
 			}
 			return min_addr;
+		}
+
+		template<typename It_type, typename Rva_type>
+		It_type get_it(Rva_type rva)
+		{
+			return It_type(reinterpret_cast<It_type::My_type*>(mapped_image + rva));
 		}
 
 		// If we were to append another section, this routine tells us its rva
