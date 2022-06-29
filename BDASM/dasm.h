@@ -149,10 +149,90 @@ namespace dasm
 	class routine_t
 	{
 	public:
-		std::list<inst_list_t<Addr_width> > blocks;
-		uint64_t range_start;
-		uint64_t range_end;
 
+		//template<addr_width::type Addr_width = addr_width::x64>
+		class iterator
+		{
+			using iterator_category = std::bidirectional_iterator_tag;
+			using difference_type = std::ptrdiff_t;
+			using value_type = inst_t<Addr_width>;
+			using pointer = inst_t<Addr_width>*;
+			using reference = inst_t<Addr_width>&;
+
+			using my_type = iterator;
+			using list_it_type = std::list<inst_list_t<Addr_width> >::iterator;
+			using inst_it_type = inst_list_t<Addr_width>::iterator;
+
+			list_it_type list_end;
+			list_it_type list_it;
+			inst_it_type inst_it;
+
+		public:
+			iterator(list_it_type lend, list_it_type ilist, inst_it_type iinst)
+				: list_end(lend), list_it(ilist), inst_it(iinst)
+			{}
+
+			reference operator*() const
+			{
+				return *inst_it;
+			}
+			pointer operator->()
+			{
+				return &*inst_it;
+			}
+
+			my_type& operator++()
+			{
+				++inst_it;
+				if (inst_it == list_it->end())
+				{
+					do
+					{
+						if (++list_it == list_end)
+							break;
+						else
+							inst_it = list_it->begin();
+					} while (!list_it->size());
+				}
+				return *this;
+			}
+
+			my_type operator++(int)
+			{
+				my_type tmp = *this;
+				++(*this); return tmp;
+			}
+
+			my_type& operator--()
+			{
+				if (inst_it == list_it->begin())
+				{
+					while (!(--list_it)->size()) {}
+					inst_it = std::prev(list_it->end());
+				}
+				else
+				{
+					--inst_it;
+				}
+				return *this;
+			}
+
+			my_type operator--(int)
+			{
+				my_type tmp = *this;
+				--(*this); return tmp;
+			}
+
+			bool operator!=(my_type const& com)
+			{
+				return (com.list_it != list_it ||
+					com.inst_it != inst_it);
+			}
+
+		};
+		std::list<inst_list_t<Addr_width> > blocks;
+
+		// Rva in original binary
 		uint64_t original_entry_rva;
 		std::vector<uint32_t> entry_symbols;
 		void promote_relbrs()
@@ -181,6 +261,18 @@ namespace dasm
 				}
 			}
 		}
+
+		iterator begin()
+		{
+			for (auto it = blocks.begin(); it != blocks.end(); ++it)
+				if (it->size())
+					return iterator(blocks.end(), it, it->begin());
+			return end();
+		}
+		iterator end()
+		{
+			return iterator(blocks.end(), blocks.end(), blocks.back().end());
+		}
 	};
 
 	
@@ -199,23 +291,6 @@ namespace dasm
 	};
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	class inst_routine_t
-	{
-	public:
-		uint64_t range_start = 0;
-		uint64_t range_end = 0;
-
-		uint64_t entry_rva = 0;
-
-		bool valid_disassembly = true;
-
-		// move these decode functions into the decode_thread structure. which will now create
-		// routine_t structures
-		//
-
-	};
-
-	template<addr_width::type Addr_width = addr_width::x64>
 	class dasm_thread_t
 	{
 		// Temp data for decoding.
@@ -230,11 +305,8 @@ namespace dasm
 		//
 		uint64_t e_range_start;
 		uint64_t e_range_end;
-
 		pex::image_runtime_function_it_t e_runtime_func;
-
-		// Unwind info rva.
-		uint64_t e_unwind_info;
+		uint64_t e_unwind_info; // rva
 
 
 		std::thread* m_thread;
@@ -342,7 +414,7 @@ namespace dasm
 				if (ilen == 0)
 				{
 					std::printf("Failed to decode, 0 inst length. RVA: 0x%p\n", rva);
-					break;
+					return false;
 				}
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
@@ -409,7 +481,7 @@ namespace dasm
 					if (!m_decoder_context->validate_rva(taken_rva))
 					{
 						std::printf("Conditional branch to invalid rva.\n");
-						goto ExitInstDecodeLoop;
+						return false;
 					}
 
 					inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
@@ -430,11 +502,12 @@ namespace dasm
 						// Jump table.
 						//
 						std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
-						goto ExitInstDecodeLoop;
+						return false;
 					case XED_IFORM_JMP_MEMv:
 						if (!inst.used_symbol)
 						{
 							std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
+							return false;
 						}
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
@@ -468,7 +541,7 @@ namespace dasm
 					case XED_IFORM_JMP_FAR_MEMp2:
 					case XED_IFORM_JMP_FAR_PTRp_IMMw:
 						std::printf("Unhandled inst[%08X]: JMP_FAR_MEM/PTR.\n", rva - ilen);
-						goto ExitInstDecodeLoop;
+						return false;
 					}
 				}
 				else if (cat == XED_CATEGORY_CALL && m_decoder_context->settings.recurse_calls)
@@ -479,13 +552,14 @@ namespace dasm
 						// Call table?!
 						//
 						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
-						break;
+						return false;
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
 						if (!inst.used_symbol)
 						{
 							std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
+							return false;
 						}
 						break;
 
@@ -497,7 +571,7 @@ namespace dasm
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
 							std::printf("Call to invalid rva.\n");
-							goto ExitInstDecodeLoop;
+							return false;
 						}
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
@@ -514,7 +588,7 @@ namespace dasm
 					case XED_IFORM_CALL_FAR_MEMp2:
 					case XED_IFORM_CALL_FAR_PTRp_IMMw:
 						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
-						break;
+						return false;
 					}
 				}
 				else if (cat == XED_CATEGORY_RET)
@@ -560,8 +634,6 @@ namespace dasm
 
 			auto& routine = completed_routines.emplace_back();
 
-			routine.range_start = m_decoder_context->binary_interface->symbol_table->get_symbol(m_blocks.front().instructions.front().my_symbol).address;
-			routine.range_end = m_decoder_context->binary_interface->symbol_table->get_symbol(m_blocks.back().instructions.back().my_symbol).address + m_blocks.back().instructions.back().length();
 			routine.original_entry_rva = rva;
 			routine.entry_symbols.push_back(m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva));
 

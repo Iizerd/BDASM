@@ -84,6 +84,22 @@ int main(int argc, char** argv)
 		disassembler.wait_for_completion();
 
 		printf("Found %d routines.\n", disassembler.completed_routines.size());
+
+		auto& routine = disassembler.completed_routines.front();
+		uint32_t i = 0;
+
+		//routine.blocks.front().clear();
+		std::next(routine.blocks.begin())->clear();
+		std::prev(routine.blocks.end())->clear();
+		for (auto it = routine.begin(); it != routine.end(); ++it)
+		{
+			i++;
+			printf("IClass %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&it->decoded_inst)));
+		}
+		/*for (auto& block : routine.blocks)
+			for (auto& inst : block)
+				i++;*/
+		printf("%u instructions\n", i);
 	}
 	else
 		printf("invalid addr width.");
