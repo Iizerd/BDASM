@@ -33,8 +33,52 @@ extern "C"
 namespace dasm
 {
 
+	template<addr_width::type Addr_width = addr_width::x64>
+	struct decoder_context_t
+	{
+		struct
+		{
+			// Disassembler will follow calls and queue them for disassembly
+			//
+			bool recurse_calls;
+
+		}settings;
+
+		pex::binary_t<Addr_width>* binary_interface;
+
+		std::atomic_bool* routine_lookup_table;
+
+		std::atomic_bool* relbr_table;
+
+		const uint8_t* raw_data_start;
+		const uint64_t raw_data_size;
+		std::function<void(uint64_t)> report_routine_rva;
+
+		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t)> rva_reporter = nullptr)
+			: binary_interface(binary),
+			report_routine_rva(rva_reporter),
+			raw_data_start(binary->mapped_image),
+			raw_data_size(binary->optional_header.get_size_of_image())
+		{
+			settings.recurse_calls = false;
+		}
+		explicit decoder_context_t(decoder_context_t const& to_copy)
+			: binary_interface(to_copy.binary_interface),
+			report_routine_rva(to_copy.report_routine_rva),
+			raw_data_start(to_copy.raw_data_start),
+			raw_data_size(to_copy.raw_data_size)
+		{
+			settings.recurse_calls = to_copy.settings.recurse_calls;
+		}
+
+		bool validate_rva(uint64_t rva)
+		{
+			return (rva < raw_data_size);
+		}
+	};
+
 	// This just makes things easier... holy shit enum class so close to being useful,,, but then just isnt.
-	namespace lookup_table_entry
+	namespace lookup_table_flag
 	{
 		typedef uint8_t type;
 
@@ -54,55 +98,16 @@ namespace dasm
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	struct decoder_context_t
-	{
-		struct
-		{
-			// Disassembler will follow calls and queue them for disassembly
-			//
-			bool recurse_calls;
-
-		}settings;
-
-		pex::binary_t<Addr_width>* binary_interface;
-
-		const uint8_t* raw_data_start;
-		const uint64_t raw_data_size;
-		std::function<void(uint64_t)> report_routine_rva;
-
-		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t)> rva_reporter = nullptr)
-			: binary_interface(binary),
-			report_routine_rva(rva_reporter),
-			raw_data_start(binary->mapped_image),
-			raw_data_size(binary->optional_header.get_size_of_image())
-		{ 
-			settings.recurse_calls = false;
-		}
-		explicit decoder_context_t(decoder_context_t const& to_copy)
-			: binary_interface(to_copy.binary_interface),
-			report_routine_rva(to_copy.report_routine_rva),
-			raw_data_start(to_copy.raw_data_start),
-			raw_data_size(to_copy.raw_data_size)
-		{
-			settings.recurse_calls = to_copy.settings.recurse_calls;
-		}
-
-		bool validate_rva(uint64_t rva)
-		{
-			return (rva < raw_data_size);
-		}
-	};
-
 	class decode_lookup_table
 	{
 		const uint64_t m_table_size;
-		lookup_table_entry::type* m_entries;
+		lookup_table_flag::type* m_entries;
 		std::vector<uint32_t> m_clear_indices;
 	public:
 		explicit decode_lookup_table(uint64_t table_size)
 			: m_table_size(table_size)
 		{
-			m_entries = (lookup_table_entry::type*)calloc(table_size, 1);
+			m_entries = (lookup_table_flag::type*)calloc(table_size, 1);
 			m_clear_indices.reserve(table_size / 10);
 		}
 		~decode_lookup_table()
@@ -112,46 +117,88 @@ namespace dasm
 		finline void clear()
 		{
 			for (auto i : m_clear_indices)
-				m_entries[i] = lookup_table_entry::none;
+				m_entries[i] = lookup_table_flag::none;
 
 			m_clear_indices.clear();
 		}
 		finline bool is_self(uint64_t rva) const
 		{
-			return static_cast<bool>(m_entries[rva] & lookup_table_entry::is_self);
+			return static_cast<bool>(m_entries[rva] & lookup_table_flag::is_self);
 		}
 		finline bool is_decoded(uint64_t rva) const
 		{
-			return static_cast<bool>(m_entries[rva] & lookup_table_entry::is_decoded);
+			return static_cast<bool>(m_entries[rva] & lookup_table_flag::is_decoded);
 		}
 		finline bool is_inst_start(uint64_t rva) const
 		{
-			return static_cast<bool>(m_entries[rva] & lookup_table_entry::is_inst_start);
+			return static_cast<bool>(m_entries[rva] & lookup_table_flag::is_inst_start);
 		}
 		finline void update_inst(uint64_t rva, int32_t inst_len)
 		{
-			m_entries[rva] |= lookup_table_entry::is_inst_start;
+			m_entries[rva] |= lookup_table_flag::is_inst_start;
 			m_clear_indices.push_back(rva);
 			for (int32_t i = 0; i < inst_len; i++)
 			{
-				m_entries[rva + i] |= lookup_table_entry::is_decoded;
+				m_entries[rva + i] |= lookup_table_flag::is_decoded;
 				m_clear_indices.push_back(rva + i);
 			}
 		}
 	};
+	
+	template<addr_width::type Addr_width = addr_width::x64>
+	class block_t
+	{
+	public:
+		// These are ONLY used in the disassembly process, and are invalidated as soon
+		// as its over never to be used again
+		//
+		uint32_t rva_start;
+		uint32_t rva_end;
 
-	// Make an iterator for this so we can iterate without worrying about blocks...
-	// The blocks by the way are not basic blocks, they are position independent blocks.
-	// Meaning their are jumped to, and jump out by their end. They can be encoded and
-	// placed anywhere as long as all symbols are updated.
-	//
+		inst_list_t<Addr_width> instructions;
+
+		// if != routine_t::blocks.end() then this block does not end in a terminating
+		// instruction and must be encoded before its fallthrough block OR with a jump
+		// at the end
+		//
+		std::list<block_t<Addr_width> >::iterator fallthrough_block;
+
+		explicit block_t()
+			: rva_start(0),
+			rva_end(0)
+		{}
+		block_t(block_t const& to_copy)
+			: rva_start(to_copy.rva_start),
+			rva_end(to_copy.rva_end),
+			fallthrough_block(to_copy.fallthrough_block)
+		{
+			instructions.insert(instructions.end(), to_copy.instructions.begin(), to_copy.instructions.end());
+		}
+		block_t(block_t&& to_move)
+			: rva_start(to_move.rva_start),
+			rva_end(to_move.rva_end),
+			fallthrough_block(to_move.fallthrough_block)
+		{
+			instructions.splice(instructions.end(), to_move.instructions);
+		}
+		block_t& operator=(block_t&& to_move)
+		{
+			rva_start = to_move.rva_start;
+			rva_end = to_move.rva_end;
+			fallthrough_block = to_move.fallthrough_block;
+			instructions.splice(instructions.end(), to_move.instructions);
+			return *this;
+		}
+
+	};
+
 	template<addr_width::type Addr_width = addr_width::x64>
 	class routine_t
 	{
 	public:
 
 		//template<addr_width::type Addr_width = addr_width::x64>
-		class iterator
+		/*class iterator
 		{
 			using iterator_category = std::bidirectional_iterator_tag;
 			using difference_type = std::ptrdiff_t;
@@ -229,17 +276,17 @@ namespace dasm
 					com.inst_it != inst_it);
 			}
 
-		};
-		std::list<inst_list_t<Addr_width> > blocks;
+		};*/
+		std::list<block_t<Addr_width> > blocks;
 
 		// Rva in original binary
 		uint64_t original_entry_rva;
-		std::vector<uint32_t> entry_symbols;
+		uint32_t entry_symbol;
 		void promote_relbrs()
 		{
 			for (auto& block : blocks)
 			{
-				for (auto& inst : block)
+				for (auto& inst : block.instructions)
 				{
 					auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
 					if (cat == XED_CATEGORY_UNCOND_BR)
@@ -262,7 +309,7 @@ namespace dasm
 			}
 		}
 
-		iterator begin()
+		/*iterator begin()
 		{
 			for (auto it = blocks.begin(); it != blocks.end(); ++it)
 				if (it->size())
@@ -272,30 +319,15 @@ namespace dasm
 		iterator end()
 		{
 			return iterator(blocks.end(), blocks.end(), blocks.back().end());
-		}
-	};
-
-	
-
-	// Rewrite JMP_RELBR and COND_BR
-	template<addr_width::type Addr_width = addr_width::x64>
-	struct inst_block_t
-	{
-		inst_list_t<Addr_width> instructions;
-		uint64_t start;
-		uint64_t end;
-		explicit inst_block_t()
-		{
-			start = end = 0;
-		}
+		}*/
 	};
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	class dasm_thread_t
+	class thread_t
 	{
-		// Temp data for decoding.
+		// Only valid while disassembling, points to the list of blocks in the routine
 		//
-		std::list<inst_block_t<Addr_width> > m_blocks;
+		routine_t<Addr_width>* current_routine;
 
 		// If this function starts in an seh block(RUNTIME_FUNCTION), it is described here
 		// However functions, as we see in dxgkrnl.sys, can be scattered about and have
@@ -305,8 +337,8 @@ namespace dasm
 		//
 		uint64_t e_range_start;
 		uint64_t e_range_end;
-		pex::image_runtime_function_it_t e_runtime_func;
 		uint64_t e_unwind_info; // rva
+		pex::image_runtime_function_it_t e_runtime_func;
 
 
 		std::thread* m_thread;
@@ -319,7 +351,9 @@ namespace dasm
 
 		decoder_context_t<Addr_width>* m_decoder_context;
 
-		decode_lookup_table m_lookup_table;
+		decode_lookup_table<Addr_width> m_lookup_table;
+
+		bool found_prologue = false;
 	public:
 		inline static std::atomic_uint32_t queued_routine_count;
 
@@ -327,27 +361,31 @@ namespace dasm
 		//
 		std::list<routine_t<Addr_width> > completed_routines;
 
+		// If we are decoding and determine that something marked as a routine is ACTUALLY a block
+		//
+		//std::vector<uint64_t> incorrectly_marked_routines;
+
 		// The number of times we stopped decoding a block => function because of an unhandled
 		// instruction. Want to get this number as low as possible :)
 		//
 		uint32_t invalid_routine_count;
 
-		explicit dasm_thread_t(decoder_context_t<Addr_width>* context)
+		explicit thread_t(decoder_context_t<Addr_width>* context)
 			: m_decoder_context(context),
 			m_signal_start(false),
 			m_signal_shutdown(false),
 			m_lookup_table(m_decoder_context->raw_data_size),
 			e_runtime_func(nullptr)
 		{
-			m_thread = new std::thread(&dasm_thread_t::run, this);
+			m_thread = new std::thread(&thread_t::run, this);
 		}
-		explicit dasm_thread_t(dasm_thread_t const& to_copy)
+		explicit thread_t(thread_t const& to_copy)
 			: m_lookup_table(to_copy.m_decoder_context->raw_data_size),
 			e_runtime_func(to_copy.e_runtime_func.get())
 		{
 			std::printf("Copy constructor called. This is bad.\n");
 		}
-		~dasm_thread_t()
+		~thread_t()
 		{
 			if (m_thread->joinable())
 				m_thread->join();
@@ -384,6 +422,26 @@ namespace dasm
 			m_signal_shutdown = true;
 		}
 
+		// Use the repair table to prune all incorrectly labeled routines.
+		//
+		void repair()
+		{
+			auto start_size = completed_routines.size();
+			for (uint32_t i = 0; i < m_decoder_context->raw_data_size; ++i)
+			{
+				if (m_decoder_context->relbr_table[i])
+				{
+					completed_routines.erase(std::remove_if(completed_routines.begin(), completed_routines.end(), [i](routine_t<Addr_width> const& routine) -> bool
+						{
+							return (routine.original_entry_rva == static_cast<uint32_t>(i));
+						}),
+						completed_routines.end()
+							);
+				}
+			}
+			std::printf("Repair removed %llu routines.\n", start_size - completed_routines.size());
+		}
+
 		void run()
 		{
 			while (!m_signal_shutdown)
@@ -393,7 +451,6 @@ namespace dasm
 				{
 					decode(routine_rva);
 					m_lookup_table.clear();
-					m_blocks.clear();
 					--queued_routine_count;
 					continue; //Skip the sleep.
 				}
@@ -401,25 +458,71 @@ namespace dasm
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 		}
-
-		bool decode_block(uint64_t rva)
+		
+		void block_trace()
 		{
-			auto& current_block = m_blocks.emplace_back();
+			for (auto& block : current_routine->blocks)
+			{
+				printf("Block: %X : %X\n", block.rva_start, block.rva_end);
+			}
+		}
 
+		// For when we find a relative that jumps into an existing block, we need to split that block across
+		// the label and add fallthrough.
+		bool split_block(uint64_t rva)
+		{
+			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
+			{
+				if (rva >= block_it->rva_start && rva < block_it->rva_end)
+				{
+					for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
+					{
+						if (inst_it->original_rva == rva)
+						{
+							// Return if this shit already at the start of a block nameen?
+							//
+							if (inst_it == block_it->instructions.begin())
+								return true; 
+
+							// Otherwise, create a new block and fill it with all instructions in the current block up to rva.
+							//
+							auto& new_block = current_routine->blocks.emplace_front();
+
+							new_block.rva_start = block_it->rva_start;
+							new_block.rva_end = rva;
+							new_block.fallthrough_block = block_it;
+							new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, block_it->instructions.begin(), inst_it);
+
+							block_it->rva_start = rva;
+							return true;
+						}
+					}
+				}
+			}
+			std::printf("Failed to split block across label at %X\n", rva);
+			block_trace();
+			return false;
+		}
+		std::list<block_t<Addr_width> >::iterator decode_block(uint64_t rva)
+		{
+			current_routine->blocks.emplace_front().rva_start = rva;
+			auto cur_block_it = current_routine->blocks.begin();
+			cur_block_it->fallthrough_block = current_routine->blocks.end();
+			cur_block_it->rva_end = m_decoder_context->raw_data_size;
 			while (!m_lookup_table.is_inst_start(rva))
 			{
-				auto& inst = current_block.instructions.emplace_back();
+				auto& inst = cur_block_it->instructions.emplace_back();
 
 				int32_t ilen = inst.decode(const_cast<uint8_t*>(m_decoder_context->raw_data_start + rva), m_decoder_context->raw_data_size - rva);
 				if (ilen == 0)
 				{
 					std::printf("Failed to decode, 0 inst length. RVA: 0x%p\n", rva);
-					return false;
+					return current_routine->blocks.end();
 				}
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
-				inst.my_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+				inst.original_rva = rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
 
 				m_lookup_table.update_inst(rva, ilen);
 
@@ -432,14 +535,19 @@ namespace dasm
 				for (uint32_t i = 0; i < num_operands; ++i)
 				{
 					auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
-					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
+					if (xed_operand_is_register(operand_name))
+					{
+						if (get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst.decoded_inst, operand_name))
+							found_prologue = true;
+					}
+					else if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
 					{
 						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
 						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 						{
-							inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
 								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
-							);
+							);*/
 							inst.flags |= inst_flag::disp;
 						}
 						else if (XED_REG_INVALID == base_reg &&
@@ -447,10 +555,12 @@ namespace dasm
 						{
 							if (has_reloc)
 							{
-								inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+								inst.used_symbol = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
+									m_decoder_context->binary_interface->optional_header.get_image_base();
+								/*m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
 									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 									m_decoder_context->binary_interface->optional_header.get_image_base()
-								);
+								);*/
 								inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
 								inst.flags |= inst_flag::reloc_disp;
 							}
@@ -459,16 +569,21 @@ namespace dasm
 					else if (has_reloc && XED_OPERAND_IMM0 == operand_name &&
 						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
 					{
-						inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+						inst.used_symbol = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
+							m_decoder_context->binary_interface->optional_header.get_image_base(); 
+						/*m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
 							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 							m_decoder_context->binary_interface->optional_header.get_image_base()
-						);
+						);*/
 						inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
 						inst.flags |= inst_flag::reloc_imm;
 					}
 				}
 
 				rva += ilen;
+
+				// Update the end of the current block so its correct if we need to call split_block
+				cur_block_it->rva_end = rva;
 
 				// Follow control flow
 				//
@@ -481,18 +596,32 @@ namespace dasm
 					if (!m_decoder_context->validate_rva(taken_rva))
 					{
 						std::printf("Conditional branch to invalid rva.\n");
-						return false;
+						return current_routine->blocks.end();
 					}
 
-					inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
+					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
 					inst.flags |= inst_flag::rel_br;
 
-					//REWRITE LOGIC
 					if (!m_lookup_table.is_inst_start(taken_rva))
 					{
-						if (!decode_block(taken_rva))
-							return false;
+						if (decode_block(taken_rva) == current_routine->blocks.end())
+							return current_routine->blocks.end();
+
+						m_decoder_context->relbr_table[taken_rva] = true;
 					}
+					else
+					{
+						if (!split_block(taken_rva))
+							return current_routine->blocks.end();
+					}
+
+					auto fallthrough = decode_block(rva);
+					if (fallthrough == current_routine->blocks.end())
+						return current_routine->blocks.end();
+
+					cur_block_it->fallthrough_block = fallthrough;
+
+					goto ExitInstDecodeLoop;
 				}
 				else if (cat == XED_CATEGORY_UNCOND_BR)
 				{
@@ -502,12 +631,12 @@ namespace dasm
 						// Jump table.
 						//
 						std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
-						return false;
+						return current_routine->blocks.end();
 					case XED_IFORM_JMP_MEMv:
 						if (!inst.used_symbol)
 						{
 							std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
-							return false;
+							return current_routine->blocks.end();
 						}
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
@@ -522,18 +651,56 @@ namespace dasm
 							std::printf("Unconditional branch to invalid rva.\n");
 							goto ExitInstDecodeLoop;
 						}
-						inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 
 						// REWRITE ME
 						if (!m_lookup_table.is_inst_start(dest_rva))
 						{
-							//if (rva_in_function(dest_rva))
-							if (!decode_block(dest_rva))
-								return false;
-							//else
-							//	m_decoder_context->report_routine_rva(dest_rva); // This is most likely an optimized jmp to a function at end of current function
+							// Here i will try to detect odd function calls that use a jump instead. 
+							//
+							//if constexpr (Addr_width == addr_width::x64)
+							//{
+							//	if (dest_rva < e_range_start || dest_rva >= e_range_end)
+							//	{
+							//		// No func data, this is a tail call to a leaf.
+							//		//
+							//		if (!m_decoder_context->binary_interface->symbol_table->has_func_data(dest_rva))
+							//		{
+							//			m_decoder_context->report_routine_rva(dest_rva);
+							//			goto ExitInstDecodeLoop;
+							//		}
+							//		else
+							//		{
+							//			// Not a leaf? lets see if the unwind info is the same
+							//			// If it is, this is just an oddly formed function
+							//			//
+							//			auto runtime_func = m_decoder_context->binary_interface->get_it<pex::image_runtime_function_it_t>(
+							//				m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva
+							//			);
+
+							//			// This relies on the fact that multiple runtime function structures for a single func will
+							//			// use the same unwind info structure, and the rvas will be the same
+							//			//
+							//			if (runtime_func.get_unwindw_info_address() != e_unwind_info)
+							//			{
+							//				m_decoder_context->report_routine_rva(dest_rva);
+							//				goto ExitInstDecodeLoop;
+							//			}
+							//		}
+							//	}
+							//}
+
+							if (decode_block(dest_rva) == current_routine->blocks.end())
+								return current_routine->blocks.end();
+
+							m_decoder_context->relbr_table[dest_rva] = true;
+						}
+						else
+						{
+							if (!split_block(dest_rva))
+								return current_routine->blocks.end();
 						}
 
 						goto ExitInstDecodeLoop;
@@ -541,7 +708,7 @@ namespace dasm
 					case XED_IFORM_JMP_FAR_MEMp2:
 					case XED_IFORM_JMP_FAR_PTRp_IMMw:
 						std::printf("Unhandled inst[%08X]: JMP_FAR_MEM/PTR.\n", rva - ilen);
-						return false;
+						return current_routine->blocks.end();
 					}
 				}
 				else if (cat == XED_CATEGORY_CALL && m_decoder_context->settings.recurse_calls)
@@ -552,14 +719,14 @@ namespace dasm
 						// Call table?!
 						//
 						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
-						return false;
+						return current_routine->blocks.end();
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
 						if (!inst.used_symbol)
 						{
 							std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
-							return false;
+							return current_routine->blocks.end();
 						}
 						break;
 
@@ -571,12 +738,12 @@ namespace dasm
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
 							std::printf("Call to invalid rva.\n");
-							return false;
+							return current_routine->blocks.end();
 						}
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 
-						inst.used_symbol = m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!m_lookup_table.is_self(dest_rva))
@@ -588,7 +755,7 @@ namespace dasm
 					case XED_IFORM_CALL_FAR_MEMp2:
 					case XED_IFORM_CALL_FAR_PTRp_IMMw:
 						std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
-						return false;
+						return current_routine->blocks.end();
 					}
 				}
 				else if (cat == XED_CATEGORY_RET)
@@ -597,18 +764,30 @@ namespace dasm
 				}
 				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
 				{
-					/*auto last = current_block.instructions.end();
-					std::advance(last, -2);
-					auto prev_iclass = xed_decoded_inst_get_iclass(&last->decoded_inst);
-					if (XED_ICLASS_JMP == prev_iclass || XED_ICLASS_CALL_NEAR == prev_iclass)
-					{*/
 					break;
-					//}
+				}
+			}
+
+			// If we make it here, we found an already decoded instruction and need to set the fallthrough
+			//
+			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
+			{
+				if (rva >= block_it->rva_start && rva < block_it->rva_end)
+				{
+					for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
+					{
+						if (inst_it->original_rva == rva)
+						{
+							cur_block_it->fallthrough_block = block_it;
+						}
+					}
 				}
 			}
 
 		ExitInstDecodeLoop:
-			return true;
+			cur_block_it->rva_end = rva;
+
+			return cur_block_it;
 		}
 		void decode(uint64_t rva)
 		{
@@ -617,34 +796,39 @@ namespace dasm
 				std::printf("Attempting to decode routine at invalid rva.\n");
 				return;
 			}
-
-			pex::image_runtime_function_it_t runtime_func(nullptr);
-			if (m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
+			if (m_decoder_context->relbr_table[rva])
 			{
-				runtime_func.set(m_decoder_context->binary_interface->mapped_image +
-					m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
-			}
-			else
-			{
-
-			}
-
-			if (!decode_block(rva))
+				//std::printf("Skipping decode on a proposed routine start that is actually just a function chunk. %X\n", rva);
 				return;
-
-			auto& routine = completed_routines.emplace_back();
-
-			routine.original_entry_rva = rva;
-			routine.entry_symbols.push_back(m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva));
-
-			for (auto& block : m_blocks)
-			{
-				auto& new_block = routine.blocks.emplace_back();
-				new_block.splice(new_block.end(), block.instructions);
 			}
 
-		}
+			// Since this is only available for x64...
+			//
+			if constexpr (Addr_width == addr_width::x64)
+			{
+				if (m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
+				{
+					e_runtime_func.set(m_decoder_context->binary_interface->mapped_image +
+						m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
 
+					e_range_start = e_runtime_func.get_begin_address();
+					e_range_end = e_runtime_func.get_end_address();
+					e_unwind_info = e_runtime_func.get_unwindw_info_address();
+				}
+			}
+
+			completed_routines.emplace_back();
+			current_routine = &completed_routines.back();
+
+			if (decode_block(rva) == current_routine->blocks.end())
+			{
+				++invalid_routine_count;
+				return;
+			}
+
+			current_routine->original_entry_rva = rva;
+			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+		}
 	};
 
 	template<addr_width::type Addr_width = addr_width::x64, uint8_t Thread_count = 1>
@@ -654,9 +838,11 @@ namespace dasm
 
 		uint8_t m_next_thread;
 
-		std::vector<dasm_thread_t<Addr_width> > m_threads;
+		std::vector<thread_t<Addr_width> > m_threads;
 
 		std::atomic_bool* m_routine_lookup_table;
+
+		std::atomic_bool* m_relbr_table;
 
 	public:
 
@@ -668,8 +854,14 @@ namespace dasm
 			m_context = context;
 			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
 			m_routine_lookup_table = new std::atomic_bool[m_context->raw_data_size];
+			m_context->routine_lookup_table = m_routine_lookup_table;
 			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
 				m_routine_lookup_table[i] = false;
+
+			m_relbr_table = new std::atomic_bool[m_context->raw_data_size];
+			m_context->relbr_table = m_relbr_table;
+			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
+				m_relbr_table[i] = false;
 
 			m_threads.reserve(Thread_count * 2);
 			for (uint8_t i = 0; i < Thread_count; ++i)
@@ -683,8 +875,12 @@ namespace dasm
 
 		void add_routine(uint64_t routine_rva)
 		{
-			if (m_routine_lookup_table[routine_rva] || m_context->binary_interface->symbol_table->is_executable(routine_rva))
+			if (m_routine_lookup_table[routine_rva] || !m_context->binary_interface->symbol_table->is_executable(routine_rva))
+			{
+				//printf("failed to add routine.\n");
 				return;
+			}
+			//printf("added routine.\n");
 
 			m_routine_lookup_table[routine_rva] = true;
 
@@ -711,16 +907,22 @@ namespace dasm
 
 		void wait_for_completion()
 		{
-			while (dasm_thread_t<Addr_width>::queued_routine_count)
+			while (thread_t<Addr_width>::queued_routine_count)
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+			// Union the repair and routine tables together so we know what needs to be removed
+			//
+			for (uint32_t i = 0; i < m_context->raw_data_size; ++i)
+			{
+				m_relbr_table[i] = (m_relbr_table[i] && m_routine_lookup_table[i]);
+			}
 
 			for (auto& thread : m_threads)
 			{
+				thread.repair();
 				completed_routines.splice(completed_routines.end(), thread.completed_routines);
 				thread.stop();
 			}
-
-
 		}
 
 		uint32_t count_instructions()

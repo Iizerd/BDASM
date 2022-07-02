@@ -5,6 +5,7 @@
 
 #include "sdk.h"
 #include <stdlib.h>
+#include <Windows.h>
 
 
 //holy christ im such a beast.
@@ -24,14 +25,25 @@ __declspec(noinline) int other_routine()
 
 int main()
 {
-	//BDASM_Begin(MARKER_ATTRIBUTE_ENTIRE_FUNCTION, 0);
+	////BDASM_Begin(MARKER_ATTRIBUTE_ENTIRE_FUNCTION, 0);
 
-	printf("Hello Test. %llu\n", 0xFFEACC0DEF);
-	int meme = other_routine();
+	//printf("Hello Test. %llu\n", 0xFFEACC0DEF);
+	//int meme = other_routine();
 
-	printf("Result was %d\n", meme);
-	system("pause");
+	//printf("Result was %d\n", meme);
+	//system("pause");
 
+	__try
+	{
+		for (int i = 0; i < 10; i++)
+		{
+			printf("Heres an int %d\n", i);
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		printf("here lies our exception handler.\n");
+	}
 
-	return meme;
+	return 1;
 }

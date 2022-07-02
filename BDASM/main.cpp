@@ -27,7 +27,8 @@
 //#define image_name "C:\\$Work\\BDASM\\x64\\Debug\\TestExe.exe"
 //#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 //#else
-#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
+//#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
+#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
 #define image_out "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe2.exe"
 //#endif
 
@@ -44,8 +45,6 @@ int main(int argc, char** argv)
 
 	dasm::addr_width::type width = pex::binary_t<>::deduce_address_width(binary_path);
 	//printf("image size %u %u\n", address_width_to_bits(width), address_width_to_bytes(width));
-
-
 
 	std::ifstream SffFile(binary_path, std::ios::binary);
 	SffFile.seekg(0, std::ios::end);
@@ -76,30 +75,113 @@ int main(int argc, char** argv)
 		dasm::decoder_context_t<dasm::addr_width::x64> context(&binary);
 		context.settings.recurse_calls = true;
 
-		dasm::dasm_t<dasm::addr_width::x64> disassembler(&context);
+		dasm::dasm_t<dasm::addr_width::x64, 8> disassembler(&context);
 
 		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
 		
+
+		for (auto& exp : binary.m_exports.entries)
+		{
+			disassembler.add_routine(exp.rva);
+		}
+
+		uint32_t count = 0;
+		auto addr = binary.mapped_image + binary.optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address();
+		for (pex::image_runtime_function_it_t m_runtime_functions(reinterpret_cast<pex::image_runtime_function_entry_t*>(addr));
+			!m_runtime_functions.is_null(); ++m_runtime_functions)
+		{
+			if (binary.is_rva_in_executable_section(m_runtime_functions.get_begin_address()))
+				disassembler.add_routine(m_runtime_functions.get_begin_address());
+			count++;
+		}
+		printf("added %u runtime functions\n", count);
+
 		disassembler.run();
 		disassembler.wait_for_completion();
 
-		printf("Found %d routines.\n", disassembler.completed_routines.size());
+		printf("Found %llu routines.\n", disassembler.completed_routines.size());
+
+		std::set<uint64_t> rvaset;
+
+		/*for (auto& rou : disassembler.completed_routines)
+		{
+			rvaset.insert(rou.original_entry_rva);
+		}
+
+		std::ifstream filememe2("C:\\@\\Work\\BDASM\\x64\\Release\\test.txt");
+		std::string temp = "";
+		while (filememe2 >> temp)
+		{
+			rvaset.erase(std::stoull(temp, nullptr, 16));
+		}*/
+
+
+		//std::ifstream filememe2("C:\\@\\Work\\BDASM\\x64\\Release\\test.txt");
+		//std::string temp = "";
+		//while (filememe2 >> temp)
+		//{
+		//	rvaset.insert(std::stoull(temp, nullptr, 16));
+		//}
+
+		//std::vector<uint64_t> sorted_rvas;
+		//for (auto& rou : disassembler.completed_routines)
+		//{
+		//	sorted_rvas.push_back(rou.original_entry_rva);
+		//	rvaset.erase(rou.original_entry_rva);
+		//}
+
+
+		//std::sort(std::begin(sorted_rvas), end(sorted_rvas));
+		//std::ofstream rvasfile("C:\\@\\Work\\BDASM\\x64\\Release\\rvas.txt");
+		//for (auto const rva : sorted_rvas)
+		//	rvasfile << "0x" << std::hex << rva << "\n";
+		//rvasfile.close();
+
+
+		//for (auto rva : rvaset)
+		//{
+		//	std::printf("Rva: %X\n", rva);
+		//}
+
+		//printf("total: %llu\n", rvaset.size());
+
+	/*	for (auto& rou : disassembler.completed_routines)
+		{
+			if (rou.entry_symbol == 0x1030)
+			{
+				rou.blocks.sort([](dasm::block_t<dasm::addr_width::x64> const& l, dasm::block_t<dasm::addr_width::x64> const& r)
+					{
+						return (l.rva_start < r.rva_start);
+					});
+				printf("Found main:\n");
+				for (auto& blo : rou.blocks)
+				{
+					std::printf("Block: %X\n", blo.rva_start, blo.rva_end);
+					for (auto& inst : blo.instructions)
+						std::printf("\t%s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+					if (blo.fallthrough_block != rou.blocks.end())
+						std::printf("Fallthrough %X\n", blo.fallthrough_block->rva_start);
+				}
+			}
+		}*/
 
 		auto& routine = disassembler.completed_routines.front();
 		uint32_t i = 0;
 
 		//routine.blocks.front().clear();
-		std::next(routine.blocks.begin())->clear();
-		std::prev(routine.blocks.end())->clear();
-		for (auto it = routine.begin(); it != routine.end(); ++it)
-		{
-			i++;
-			printf("IClass %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&it->decoded_inst)));
-		}
-		/*for (auto& block : routine.blocks)
-			for (auto& inst : block)
-				i++;*/
-		printf("%u instructions\n", i);
+		//std::next(routine.blocks.begin())->clear();
+		//std::prev(routine.blocks.end())->clear();
+		//for (auto it = routine.begin(); it != routine.end(); ++it)
+		//{
+		//	i++;
+		//	printf("IClass %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&it->decoded_inst)));
+		//}
+		system("pause");
+		for (auto& block : routine.blocks)
+			for (auto& inst : block.instructions)
+				i++;
+		// SHOULD SEE 98 instructions
+		printf("%u instructions at %X\n", i, routine.entry_symbol);
 	}
 	else
 		printf("invalid addr width.");
@@ -151,7 +233,7 @@ int main(int argc, char** argv)
 	//x86_dasm_t<address_width::x64> dasm((uint8_t*)FileBuffer, FileLength, &sym_table);
 	//dasm.set_malformed_functions(false);
 	//dasm.set_recurse_calls(true);
-	//dasm.set_block_progress_callback([](inst_block_t<address_width::x64> const& block)
+	//dasm.set_block_progress_callback([](dasm_decode_block_t<address_width::x64> const& block)
 	//	{
 	//		std::printf("Created block with %llu insts at [%016X:%016X]\n", block.instructions.size(), block.start, block.end);
 	//	});

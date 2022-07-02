@@ -42,9 +42,17 @@ namespace dasm
 	public:
 		inst_flag::type flags;
 
-		// Symbol this instruction is responsible for setting the RVA of.
-		//
-		uint32_t my_symbol;
+		union
+		{
+			// Symbol this instruction is responsible for setting the RVA of.
+			//
+			uint32_t my_symbol;
+
+			// Used by the disassembler since the symbol of an original instruction
+			// is its rva in the binary.
+			//
+			uint32_t original_rva;
+		};
 
 		// Symbol of target, used for calcuating deltas.
 		//

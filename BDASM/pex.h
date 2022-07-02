@@ -76,7 +76,7 @@ namespace pex
 
 	public:
 
-		using My_type = It_type;
+		using My_type = Class_type;
 
 		base_it_t(Class_type* ptr)
 			: m_pdata(ptr) {}
@@ -820,8 +820,8 @@ namespace pex
 			return min_addr;
 		}
 
-		template<typename It_type, typename Rva_type>
-		It_type get_it(Rva_type rva)
+		template<typename It_type>
+		It_type get_it(uint64_t rva)
 		{
 			return It_type(reinterpret_cast<It_type::My_type*>(mapped_image + rva));
 		}
@@ -1109,9 +1109,11 @@ namespace pex
 
 					if (section_header_it[i].get_characteristics() & (IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE))
 					{
-						uint32_t len = section_header_it[i].get_virtual_size();
-						for (uint32_t rva = section_header_it[i].get_virtual_address(); rva < len; ++rva)
-							symbol_table->unsafe_get_symbol_for_rva(rva).set_flag(symbol_flag::executable);
+						symbol_table->unsafe_mark_range_as(
+							section_header_it[i].get_virtual_address(), 
+							section_header_it[i].get_virtual_size(),
+							symbol_flag::executable
+						);
 					}
 				}
 			}
@@ -1153,7 +1155,7 @@ namespace pex
 			// Insert reloc data into symbol table
 			//
 			relocs_changed = false;
-			if (!(file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) && optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
+			if (0 && !(file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) && optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
 			{
 				image_base_reloc_block_it_t block_it(reinterpret_cast<image_base_relocation_t*>(mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_virtual_address()));
 

@@ -225,9 +225,9 @@ public:
 	finline bool is_executable(uint32_t symbol_index)
 	{
 		if (symbol_index < m_arbitrary_table_idx_offset)
-			return m_image_table[symbol_index].flags & symbol_flag::executable;
+			return (m_image_table[symbol_index].flags & symbol_flag::executable);
 		else
-			return m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].flags & symbol_flag::executable;
+			return (m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].flags & symbol_flag::executable);
 	}
 
 	finline bool inst_uses_reloc(uint32_t inst_rva, uint32_t inst_len, uint8_t& offset, uint8_t& type)
@@ -269,6 +269,13 @@ public:
 		}
 	}
 
+
+	void unsafe_mark_range_as(uint32_t start, uint32_t size, symbol_flag::type flag)
+	{
+		uint32_t end = start + size;
+		for (uint32_t i = start; i < end; i++)
+			m_image_table[i].flags |= flag;
+	}
 
 
 	// If we are in the binary itself then these are always valid so no need for more time with if

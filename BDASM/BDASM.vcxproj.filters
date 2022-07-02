@@ -37,7 +37,7 @@
     <ClInclude Include="size_casting.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
-    <ClInclude Include="inst_list.h">
+    <ClInclude Include="dasm2.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
   </ItemGroup>
