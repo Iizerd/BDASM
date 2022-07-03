@@ -75,7 +75,7 @@ int main(int argc, char** argv)
 		dasm::decoder_context_t<addr_width::x64> context(&binary);
 		context.settings.recurse_calls = true;
 
-		dasm::dasm_t<addr_width::x64, 1> disassembler(&context);
+		dasm::dasm_t<addr_width::x64, 8> disassembler(&context);
 
 		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
 		
