@@ -1,14 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="traits.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="sff.h">
       <Filter>Testing</Filter>
-    </ClInclude>
-    <ClInclude Include="addr_width.h">
-      <Filter>headers\dasm</Filter>
     </ClInclude>
     <ClInclude Include="dasm.h">
       <Filter>headers\dasm</Filter>
@@ -34,11 +28,23 @@
     <ClInclude Include="dpattern.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
-    <ClInclude Include="size_casting.h">
-      <Filter>headers\dasm</Filter>
-    </ClInclude>
     <ClInclude Include="dasm2.h">
       <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="obf.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="flags.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="size_casting.h">
+      <Filter>headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="addr_width.h">
+      <Filter>headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="traits.h">
+      <Filter>headers\utils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

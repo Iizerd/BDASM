@@ -155,8 +155,10 @@
     <ClInclude Include="align.h" />
     <ClInclude Include="dasm2.h" />
     <ClInclude Include="encoder.h" />
+    <ClInclude Include="flags.h" />
     <ClInclude Include="inst.h" />
     <ClInclude Include="dpattern.h" />
+    <ClInclude Include="obf.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
     <ClInclude Include="size_casting.h" />

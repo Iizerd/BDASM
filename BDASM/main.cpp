@@ -43,7 +43,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 		binary_path = argv[1];
 
-	dasm::addr_width::type width = pex::binary_t<>::deduce_address_width(binary_path);
+	addr_width::type width = pex::binary_t<>::deduce_address_width(binary_path);
 	//printf("image size %u %u\n", address_width_to_bits(width), address_width_to_bytes(width));
 
 	std::ifstream SffFile(binary_path, std::ios::binary);
@@ -58,24 +58,24 @@ int main(int argc, char** argv)
 
 
 
-	if (width == dasm::addr_width::x86)
+	if (width == addr_width::x86)
 	{
-		pex::binary_t<dasm::addr_width::x86> binary;
+		pex::binary_t<addr_width::x86> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 	}
-	else if (width == dasm::addr_width::x64)
+	else if (width == addr_width::x64)
 	{
-		pex::binary_t<dasm::addr_width::x64> binary;
+		pex::binary_t<addr_width::x64> binary;
 		if (!binary.map_image(FileBuffer, FileLength))
 			printf("failed.\n");
 
 		printf("Entry point %X\n", binary.optional_header.get_address_of_entry_point());
 
-		dasm::decoder_context_t<dasm::addr_width::x64> context(&binary);
+		dasm::decoder_context_t<addr_width::x64> context(&binary);
 		context.settings.recurse_calls = true;
 
-		dasm::dasm_t<dasm::addr_width::x64, 8> disassembler(&context);
+		dasm::dasm_t<addr_width::x64, 1> disassembler(&context);
 
 		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
 		
@@ -145,11 +145,11 @@ int main(int argc, char** argv)
 
 		//printf("total: %llu\n", rvaset.size());
 
-	/*	for (auto& rou : disassembler.completed_routines)
+		/*for (auto& rou : disassembler.completed_routines)
 		{
 			if (rou.entry_symbol == 0x1030)
 			{
-				rou.blocks.sort([](dasm::block_t<dasm::addr_width::x64> const& l, dasm::block_t<dasm::addr_width::x64> const& r)
+				rou.blocks.sort([](dasm::block_t<addr_width::x64> const& l, dasm::block_t<addr_width::x64> const& r)
 					{
 						return (l.rva_start < r.rva_start);
 					});
@@ -166,6 +166,20 @@ int main(int argc, char** argv)
 		}*/
 
 		auto& routine = disassembler.completed_routines.front();
+
+		/*routine.blocks.sort([](dasm::block_t<addr_width::x64> const& l, dasm::block_t<addr_width::x64> const& r)
+			{
+				return (l.rva_start < r.rva_start);
+			});
+		printf("Found main:\n");
+		for (auto& blo : routine.blocks)
+		{
+			std::printf("Block: %08X %X %X\n", blo.symbol, blo.rva_start, blo.rva_end);
+			for (auto& inst : blo.instructions)
+				std::printf("\t%08X %s\n",inst.my_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+			if (blo.fallthrough_block != routine.blocks.end())
+				std::printf("Fallthrough %X %08X\n", blo.fallthrough_block->rva_start, blo.fallthrough_block->symbol);
+		}*/
 		uint32_t i = 0;
 
 		//routine.blocks.front().clear();
@@ -182,6 +196,7 @@ int main(int argc, char** argv)
 				i++;
 		// SHOULD SEE 98 instructions
 		printf("%u instructions at %X\n", i, routine.entry_symbol);
+
 	}
 	else
 		printf("invalid addr width.");

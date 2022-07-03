@@ -223,7 +223,7 @@
 //						if (decode_block(taken_rva) == current_routine->blocks.end())
 //							return current_routine->blocks.end();
 //
-//						//if (m_decoder_context->routine_lookup_table[taken_rva] == true)
+//						//if (m_decoder_context->routine_table[taken_rva] == true)
 //						//{
 //						//if (found_prologue)
 //						m_decoder_context->relbr_table[taken_rva] = true;
@@ -315,7 +315,7 @@
 //							if (decode_block(dest_rva) == current_routine->blocks.end())
 //								return current_routine->blocks.end();
 //
-//							//if (m_decoder_context->routine_lookup_table[dest_rva].load() == true)
+//							//if (m_decoder_context->routine_table[dest_rva].load() == true)
 //							//{
 //							//if (found_prologue)
 //							m_decoder_context->relbr_table[dest_rva] = true;

@@ -242,9 +242,9 @@ namespace pex
 	_M(_Sd, _Sn, SizeOfHeapCommit, size_of_heap_commit)                       \
 	_M(_Sd, _Sn, LoaderFlags, loader_flags)                                   \
 	_M(_Sd, _Sn, NumberOfRvaAndSizes, number_of_rva_and_sizes)
-#define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == dasm::addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type
-	template <dasm::addr_width::type Addr_width = dasm::addr_width::x64>
-	class optional_header_it_t : public std::conditional<Addr_width == dasm::addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>>>::type
+#define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type
+	template <addr_width::type Addr_width = addr_width::x64>
+	class optional_header_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>>>::type
 	{
 
 		using _Header_type = optional_header_conditional_type(Addr_width);
@@ -270,12 +270,12 @@ namespace pex
 	_M(_Sd, _Sn, u1.Function, function)                \
 	_M(_Sd, _Sn, u1.Ordinal, raw_ordinal)              \
 	_M(_Sd, _Sn, u1.AddressOfData, address_of_data)
-#define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == dasm::addr_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
-	template <dasm::addr_width::type Addr_width = dasm::addr_width::x64>
-	class image_thunk_data_it_t : public std::conditional<Addr_width == dasm::addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>>>::type
+#define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
+	template <addr_width::type Addr_width = addr_width::x64>
+	class image_thunk_data_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>>>::type
 	{
 		using _Thunk_data_type = thunk_data_conditional_type(Addr_width);
-		using _Thunk_ordinal_type = std::conditional<Addr_width == dasm::addr_width::x86, DWORD, ULONGLONG>::type;
+		using _Thunk_ordinal_type = std::conditional<Addr_width == addr_width::x86, DWORD, ULONGLONG>::type;
 		image_thunk_data_it_t()
 			: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(nullptr) {}
 
@@ -284,7 +284,7 @@ namespace pex
 			: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(thunk_data) {}
 		bool is_ordinal() const
 		{
-			if constexpr (Addr_width == dasm::addr_width::x86)
+			if constexpr (Addr_width == addr_width::x86)
 				return (get_raw_ordinal() & IMAGE_ORDINAL_FLAG32);
 			return (get_raw_ordinal() & IMAGE_ORDINAL_FLAG64);
 		}
@@ -294,7 +294,7 @@ namespace pex
 		}
 		uint16_t get_masked_ordinal()
 		{
-			if constexpr (Addr_width == dasm::addr_width::x86)
+			if constexpr (Addr_width == addr_width::x86)
 				return IMAGE_ORDINAL32(get_raw_ordinal());
 			return IMAGE_ORDINAL64(get_raw_ordinal());
 		}
@@ -313,9 +313,9 @@ namespace pex
 	_M(_Sd, _Sn, Reserved0, reserved0)                             \
 	_M(_Sd, _Sn, Alignment, alignment)                             \
 	_M(_Sd, _Sn, Reserved1, reserved1)
-#define tls_conditional_type(Addr_width) std::conditional<Addr_width == dasm::addr_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
-	template <dasm::addr_width::type Addr_width = dasm::addr_width::x64>
-	class image_tls_dir_it_t : public std::conditional<Addr_width == dasm::addr_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<Addr_width>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<Addr_width>>>::type
+#define tls_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
+	template <addr_width::type Addr_width = addr_width::x64>
+	class image_tls_dir_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<Addr_width>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<Addr_width>>>::type
 	{
 		using _Tls_dir_type = tls_conditional_type(Addr_width);
 		image_tls_dir_it_t()
@@ -569,7 +569,7 @@ namespace pex
 
 	class import_t
 	{
-		// using _Entry_type = std::conditional<Addr_width == dasm::addr_width::x86, DWORD, ULONGLONG>::type;
+		// using _Entry_type = std::conditional<Addr_width == addr_width::x86, DWORD, ULONGLONG>::type;
 
 	public:
 		const std::string import_name;
@@ -603,7 +603,7 @@ namespace pex
 			is_ordinal(to_copy.is_ordinal),
 			thunk_symbol(to_copy.thunk_symbol) {}
 	};
-	template <dasm::addr_width::type Addr_width = dasm::addr_width::x64>
+	template <addr_width::type Addr_width = addr_width::x64>
 	class import_module_t : public data_directory_ir_t
 	{
 	public:
@@ -711,7 +711,7 @@ namespace pex
 		}
 	};
 
-	template <dasm::addr_width::type Addr_width = dasm::addr_width::x64>
+	template <addr_width::type Addr_width = addr_width::x64>
 	class binary_t
 	{
 	public:
@@ -1091,8 +1091,8 @@ namespace pex
 
 			optional_header.set(new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
 
-			if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != dasm::addr_width::x86) ||
-				(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != dasm::addr_width::x64))
+			if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != addr_width::x86) ||
+				(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != addr_width::x64))
 				return false;
 
 			symbol_table = new symbol_table_t(optional_header.get_size_of_image(), 3000);
@@ -1145,11 +1145,10 @@ namespace pex
 
 			// Insert runtime function data into the symbol table
 			//
-			for (pex::image_runtime_function_it_t m_runtime_functions(reinterpret_cast<pex::image_runtime_function_entry_t*>(
-				mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address()));
-				!m_runtime_functions.is_null(); ++m_runtime_functions)
+			for (auto runtime_func_it = get_it<image_runtime_function_it_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address());
+				!runtime_func_it.is_null(); ++runtime_func_it)
 			{
-				symbol_table->set_func_data_and_start(m_runtime_functions.get_begin_address(), reinterpret_cast<uint64_t>(m_runtime_functions.get()) - reinterpret_cast<uint64_t>(mapped_image));
+				symbol_table->set_func_data_and_start(runtime_func_it.get_begin_address(), reinterpret_cast<uint64_t>(runtime_func_it.get()) - reinterpret_cast<uint64_t>(mapped_image));
 			}
 
 			// Insert reloc data into symbol table
@@ -1157,8 +1156,7 @@ namespace pex
 			relocs_changed = false;
 			if (0 && !(file_header.get_characteristics() & IMAGE_FILE_RELOCS_STRIPPED) && optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_size())
 			{
-				image_base_reloc_block_it_t block_it(reinterpret_cast<image_base_relocation_t*>(mapped_image + optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_virtual_address()));
-
+				auto block_it = get_it<image_base_reloc_block_it_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_BASERELOC).get_virtual_address());
 				while (!block_it.is_null())
 				{
 					image_base_reloc_offset_it_t it(reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(block_it.get()) + sizeof image_base_relocation_t));
@@ -1182,14 +1180,14 @@ namespace pex
 			//
 			if (optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_size())
 			{
-				for (image_import_descriptor_it_t import_descriptor_it(rva_as<image_import_descriptor_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_virtual_address()));
+				for (auto import_descriptor_it = get_it< image_import_descriptor_it_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_IMPORT).get_virtual_address());
 					!import_descriptor_it.is_null(); ++import_descriptor_it)
 				{
 					m_imports.emplace_back(rva_as<char>(import_descriptor_it.get_name()));
 
 					//std::printf("Module Name: %s\n", m_imports.back().module_name.data());
 
-					for (image_thunk_data_it_t<Addr_width> thunk_data_it(rva_as<thunk_data_conditional_type(Addr_width)>(import_descriptor_it.get_original_first_thunk()));
+					for (auto thunk_data_it = get_it<image_thunk_data_it_t<Addr_width> >(import_descriptor_it.get_original_first_thunk());
 						!thunk_data_it.is_null(); ++thunk_data_it)
 					{
 						uint32_t symbol_index = symbol_table->unsafe_get_symbol_index_for_rva(
@@ -1231,7 +1229,7 @@ namespace pex
 
 			if (optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_size())
 			{
-				image_export_directory_it_t export_dir(rva_as<image_export_dir_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_virtual_address()));
+				auto export_dir = get_it<image_export_directory_it_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT).get_virtual_address());
 
 				uint32_t* name_address_table = rva_as<uint32_t>(export_dir.get_address_of_names());
 				uint32_t* export_address_table = rva_as<uint32_t>(export_dir.get_address_of_functions());
@@ -1310,57 +1308,57 @@ namespace pex
 			return output_image;
 		}
 
-		inline static dasm::addr_width::type deduce_address_width(std::string const& file_path)
+		inline static addr_width::type deduce_address_width(std::string const& file_path)
 		{
 			if (!std::filesystem::exists(file_path))
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 
 			std::ifstream file(file_path, std::ios::binary);
 			if (!file.good())
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 
 			file.seekg(0, std::ios::end);
 			uint32_t file_size = static_cast<uint32_t>(file.tellg());
 			file.seekg(0, std::ios::beg);
 
 			if (file_size < 0x1000)
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 
 			uint8_t* data = new uint8_t[0x1000];
 			if (!data)
 			{
 				file.close();
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 			}
 
 			file.read((PCHAR)data, 0x1000);
 			file.close();
 
-			dasm::addr_width::type width = deduce_address_width(data, file_size);
+			addr_width::type width = deduce_address_width(data, file_size);
 
 			delete[] data;
 			return width;
 		}
-		inline static dasm::addr_width::type deduce_address_width(uint8_t* image_data, uint32_t image_size)
+		inline static addr_width::type deduce_address_width(uint8_t* image_data, uint32_t image_size)
 		{
 			if (image_size < sizeof image_dos_header_t)
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 			image_dos_header_t* dos_header = (image_dos_header_t*)image_data;
 			if (dos_header->e_magic != IMAGE_DOS_SIGNATURE)
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 
 			image_nt_headers32_t* nt_headers = (image_nt_headers32_t*)(image_data + dos_header->e_lfanew);
 
 			if (image_size < dos_header->e_lfanew + sizeof image_nt_headers32_t ||
 				nt_headers->Signature != IMAGE_NT_SIGNATURE)
-				return dasm::addr_width::invalid;
+				return addr_width::invalid;
 
 			if (nt_headers->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
-				return dasm::addr_width::x86;
+				return addr_width::x86;
 			else if (nt_headers->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-				return dasm::addr_width::x64;
+				return addr_width::x64;
 
-			return dasm::addr_width::invalid;
+			return addr_width::invalid;
 		}
 
 		void print_section_info()
