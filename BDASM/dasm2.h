@@ -145,9 +145,9 @@
 //
 //				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 //
-//				inst.original_rva = rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+//				inst.original_rva = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 //
-//				bool has_reloc = m_context->bin->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
+//				bool has_reloc = m_context->bin->data_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
 //
 //				// Parse operands for rip relative addressing and relocs
 //				//
@@ -161,7 +161,7 @@
 //						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
 //						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 //						{
-//							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+//							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
 //							);*/
 //							inst.flags |= inst_flag::disp;
@@ -173,7 +173,7 @@
 //							{
 //								inst.used_symbol = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 //									m_decoder_context->binary_interface->optional_header.get_image_base();
-//								/*m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+//								/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 //									m_decoder_context->binary_interface->optional_header.get_image_base()
 //								);*/
@@ -187,7 +187,7 @@
 //					{
 //						inst.used_symbol = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 //							m_decoder_context->binary_interface->optional_header.get_image_base();
-//						/*m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+//						/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 //							m_decoder_context->binary_interface->optional_header.get_image_base()
 //						);*/
@@ -215,7 +215,7 @@
 //						return current_routine->blocks.end();
 //					}
 //
-//					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
+//					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
 //					inst.flags |= inst_flag::rel_br;
 //
 //					if (!m_lookup_table.is_inst_start(taken_rva))
@@ -271,7 +271,7 @@
 //							std::printf("Unconditional branch to invalid rva.\n");
 //							goto ExitInstDecodeLoop;
 //						}
-//						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+//						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 //						inst.flags |= inst_flag::rel_br;
 //
 //
@@ -286,7 +286,7 @@
 //								{
 //									// No func data, this is a tail call to a leaf.
 //									//
-//									if (!m_decoder_context->binary_interface->symbol_table->has_func_data(dest_rva))
+//									if (!m_decoder_context->binary_interface->data_table->has_func_data(dest_rva))
 //									{
 //										m_decoder_context->report_routine_rva(dest_rva);
 //										goto ExitInstDecodeLoop;
@@ -297,7 +297,7 @@
 //										// If it is, this is just an oddly formed function
 //										//
 //										auto runtime_func = m_decoder_context->binary_interface->get_it<pex::image_runtime_function_it_t>(
-//											m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva
+//											m_decoder_context->binary_interface->data_table->get_func_data(rva).runtime_function_rva
 //											);
 //
 //										// This relies on the fact that multiple runtime function structures for a single func will
@@ -367,7 +367,7 @@
 //
 //						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 //
-//						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+//						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 //						inst.flags |= inst_flag::rel_br;
 //
 //						if (!m_lookup_table.is_self(dest_rva))
@@ -430,10 +430,10 @@
 //			//
 //			if constexpr (Addr_width == addr_width::x64)
 //			{
-//				if (m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
+//				if (m_decoder_context->binary_interface->data_table->unsafe_get_symbol_for_rva(rva).has_func_data())
 //				{
 //					e_runtime_func.set(m_decoder_context->binary_interface->mapped_image +
-//						m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
+//						m_decoder_context->binary_interface->data_table->get_func_data(rva).runtime_function_rva);
 //
 //					e_range_start = e_runtime_func.get_begin_address();
 //					e_range_end = e_runtime_func.get_end_address();
@@ -451,7 +451,7 @@
 //			}
 //
 //			current_routine->original_entry_rva = rva;
-//			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+//			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 //		}
 //	};
 //

@@ -719,7 +719,7 @@ namespace pex
 		//
 		uint8_t* mapped_image;
 
-		symbol_table_t* symbol_table;
+		bin_data_table_t* data_table;
 
 		// Header iterators/interfaces
 		//
@@ -914,7 +914,7 @@ namespace pex
 			cur_section.set_pointer_to_line_numbers(0);
 			cur_section.set_number_of_line_numbers(0);
 
-			symbol_table->resize_image_table(optional_header.get_size_of_image());
+			data_table->resize_image_table(optional_header.get_size_of_image());
 
 			// Update symbol table if this section is executable
 			//
@@ -922,7 +922,7 @@ namespace pex
 			{
 				for (uint32_t i = 0; i < section_size; i++)
 				{
-					symbol_table->unsafe_get_symbol_for_rva(virt_addr + i).set_flag(symbol_flag::executable);
+					data_table->unsafe_get_symbol_for_rva(virt_addr + i).set_flag(bin_data_flag::executable);
 				}
 			}
 
@@ -1095,7 +1095,7 @@ namespace pex
 				(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != addr_width::x64))
 				return false;
 
-			symbol_table = new symbol_table_t(optional_header.get_size_of_image(), 3000);
+			data_table = new bin_data_table_t(optional_header.get_size_of_image(), 3000);
 
 			// Enumerate all sections
 			//
@@ -1109,10 +1109,10 @@ namespace pex
 
 					if (section_header_it[i].get_characteristics() & (IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE))
 					{
-						symbol_table->unsafe_mark_range_as(
+						data_table->unsafe_mark_range_as(
 							section_header_it[i].get_virtual_address(), 
 							section_header_it[i].get_virtual_size(),
-							symbol_flag::executable
+							bin_data_flag::executable
 						);
 					}
 				}
@@ -1148,7 +1148,7 @@ namespace pex
 			for (auto runtime_func_it = get_it<image_runtime_function_it_t>(optional_header.get_data_directory(IMAGE_DIRECTORY_ENTRY_EXCEPTION).get_virtual_address());
 				!runtime_func_it.is_null(); ++runtime_func_it)
 			{
-				symbol_table->set_func_data_and_start(runtime_func_it.get_begin_address(), reinterpret_cast<uint64_t>(runtime_func_it.get()) - reinterpret_cast<uint64_t>(mapped_image));
+				data_table->set_func_data_and_start(runtime_func_it.get_begin_address(), reinterpret_cast<uint64_t>(runtime_func_it.get()) - reinterpret_cast<uint64_t>(mapped_image));
 			}
 
 			// Insert reloc data into symbol table
@@ -1167,7 +1167,7 @@ namespace pex
 					{
 						auto reloc_addr = virt_addr + it[i].get_offset();
 						base_relocs.emplace_back(it[i].get_type(), reloc_addr);
-						symbol_table->unsafe_get_symbol_for_rva(reloc_addr).mark_as_reloc(it[i].get_type());
+						data_table->unsafe_get_symbol_for_rva(reloc_addr).mark_as_reloc(it[i].get_type());
 					}
 
 					block_it.set(reinterpret_cast<uint8_t*>(block_it.get()) + block_it.get_size_of_block());
@@ -1190,7 +1190,7 @@ namespace pex
 					for (auto thunk_data_it = get_it<image_thunk_data_it_t<Addr_width> >(import_descriptor_it.get_original_first_thunk());
 						!thunk_data_it.is_null(); ++thunk_data_it)
 					{
-						uint32_t symbol_index = symbol_table->unsafe_get_symbol_index_for_rva(
+						uint32_t symbol_index = data_table->unsafe_get_symbol_index_for_rva(
 							static_cast<uint64_t>(reinterpret_cast<uint8_t*>(thunk_data_it.get()) - mapped_image)
 						);
 
@@ -1247,8 +1247,8 @@ namespace pex
 					uint32_t export_rva = export_address_table[name_ordinal];
 
 					m_exports.add_named_export(name,
-						symbol_table->unsafe_get_symbol_index_for_rva(
-							export_rva, symbol_flag::is_export
+						data_table->unsafe_get_symbol_index_for_rva(
+							export_rva, bin_data_flag::is_export
 						),
 						export_rva
 					);
@@ -1261,8 +1261,8 @@ namespace pex
 					uint32_t export_rva = export_address_table[ordinal];
 
 					m_exports.add_ordinal_export(ordinal,
-						symbol_table->unsafe_get_symbol_index_for_rva(
-							export_rva, symbol_flag::is_export
+						data_table->unsafe_get_symbol_index_for_rva(
+							export_rva, bin_data_flag::is_export
 						),
 						export_rva
 					);

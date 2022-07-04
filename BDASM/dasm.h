@@ -1,17 +1,3 @@
-
-
-
-#pragma once
-
-
-/*
-	A + B | ~A - ~B
-
-	~A | A ^ ~0
-*/
-
-
-
 #pragma once
 
 
@@ -33,6 +19,37 @@ extern "C"
 namespace dasm
 {
 
+	//TODO: somehow solve the problem associated with multiple functions using the same instructions
+	// this becomes a problem when the original symbols are losed/not placed if for example that function
+	// was virtualized...
+	// this is ONLY a problem when there is a tail call, and that call leads to a function that is also
+	// called elsewhere in the binary... so its a rare occurance but its still a possibility.
+	// I think I can fix this by only using an rva table for function symbols, and individual arbitrary symbols
+	// for control flow and instructions within that function.
+	//
+
+
+	namespace glt
+	{
+		using type = std::uint8_t;
+		using Atomic_type = std::atomic<type>;
+		static_assert(Atomic_type::is_always_lock_free);
+
+		// This is a target for a routine
+		//
+		constexpr type is_routine = (1 << 0);
+
+		// We know to remove functions that start at these, but are not a cal target
+		// Repair if (table[func_rva] & (is_relbr_target | is_call_target) == is_relbr_target)
+		//
+		constexpr type is_relbr_target = (1 << 1);
+
+		// We need to NOT remove these when doing the repair pass
+		//
+		constexpr type is_call_target = (1 << 2);
+
+	}
+
 	template<addr_width::type Addr_width = addr_width::x64>
 	struct decoder_context_t
 	{
@@ -46,9 +63,11 @@ namespace dasm
 
 		pex::binary_t<Addr_width>* binary_interface;
 
-		std::atomic_bool* routine_table;
+		//std::atomic_bool* routine_table;
 
-		std::atomic_bool* relbr_table;
+		//std::atomic_bool* relbr_table;
+
+		glt::Atomic_type* global_lookup_table;
 
 		const uint8_t* raw_data_start;
 		const uint64_t raw_data_size;
@@ -77,7 +96,7 @@ namespace dasm
 		}
 	};
 
-	// This just makes things easier... holy shit enum class so close to being useful,,, but then just isnt.
+	
 	namespace lookup_table_flag
 	{
 		typedef uint8_t type;
@@ -97,6 +116,8 @@ namespace dasm
 		constexpr uint8_t is_self = (1 << 2);
 	}
 
+	// Single thread lookup table used when decoding functions
+	//
 	template<addr_width::type Addr_width = addr_width::x64>
 	class decode_lookup_table
 	{
@@ -145,6 +166,8 @@ namespace dasm
 		}
 	};
 	
+	// A basic block exactly like LLVM's
+	//
 	template<addr_width::type Addr_width = addr_width::x64>
 	class block_t
 	{
@@ -185,6 +208,7 @@ namespace dasm
 			unconditional_br,
 			conditional_br,
 			fallthrough,
+			undetermined_unconditional_br,
 		} termination_type;
 
 
@@ -227,7 +251,7 @@ namespace dasm
 
 	// TODO: Write control flow following iterators
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type Addr_width = addr_width::x64, uint32_t Sym_request_count = 0x1000>
 	class routine_t
 	{
 	public:
@@ -387,16 +411,14 @@ namespace dasm
 		decoder_context_t<Addr_width>* m_decoder_context;
 
 		decode_lookup_table<Addr_width> m_lookup_table;
+
+		std::vector<uint32_t> m_link_store;
 	public:
 		inline static std::atomic_uint32_t queued_routine_count;
 
 		// The list of completed routines to be merged at the end
 		//
 		std::list<routine_t<Addr_width> > completed_routines;
-
-		// If we are decoding and determine that something marked as a routine is ACTUALLY a block
-		//
-		//std::vector<uint64_t> incorrectly_marked_routines;
 
 		// The number of times we stopped decoding a block => function because of an unhandled
 		// instruction. Want to get this number as low as possible :)
@@ -438,12 +460,19 @@ namespace dasm
 			}
 			return false;
 		}
-
 		void queue_routine(uint64_t routine_rva)
 		{
 			++queued_routine_count;
 			std::lock_guard g(m_queued_routines_lock);
 			m_queued_routines.emplace_back(routine_rva);
+		}
+
+		uint32_t get_link()
+		{
+			if (!m_link_store.size())
+			{
+
+			}
 		}
 
 		void start()
@@ -462,7 +491,8 @@ namespace dasm
 			auto start_size = completed_routines.size();
 			for (uint32_t i = 0; i < m_decoder_context->raw_data_size; ++i)
 			{
-				if (m_decoder_context->relbr_table[i])
+				auto mask = (m_decoder_context->global_lookup_table[i] & (glt::is_relbr_target | glt::is_routine | glt::is_call_target));
+				if (mask == (glt::is_relbr_target | glt::is_routine))
 				{
 					completed_routines.erase(std::remove_if(completed_routines.begin(), completed_routines.end(), [i](routine_t<Addr_width> const& routine) -> bool
 						{
@@ -471,10 +501,13 @@ namespace dasm
 						completed_routines.end()
 							);
 				}
+				else if (mask == (glt::is_relbr_target | glt::is_routine | glt::is_call_target))
+				{
+					printf("Found tail call to func at %X\n", i);
+				}
 			}
 			std::printf("Repair removed %llu routines.\n", start_size - completed_routines.size());
 		}
-
 		void run()
 		{
 			while (!m_signal_shutdown)
@@ -491,7 +524,6 @@ namespace dasm
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 		}
-		
 		void block_trace()
 		{
 			for (auto& block : current_routine->blocks)
@@ -564,11 +596,11 @@ namespace dasm
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
-				inst.original_rva = rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+				inst.original_rva = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 
 				m_lookup_table.update_inst(rva, ilen);
 
-				bool has_reloc = m_decoder_context->binary_interface->symbol_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
+				bool has_reloc = m_decoder_context->binary_interface->data_table->inst_uses_reloc(rva, ilen, inst.additional_data.reloc.offset_in_inst, inst.additional_data.reloc.type);
 
 				// Parse operands for rip relative addressing and relocs
 				//
@@ -582,7 +614,7 @@ namespace dasm
 						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
 						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 						{
-							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
 							);*/
 							inst.flags |= inst_flag::disp;
@@ -594,7 +626,7 @@ namespace dasm
 							{
 								inst.used_symbol = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 									m_decoder_context->binary_interface->optional_header.get_image_base();
-								/*m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+								/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 									m_decoder_context->binary_interface->optional_header.get_image_base()
 								);*/
@@ -608,7 +640,7 @@ namespace dasm
 					{
 						inst.used_symbol = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 							m_decoder_context->binary_interface->optional_header.get_image_base(); 
-						/*m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(
+						/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 							m_decoder_context->binary_interface->optional_header.get_image_base()
 						);*/
@@ -636,7 +668,7 @@ namespace dasm
 						return current_routine->blocks.end();
 					}
 
-					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(taken_rva);
+					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
 					inst.flags |= inst_flag::rel_br;
 
 					if (!m_lookup_table.is_inst_start(taken_rva))
@@ -656,26 +688,24 @@ namespace dasm
 						}
 					}
 
-					m_decoder_context->relbr_table[taken_rva] = true;
+					//m_decoder_context->relbr_table[taken_rva] = true;
+					m_decoder_context->global_lookup_table[taken_rva] |= glt::is_relbr_target;
 
 					auto fallthrough = current_routine->blocks.end();
-					auto itype = 0;
 					if (!m_lookup_table.is_inst_start(rva))
 					{
 						fallthrough = decode_block(rva);
-						itype = 1;
 					}
 					else
 					{
 						for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
 							if (block_it->rva_start == rva)
 								fallthrough = block_it;
-						itype = 2;
 					}
 
 					if (fallthrough == current_routine->blocks.end())
 					{
-						log_error("Error decoding fallthrough at %p %X\n", rva, itype);
+						log_error("Error decoding fallthrough at %p\n", rva);
 						return current_routine->blocks.end();
 					}
 
@@ -691,14 +721,15 @@ namespace dasm
 					case XED_IFORM_JMP_GPRv:
 						// Jump table.
 						//
-						log_error("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
+						log_error("Unhandled inst at%08X XED_IFORM_JMP_GPRv.\n", rva - ilen);
 						return current_routine->blocks.end();
 					case XED_IFORM_JMP_MEMv:
 						if (!inst.used_symbol)
 						{
-							log_error("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
+							log_error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 							return current_routine->blocks.end();
 						}
+						cur_block_it->termination_type = block_t<>::termination_type_t::undetermined_unconditional_br;
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
 					case XED_IFORM_JMP_RELBRd:
@@ -712,7 +743,7 @@ namespace dasm
 							log_error("Unconditional branch to invalid rva.\n");
 							goto ExitInstDecodeLoop;
 						}
-						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 
@@ -727,7 +758,7 @@ namespace dasm
 							//	{
 							//		// No func data, this is a tail call to a leaf.
 							//		//
-							//		if (!m_decoder_context->binary_interface->symbol_table->has_func_data(dest_rva))
+							//		if (!m_decoder_context->binary_interface->data_table->has_func_data(dest_rva))
 							//		{
 							//			m_decoder_context->report_routine_rva(dest_rva);
 							//			goto ExitInstDecodeLoop;
@@ -738,7 +769,7 @@ namespace dasm
 							//			// If it is, this is just an oddly formed function
 							//			//
 							//			auto runtime_func = m_decoder_context->binary_interface->get_it<pex::image_runtime_function_it_t>(
-							//				m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva
+							//				m_decoder_context->binary_interface->data_table->get_func_data(rva).runtime_function_rva
 							//			);
 							//			// This relies on the fact that multiple runtime function structures for a single func will
 							//			// use the same unwind info structure, and the rvas will be the same
@@ -769,15 +800,15 @@ namespace dasm
 						}
 
 
-						m_decoder_context->relbr_table[dest_rva] = true;
-
+						//m_decoder_context->relbr_table[dest_rva] = true;
+						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_relbr_target;
 						cur_block_it->termination_type = block_t<>::termination_type_t::unconditional_br;
 
 						goto ExitInstDecodeLoop;
 					}
 					case XED_IFORM_JMP_FAR_MEMp2:
 					case XED_IFORM_JMP_FAR_PTRp_IMMw:
-						log_error("Unhandled inst[%08X]: JMP_FAR_MEM/PTR.\n", rva - ilen);
+						log_error("Unhandled inst at %08X: JMP_FAR_MEM/PTR.\n", rva - ilen);
 						return current_routine->blocks.end();
 					}
 				}
@@ -788,14 +819,14 @@ namespace dasm
 					case XED_IFORM_CALL_NEAR_GPRv:
 						// Call table?!
 						//
-						log_error("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
+						log_error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
 						return current_routine->blocks.end();
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
 						if (!inst.used_symbol)
 						{
-							log_error("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
+							log_error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
 							return current_routine->blocks.end();
 						}
 						break;
@@ -805,6 +836,8 @@ namespace dasm
 					{
 						int32_t call_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
 						uint64_t dest_rva = rva + call_disp;
+						
+
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
 							log_error("Call to invalid rva.\n");
@@ -813,18 +846,19 @@ namespace dasm
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 
-						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!m_lookup_table.is_self(dest_rva))
 						{
 							m_decoder_context->report_routine_rva(dest_rva);
 						}
+						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_call_target;
 						break;
 					}
 					case XED_IFORM_CALL_FAR_MEMp2:
 					case XED_IFORM_CALL_FAR_PTRp_IMMw:
-						log_error("Unhandled inst[%08X]: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
+						log_error("Unhandled inst at %08X: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
 						return current_routine->blocks.end();
 					}
 				}
@@ -869,20 +903,20 @@ namespace dasm
 				std::printf("Attempting to decode routine at invalid rva.\n");
 				return;
 			}
-			if (m_decoder_context->relbr_table[rva])
-			{
+			//if (m_decoder_context->relbr_table[rva])
+			//{
 				//std::printf("Skipping decode on a proposed routine start that is actually just a function chunk. %X\n", rva);
-				return;
-			}
+			//	return;
+			//}
 
 			// Since this is only available for x64...
 			//
 			if constexpr (Addr_width == addr_width::x64)
 			{
-				if (m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_for_rva(rva).has_func_data())
+				if (m_decoder_context->binary_interface->data_table->unsafe_get_symbol_for_rva(rva).has_func_data())
 				{
 					e_runtime_func.set(m_decoder_context->binary_interface->mapped_image +
-						m_decoder_context->binary_interface->symbol_table->get_func_data(rva).runtime_function_rva);
+						m_decoder_context->binary_interface->data_table->get_func_data(rva).runtime_function_rva);
 
 					e_range_start = e_runtime_func.get_begin_address();
 					e_range_end = e_runtime_func.get_end_address();
@@ -893,16 +927,18 @@ namespace dasm
 			completed_routines.emplace_back();
 			current_routine = &completed_routines.back();
 			current_routine->original_entry_rva = rva;
-			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->symbol_table->unsafe_get_symbol_index_for_rva(rva);
+			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 
 			if (decode_block(rva) == current_routine->blocks.end())
 			{
+				completed_routines.pop_back();
 				++invalid_routine_count;
 				return;
 			}
 
 		}
 	};
+
 
 	template<addr_width::type Addr_width = addr_width::x64, uint8_t Thread_count = 1>
 	class dasm_t
@@ -913,9 +949,7 @@ namespace dasm
 
 		std::vector<thread_t<Addr_width> > m_threads;
 
-		std::atomic_bool* m_routine_lookup_table;
-
-		std::atomic_bool* m_relbr_table;
+		glt::Atomic_type* m_global_lookup_table;
 
 	public:
 
@@ -925,16 +959,13 @@ namespace dasm
 			: m_next_thread(0)
 		{
 			m_context = context;
-			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1);
-			m_routine_lookup_table = new std::atomic_bool[m_context->raw_data_size];
-			m_context->routine_table = m_routine_lookup_table;
-			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
-				m_routine_lookup_table[i] = false;
+			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1, true);
 
-			m_relbr_table = new std::atomic_bool[m_context->raw_data_size];
-			m_context->relbr_table = m_relbr_table;
+			m_global_lookup_table = new glt::Atomic_type[m_context->raw_data_size];
 			for (uint32_t i = 0; i < m_context->raw_data_size; i++)
-				m_relbr_table[i] = false;
+				m_global_lookup_table[i] = 0;
+
+			m_context->global_lookup_table = m_global_lookup_table;
 
 			m_threads.reserve(Thread_count * 2);
 			for (uint8_t i = 0; i < Thread_count; ++i)
@@ -942,20 +973,23 @@ namespace dasm
 		}
 		~dasm_t()
 		{
-			if (m_routine_lookup_table)
-				delete[] m_routine_lookup_table;
+			if (m_global_lookup_table)
+				delete[] m_global_lookup_table;
 		}
 
-		void add_routine(uint64_t routine_rva)
+		void add_routine(uint64_t routine_rva, bool is_call_target = false)
 		{
-			if (routine_rva && m_routine_lookup_table[routine_rva] || !m_context->binary_interface->symbol_table->is_executable(routine_rva))
+			if (!routine_rva || (m_global_lookup_table[routine_rva] & glt::is_routine) || !m_context->binary_interface->data_table->is_executable(routine_rva))
 			{
 				//printf("failed to add routine.\n");
 				return;
 			}
-			//printf("added routine.\n");
 
-			m_routine_lookup_table[routine_rva] = true;
+			//m_routine_lookup_table[routine_rva] = true;
+			m_global_lookup_table[routine_rva] |= glt::is_routine;
+
+			if (is_call_target)
+				m_global_lookup_table[routine_rva] |= glt::is_call_target;
 
 			m_threads[m_next_thread].queue_routine(routine_rva);
 			m_next_thread++;
@@ -985,10 +1019,10 @@ namespace dasm
 
 			// Union the repair and routine tables together so we know what needs to be removed
 			//
-			for (uint32_t i = 0; i < m_context->raw_data_size; ++i)
-			{
-				m_relbr_table[i] = (m_relbr_table[i] && m_routine_lookup_table[i]);
-			}
+			//for (uint32_t i = 0; i < m_context->raw_data_size; ++i)
+			//{
+			//	m_relbr_table[i] = (m_relbr_table[i] && m_routine_lookup_table[i]);
+			//}
 
 			for (auto& thread : m_threads)
 			{
@@ -1004,7 +1038,7 @@ namespace dasm
 				for (auto& block : routine.blocks)
 				{
 					block.symbol = block.instructions.front().my_symbol;
-					block.instructions.front().my_symbol = m_context->binary_interface->symbol_table->get_arbitrary_symbol_index();
+					block.instructions.front().my_symbol = m_context->binary_interface->data_table->get_arbitrary_symbol_index();
 				}
 			}
 		}

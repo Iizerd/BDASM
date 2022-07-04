@@ -162,6 +162,7 @@
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
     <ClInclude Include="size_casting.h" />
+    <ClInclude Include="linker.h" />
     <ClInclude Include="symbol.h" />
     <ClInclude Include="traits.h" />
   </ItemGroup>

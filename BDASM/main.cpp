@@ -75,7 +75,7 @@ int main(int argc, char** argv)
 		dasm::decoder_context_t<addr_width::x64> context(&binary);
 		context.settings.recurse_calls = true;
 
-		dasm::dasm_t<addr_width::x64, 8> disassembler(&context);
+		dasm::dasm_t<addr_width::x64, 1> disassembler(&context);
 
 		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
 		
@@ -101,6 +101,26 @@ int main(int argc, char** argv)
 
 		printf("Found %llu routines.\n", disassembler.completed_routines.size());
 
+		uint32_t block_count = 0;
+		uint32_t block_max = 0;
+		uint32_t rva_of_max;
+		for (auto& rou : disassembler.completed_routines)
+		{
+			for (auto& block : rou.blocks)
+			{
+				if (block.termination_type == dasm::block_t<>::termination_type_t::invalid)
+					std::printf("block terminatn invalid at %X %X\n", block.rva_start, block.rva_end);
+			}
+			block_count += rou.blocks.size();
+			if (rou.blocks.size() > block_max)
+			{
+				block_max = rou.blocks.size();
+				rva_of_max = rou.original_entry_rva;
+			}
+		}
+
+		std::printf("Found %u blocks. %u was the max in one func(%X)\n", block_count, block_max, rva_of_max);
+
 		std::set<uint64_t> rvaset;
 
 		/*for (auto& rou : disassembler.completed_routines)
@@ -116,19 +136,19 @@ int main(int argc, char** argv)
 		}*/
 
 
-		//std::ifstream filememe2("C:\\@\\Work\\BDASM\\x64\\Release\\test.txt");
-		//std::string temp = "";
-		//while (filememe2 >> temp)
-		//{
-		//	rvaset.insert(std::stoull(temp, nullptr, 16));
-		//}
+		std::ifstream filememe2("C:\\@\\Work\\BDASM\\x64\\Release\\test.txt");
+		std::string temp = "";
+		while (filememe2 >> temp)
+		{
+			rvaset.insert(std::stoull(temp, nullptr, 16));
+		}
 
-		//std::vector<uint64_t> sorted_rvas;
-		//for (auto& rou : disassembler.completed_routines)
-		//{
-		//	sorted_rvas.push_back(rou.original_entry_rva);
-		//	rvaset.erase(rou.original_entry_rva);
-		//}
+		std::vector<uint64_t> sorted_rvas;
+		for (auto& rou : disassembler.completed_routines)
+		{
+			sorted_rvas.push_back(rou.original_entry_rva);
+			rvaset.erase(rou.original_entry_rva);
+		}
 
 
 		//std::sort(std::begin(sorted_rvas), end(sorted_rvas));
@@ -138,12 +158,12 @@ int main(int argc, char** argv)
 		//rvasfile.close();
 
 
-		//for (auto rva : rvaset)
-		//{
-		//	std::printf("Rva: %X\n", rva);
-		//}
+		for (auto rva : rvaset)
+		{
+			std::printf("Rva: %X\n", rva);
+		}
 
-		//printf("total: %llu\n", rvaset.size());
+		printf("total: %llu\n", rvaset.size());
 
 		/*for (auto& rou : disassembler.completed_routines)
 		{
@@ -244,7 +264,7 @@ int main(int argc, char** argv)
 
 	////uint8_t bytes[] = { 0x31, 0xC0, 0x31, 0xC0, 0x75, 0x04, 0x09, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x21, 0xC0 };
 
-	//symbol_table_t sym_table;
+	//bin_data_table_t sym_table;
 	//x86_dasm_t<address_width::x64> dasm((uint8_t*)FileBuffer, FileLength, &sym_table);
 	//dasm.set_malformed_functions(false);
 	//dasm.set_recurse_calls(true);

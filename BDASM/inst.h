@@ -162,7 +162,7 @@ namespace dasm
 			}
 			return out_size;
 		}
-		uint32_t encode_to_binary(pex::binary_t<Addr_width>* binary, uint8_t* dest/*, symbol_table_t* symbol_table*/)
+		uint32_t encode_to_binary(pex::binary_t<Addr_width>* binary, uint8_t* dest/*, bin_data_table_t* data_table*/)
 		{
 			if (!is_encoder_request)
 				to_encoder_request();
@@ -177,7 +177,7 @@ namespace dasm
 			if (flags & inst_flag::rel_br)
 			{
 				int64_t ip = dest - binary->mapped_image + ilen;
-				int64_t br_disp = (int64_t)binary->symbol_table->get_symbol(used_symbol).address - ip;
+				int64_t br_disp = (int64_t)binary->data_table->get_symbol(used_symbol).address - ip;
 				if (!xed_patch_relbr(&decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst))))
 				{
 					std::printf("Failed to patch relbr.\n");
@@ -186,7 +186,7 @@ namespace dasm
 			else if (flags & inst_flag::disp)
 			{
 				int64_t ip = dest - binary->mapped_image + ilen;
-				int64_t br_disp = (int64_t)binary->symbol_table->get_symbol(used_symbol).address - ip;
+				int64_t br_disp = (int64_t)binary->data_table->get_symbol(used_symbol).address - ip;
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0))))
 				{
 					std::printf("Failed to patch displacement.\n");
@@ -194,7 +194,7 @@ namespace dasm
 			}
 			else if (flags & inst_flag::reloc_disp)
 			{
-				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->symbol_table->get_symbol(used_symbol).address);
+				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->data_table->get_symbol(used_symbol).address);
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
 				{
 					std::printf("Failed to patch reloc displacement.\n");
@@ -203,7 +203,7 @@ namespace dasm
 			}
 			else if (flags & inst_flag::reloc_imm)
 			{
-				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->symbol_table->get_symbol(used_symbol).address);
+				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->data_table->get_symbol(used_symbol).address);
 				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
 				{
 					std::printf("Failed to patch reloc imm.\n");

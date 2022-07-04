@@ -46,6 +46,9 @@
     <ClInclude Include="traits.h">
       <Filter>headers\utils</Filter>
     </ClInclude>
+    <ClInclude Include="linker.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

@@ -7,7 +7,7 @@
 
 #include "traits.h"
 
-namespace symbol_flag
+namespace bin_data_flag
 {
 	typedef uint64_t type;
 	constexpr type none = 0;
@@ -44,7 +44,7 @@ namespace symbol_flag
 // These symbols are basically an intermediate between two things. For example an instruction and another isntruction
 // One instruction sets the rva once its placed in its final destination, and the other reads the rva to calculate a needed delta 
 //
-class symbol_t
+class bin_data_t
 {
 public:
 
@@ -54,35 +54,35 @@ public:
 
 	// 
 	//
-	symbol_flag::type flags;
+	bin_data_flag::type flags;
 
-	explicit symbol_t(symbol_flag::type flags = 0, uint64_t raw_address = 0)
+	explicit bin_data_t(bin_data_flag::type flags = 0, uint64_t raw_address = 0)
 		: flags(flags), address(raw_address) {}
 
-	explicit symbol_t(symbol_t const& to_copy)
+	explicit bin_data_t(bin_data_t const& to_copy)
 		: flags(to_copy.flags), address(to_copy.address) {}
 
-	finline symbol_t& set_flag(symbol_flag::type value)
+	finline bin_data_t& set_flag(bin_data_flag::type value)
 	{
 		flags |= value;
 		return *this;
 	}
-	finline symbol_t& remove_flag(symbol_flag::type value)
+	finline bin_data_t& remove_flag(bin_data_flag::type value)
 	{
 		flags &= ~value;
 		return *this;
 	}
-	finline symbol_t& set_flag_abs(symbol_flag::type new_flags)
+	finline bin_data_t& set_flag_abs(bin_data_flag::type new_flags)
 	{
 		flags = new_flags;
 		return *this;
 	}
-	finline symbol_t& set_address(uint64_t new_addr)
+	finline bin_data_t& set_address(uint64_t new_addr)
 	{
 		address = new_addr;
 		return *this;
 	}
-	finline symbol_t& set_flag_and_address(symbol_flag::type flag, uint64_t addr)
+	finline bin_data_t& set_flag_and_address(bin_data_flag::type flag, uint64_t addr)
 	{
 		//flags |= flag;
 		address = addr;
@@ -90,27 +90,27 @@ public:
 	}
 	finline void mark_as_reloc(uint8_t reloc_type)
 	{
-		flags |= symbol_flag::reloc;
-		flags = ((flags & ~symbol_flag::reloc_type_mask) | (static_cast<symbol_flag::type>(reloc_type & 0xF) << symbol_flag::reloc_type_shift));
+		flags |= bin_data_flag::reloc;
+		flags = ((flags & ~bin_data_flag::reloc_type_mask) | (static_cast<bin_data_flag::type>(reloc_type & 0xF) << bin_data_flag::reloc_type_shift));
 	}
 	finline uint8_t get_reloc_type()
 	{
-		return ((flags & symbol_flag::reloc_type_mask) >> symbol_flag::reloc_type_shift);
+		return ((flags & bin_data_flag::reloc_type_mask) >> bin_data_flag::reloc_type_shift);
 	}
 
 	// Accessing function data
 	//
 	finline bool has_func_data()
 	{
-		return (flags & symbol_flag::func_data);
+		return (flags & bin_data_flag::func_data);
 	}
 	finline uint16_t get_func_data_idx()
 	{
-		return ((flags & symbol_flag::func_data_mask) >> symbol_flag::func_data_shift);
+		return ((flags & bin_data_flag::func_data_mask) >> bin_data_flag::func_data_shift);
 	}
 	finline void set_func_data_idx(uint16_t idx)
 	{
-		flags = ((flags & ~symbol_flag::func_data_mask) | (static_cast<symbol_flag::type>(idx) << symbol_flag::func_data_shift));
+		flags = ((flags & ~bin_data_flag::func_data_mask) | (static_cast<bin_data_flag::type>(idx) << bin_data_flag::func_data_shift));
 	}
 };
 
@@ -125,14 +125,14 @@ struct func_sym_data_t
 	{}
 };
 
-class symbol_table_t
+class bin_data_table_t
 {
 	uint32_t m_image_size;
 
-	symbol_t* m_image_table;
+	bin_data_t* m_image_table;
 
 	inline constexpr static uint32_t m_arbitrary_table_idx_offset = 0xFF000000;
-	std::vector<symbol_t> m_arbitrary_table;
+	std::vector<bin_data_t> m_arbitrary_table;
 
 	std::vector<func_sym_data_t> m_func_data;
 
@@ -142,23 +142,23 @@ class symbol_table_t
 	std::mutex m_lock;
 public:
 
-	symbol_table_t(uint32_t image_size, uint32_t arbitrary_table_start_size = 1000)
+	bin_data_table_t(uint32_t image_size, uint32_t arbitrary_table_start_size = 1000)
 		: m_image_size(image_size)
 	{
-		m_image_table = new symbol_t[image_size];
+		m_image_table = new bin_data_t[image_size];
 		for (uint32_t i = 0; i < image_size; i++)
 			m_image_table[i].set_address(i);
 
 		m_arbitrary_table.reserve(arbitrary_table_start_size);
 	}
-	~symbol_table_t()
+	~bin_data_table_t()
 	{
 		delete[] m_image_table;
 	}
 
 	void resize_image_table(uint32_t new_image_size)
 	{
-		symbol_t* new_image_table = new symbol_t[new_image_size];
+		bin_data_t* new_image_table = new bin_data_t[new_image_size];
 		uint32_t copy_size = new_image_size;
 		if (m_image_size < new_image_size)
 			copy_size = m_image_size;
@@ -176,7 +176,7 @@ public:
 		m_image_size = new_image_size;
 	}
 
-	ndiscard uint32_t get_symbol_index_for_rva(uint64_t address, symbol_flag::type flags = symbol_flag::none)
+	ndiscard uint32_t get_symbol_index_for_rva(uint64_t address, bin_data_flag::type flags = bin_data_flag::none)
 	{
 		if (address < m_arbitrary_table_idx_offset)
 		{
@@ -195,7 +195,7 @@ public:
 	// For symbols created after the fact, these are put in the arbitrary vector because
 	// they are not within the original binary. => dont have an rva.
 	//
-	ndiscard uint32_t get_arbitrary_symbol_index(symbol_flag::type flags = symbol_flag::none)
+	ndiscard uint32_t get_arbitrary_symbol_index(bin_data_flag::type flags = bin_data_flag::none)
 	{
 		std::lock_guard g(m_lock);
 		m_arbitrary_table.emplace_back(flags, 0);
@@ -204,7 +204,7 @@ public:
 
 	// Access any symbol, arbitrary or not.
 	//
-	ndiscard finline symbol_t& get_symbol(uint32_t symbol_index)
+	ndiscard finline bin_data_t& get_symbol(uint32_t symbol_index)
 	{
 		if (symbol_index < m_arbitrary_table_idx_offset)
 			return m_image_table[symbol_index];
@@ -217,23 +217,23 @@ public:
 	finline void set_symbol_addr(uint32_t symbol_index, uint64_t address)
 	{
 		if (symbol_index < m_arbitrary_table_idx_offset)
-			m_image_table[symbol_index].set_flag_and_address(symbol_flag::placed, address);
+			m_image_table[symbol_index].set_flag_and_address(bin_data_flag::placed, address);
 		else
-			m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].set_flag(symbol_flag::placed).set_address(address);
+			m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].set_flag(bin_data_flag::placed).set_address(address);
 	}
 
 	finline bool is_executable(uint32_t symbol_index)
 	{
 		if (symbol_index < m_arbitrary_table_idx_offset)
-			return (m_image_table[symbol_index].flags & symbol_flag::executable);
+			return (m_image_table[symbol_index].flags & bin_data_flag::executable);
 		else
-			return (m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].flags & symbol_flag::executable);
+			return (m_arbitrary_table[symbol_index - m_arbitrary_table_idx_offset].flags & bin_data_flag::executable);
 	}
 
 	finline bool inst_uses_reloc(uint32_t inst_rva, uint32_t inst_len, uint8_t& offset, uint8_t& type)
 	{
 		for (uint32_t i = inst_rva; i < inst_rva + inst_len; ++i)
-			if (m_image_table[i].flags & symbol_flag::reloc)
+			if (m_image_table[i].flags & bin_data_flag::reloc)
 			{
 				type = m_image_table[i].get_reloc_type();
 				offset = i;
@@ -244,7 +244,7 @@ public:
 
 	finline bool has_func_data(uint32_t inst_rva)
 	{
-		return m_image_table[inst_rva].flags & symbol_flag::func_data;
+		return m_image_table[inst_rva].flags & bin_data_flag::func_data;
 	}
 
 	finline func_sym_data_t& get_func_data(uint32_t inst_rva)
@@ -255,8 +255,8 @@ public:
 	finline void set_func_data_and_start(uint32_t inst_rva, uint32_t runtime_func_rva)
 	{
 		auto& sym = m_image_table[inst_rva];
-		sym.flags |= symbol_flag::function_start;
-		if (sym.flags & symbol_flag::func_data)
+		sym.flags |= bin_data_flag::function_start;
+		if (sym.flags & bin_data_flag::func_data)
 		{
 			m_func_data[sym.get_func_data_idx()] = { runtime_func_rva };
 		}
@@ -265,12 +265,12 @@ public:
 			auto idx = m_func_data.size();
 			m_func_data.emplace_back(runtime_func_rva);
 			sym.set_func_data_idx(idx);
-			sym.set_flag(symbol_flag::func_data);
+			sym.set_flag(bin_data_flag::func_data);
 		}
 	}
 
 
-	void unsafe_mark_range_as(uint32_t start, uint32_t size, symbol_flag::type flag)
+	void unsafe_mark_range_as(uint32_t start, uint32_t size, bin_data_flag::type flag)
 	{
 		uint32_t end = start + size;
 		for (uint32_t i = start; i < end; i++)
@@ -280,7 +280,7 @@ public:
 
 	// If we are in the binary itself then these are always valid so no need for more time with if
 	//
-	ndiscard finline uint32_t unsafe_get_symbol_index_for_rva(uint64_t address, symbol_flag::type flags = symbol_flag::none)
+	ndiscard finline uint32_t unsafe_get_symbol_index_for_rva(uint64_t address, bin_data_flag::type flags = bin_data_flag::none)
 	{
 		m_image_table[address].set_flag_and_address(flags, address);
 		return address;
@@ -288,7 +288,7 @@ public:
 
 	// Access symbols within the binary bounds without a check to make sure
 	//
-	ndiscard finline symbol_t& unsafe_get_symbol_for_rva(uint32_t symbol_index)
+	ndiscard finline bin_data_t& unsafe_get_symbol_for_rva(uint32_t symbol_index)
 	{
 		return m_image_table[symbol_index];
 	}
