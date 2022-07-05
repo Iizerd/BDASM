@@ -15,6 +15,7 @@ extern "C"
 #include "inst.h"
 #include "size_casting.h"
 #include "pex.h"
+#include "linker.h"
 
 namespace dasm
 {
@@ -62,6 +63,8 @@ namespace dasm
 		}settings;
 
 		pex::binary_t<Addr_width>* binary_interface;
+
+		linker_t* linker;
 
 		//std::atomic_bool* routine_table;
 
@@ -199,7 +202,7 @@ namespace dasm
 		// Any passes over these blocks that might edit instructions, no longer needs to
 		// update the symbol of the instructions...
 		//
-		uint32_t symbol;
+		uint32_t link;
 
 		enum class termination_type_t : uint8_t
 		{
@@ -212,17 +215,20 @@ namespace dasm
 		} termination_type;
 
 
-		explicit block_t()
-			: rva_start(0),
-			rva_end(0),
-			symbol(0),
-			termination_type(termination_type_t::invalid)
+		explicit block_t(std::list<block_t<Addr_width> >::iterator end)
+			: rva_start(0)
+			, rva_end(0)
+			, link(0)
+			, termination_type(termination_type_t::invalid)
+			, fallthrough_block(end)
+			, taken_block(end)
 		{}
 		block_t(block_t const& to_copy)
 			: rva_start(to_copy.rva_start)
 			, rva_end(to_copy.rva_end)
 			, fallthrough_block(to_copy.fallthrough_block)
-			, symbol(to_copy.symbol)
+			, taken_block(to_copy.taken_block)
+			, link(to_copy.link)
 			, termination_type(to_copy.termination_type)
 		{
 			instructions.insert(instructions.end(), to_copy.instructions.begin(), to_copy.instructions.end());
@@ -231,7 +237,8 @@ namespace dasm
 			: rva_start(to_move.rva_start)
 			, rva_end(to_move.rva_end)
 			, fallthrough_block(to_move.fallthrough_block)
-			, symbol(to_move.symbol)
+			, taken_block(to_move.taken_block)
+			, link(to_move.link)
 			, termination_type(to_move.termination_type)
 		{
 			instructions.splice(instructions.end(), to_move.instructions);
@@ -241,7 +248,8 @@ namespace dasm
 			rva_start = to_move.rva_start;
 			rva_end = to_move.rva_end;
 			fallthrough_block = to_move.fallthrough_block;
-			symbol = to_move.symbol;
+			taken_block = to_move.taken_block;
+			link = to_move.link;
 			termination_type = to_move.termination_type;
 			instructions.splice(instructions.end(), to_move.instructions);
 			return *this;
@@ -251,7 +259,7 @@ namespace dasm
 
 	// TODO: Write control flow following iterators
 	//
-	template<addr_width::type Addr_width = addr_width::x64, uint32_t Sym_request_count = 0x1000>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class routine_t
 	{
 	public:
@@ -338,9 +346,9 @@ namespace dasm
 		};*/
 		std::list<block_t<Addr_width> > blocks;
 
-		// Rva in original binary
-		uint64_t original_entry_rva;
-		uint32_t entry_symbol;
+		// This is the rva in original binary
+		//
+		uint32_t entry_link;
 		void promote_relbrs()
 		{
 			for (auto& block : blocks)
@@ -367,7 +375,41 @@ namespace dasm
 				}
 			}
 		}
+		void print_blocks()
+		{
+			for (auto& block : blocks)
+			{
+				std::printf("Block: %X [%X:%X]\n", block.link, block.rva_start, block.rva_end);
+				for (auto& inst : block.instructions)
+					std::printf("\t%08X %s\n", inst.my_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+				
+				switch (block.termination_type)
+				{
+				case dasm::block_t<>::termination_type_t::invalid:
+					std::printf("Invalid block termination.\n\n");
+					break;
+				case dasm::block_t<>::termination_type_t::returns:
+					std::printf("Block returns.\n\n");
+					break;
+				case dasm::block_t<>::termination_type_t::unconditional_br:
+					std::printf("Unconditional branch: %X [%X]\n\n", block.taken_block->link, block.taken_block->rva_start);
+					break;
+				case dasm::block_t<>::termination_type_t::conditional_br:
+					std::printf("Conditional Branch:\n -> Taken: %X [%X]\n -> ", block.taken_block->link, block.taken_block->rva_start);
+						__fallthrough;
+				case dasm::block_t<>::termination_type_t::fallthrough:
+					std::printf("Fallthrough %X [%X]\n\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);
+					break;
+				case dasm::block_t<>::termination_type_t::undetermined_unconditional_br:
+					std::printf("Undetermined unconditional branch.\n\n");
+					break;
+				}
+				
+				/*if (block.termination_type == dasm::block_t<>::termination_type_t::fallthrough)
+					std::printf("Fallthrough %08X [%X]\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);*/
 
+			}
+		}
 		/*iterator begin()
 		{
 			for (auto it = blocks.begin(); it != blocks.end(); ++it)
@@ -426,11 +468,11 @@ namespace dasm
 		uint32_t invalid_routine_count;
 
 		explicit thread_t(decoder_context_t<Addr_width>* context)
-			: m_decoder_context(context),
-			m_signal_start(false),
-			m_signal_shutdown(false),
-			m_lookup_table(m_decoder_context->raw_data_size),
-			e_runtime_func(nullptr)
+			: m_decoder_context(context)
+			, m_signal_start(false)
+			, m_signal_shutdown(false)
+			, m_lookup_table(m_decoder_context->raw_data_size)
+			, e_runtime_func(nullptr)
 		{
 			m_thread = new std::thread(&thread_t::run, this);
 		}
@@ -467,12 +509,17 @@ namespace dasm
 			m_queued_routines.emplace_back(routine_rva);
 		}
 
-		uint32_t get_link()
+		uint32_t get_a_link()
 		{
 			if (!m_link_store.size())
 			{
-
+				uint32_t base = m_decoder_context->linker->get_link_bundle_base(0x1000);
+				auto list = std::ranges::iota_view(base, base + 0x1000);
+				m_link_store.insert(m_link_store.end(), list.begin(), list.end());
 			}
+			auto res = m_link_store.back();
+			m_link_store.pop_back();
+			return res;
 		}
 
 		void start()
@@ -496,7 +543,7 @@ namespace dasm
 				{
 					completed_routines.erase(std::remove_if(completed_routines.begin(), completed_routines.end(), [i](routine_t<Addr_width> const& routine) -> bool
 						{
-							return (routine.original_entry_rva == static_cast<uint32_t>(i));
+							return (routine.entry_link == static_cast<uint32_t>(i));
 						}),
 						completed_routines.end()
 							);
@@ -535,7 +582,7 @@ namespace dasm
 		template<typename... Args>
 		void log_error(const char* format, Args... args)
 		{
-			std::printf("ERROR[%08X] ", static_cast<uint32_t>(current_routine->original_entry_rva));
+			std::printf("ERROR[%08X] ", static_cast<uint32_t>(current_routine->entry_link));
 			std::printf(format, args...);
 		}
 
@@ -551,14 +598,25 @@ namespace dasm
 					{
 						if (inst_it->original_rva == rva)
 						{
-							// Return if this shit already at the start of a block nameen?
+							// Return if this already at the start of a block nameen?
 							//
 							if (inst_it == block_it->instructions.begin())
 								return block_it; 
 
 							// Otherwise, create a new block and fill it with all instructions in the current block up to rva.
 							//
-							auto& new_block = current_routine->blocks.emplace_front();
+							auto& new_block = current_routine->blocks.emplace_front(current_routine->blocks.end());
+							auto new_block_it = current_routine->blocks.begin();
+
+							// Update any other blocks that may have used this blocks iterator
+							//
+							for (auto& block : current_routine->blocks)
+							{
+								if (block.fallthrough_block == block_it)
+									block.fallthrough_block = new_block_it;
+								if (block.taken_block == block_it)
+									block.taken_block = block_it;
+							}
 
 							new_block.rva_start = block_it->rva_start;
 							new_block.rva_end = rva;
@@ -567,6 +625,7 @@ namespace dasm
 							new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, block_it->instructions.begin(), inst_it);
 							
 							block_it->rva_start = rva;
+							
 							return block_it;
 						}
 					}
@@ -578,7 +637,7 @@ namespace dasm
 		}
 		std::list<block_t<Addr_width> >::iterator decode_block(uint64_t rva)
 		{
-			current_routine->blocks.emplace_front().rva_start = rva;
+			current_routine->blocks.emplace_front(current_routine->blocks.end()).rva_start = rva;
 			auto cur_block_it = current_routine->blocks.begin();
 			cur_block_it->fallthrough_block = current_routine->blocks.end();
 			cur_block_it->taken_block = current_routine->blocks.end();
@@ -597,6 +656,7 @@ namespace dasm
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
 				inst.original_rva = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
+				inst.my_link = get_a_link();
 
 				m_lookup_table.update_inst(rva, ilen);
 
@@ -614,7 +674,7 @@ namespace dasm
 						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
 						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 						{
-							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
+							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
 							);*/
 							inst.flags |= inst_flag::disp;
@@ -624,7 +684,7 @@ namespace dasm
 						{
 							if (has_reloc)
 							{
-								inst.used_symbol = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
+								inst.used_link = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 									m_decoder_context->binary_interface->optional_header.get_image_base();
 								/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
@@ -638,7 +698,7 @@ namespace dasm
 					else if (has_reloc && XED_OPERAND_IMM0 == operand_name &&
 						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
 					{
-						inst.used_symbol = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
+						inst.used_link = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 							m_decoder_context->binary_interface->optional_header.get_image_base(); 
 						/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
@@ -668,7 +728,7 @@ namespace dasm
 						return current_routine->blocks.end();
 					}
 
-					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
+					//inst.used_link = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
 					inst.flags |= inst_flag::rel_br;
 
 					if (!m_lookup_table.is_inst_start(taken_rva))
@@ -687,6 +747,7 @@ namespace dasm
 							return current_routine->blocks.end();
 						}
 					}
+					inst.used_link = cur_block_it->taken_block->instructions.begin()->my_link;
 
 					//m_decoder_context->relbr_table[taken_rva] = true;
 					m_decoder_context->global_lookup_table[taken_rva] |= glt::is_relbr_target;
@@ -724,7 +785,7 @@ namespace dasm
 						log_error("Unhandled inst at%08X XED_IFORM_JMP_GPRv.\n", rva - ilen);
 						return current_routine->blocks.end();
 					case XED_IFORM_JMP_MEMv:
-						if (!inst.used_symbol)
+						if (!inst.used_link)
 						{
 							log_error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 							return current_routine->blocks.end();
@@ -743,47 +804,14 @@ namespace dasm
 							log_error("Unconditional branch to invalid rva.\n");
 							goto ExitInstDecodeLoop;
 						}
-						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						//inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 
 						// REWRITE ME
 						if (!m_lookup_table.is_inst_start(dest_rva))
 						{
-							// Here i will try to detect odd function calls that use a jump instead. 
-							//
-							//if constexpr (Addr_width == addr_width::x64)
-							//{
-							//	if (dest_rva < e_range_start || dest_rva >= e_range_end)
-							//	{
-							//		// No func data, this is a tail call to a leaf.
-							//		//
-							//		if (!m_decoder_context->binary_interface->data_table->has_func_data(dest_rva))
-							//		{
-							//			m_decoder_context->report_routine_rva(dest_rva);
-							//			goto ExitInstDecodeLoop;
-							//		}
-							//		else
-							//		{
-							//			// Not a leaf? lets see if the unwind info is the same
-							//			// If it is, this is just an oddly formed function
-							//			//
-							//			auto runtime_func = m_decoder_context->binary_interface->get_it<pex::image_runtime_function_it_t>(
-							//				m_decoder_context->binary_interface->data_table->get_func_data(rva).runtime_function_rva
-							//			);
-							//			// This relies on the fact that multiple runtime function structures for a single func will
-							//			// use the same unwind info structure, and the rvas will be the same
-							//			//
-							//			if (runtime_func.get_unwindw_info_address() != e_unwind_info)
-							//			{
-							//				m_decoder_context->report_routine_rva(dest_rva);
-							//				goto ExitInstDecodeLoop;
-							//			}
-							//		}
-							//	}
-							//}
-
-							if (decode_block(dest_rva) == current_routine->blocks.end())
+							if ((cur_block_it->taken_block = decode_block(dest_rva)) == current_routine->blocks.end())
 							{
 								log_error("Failed to decode a new block for un-conditional branch at %p\n", rva - ilen);
 								return current_routine->blocks.end();
@@ -799,6 +827,7 @@ namespace dasm
 							}
 						}
 
+						inst.used_link = cur_block_it->taken_block->instructions.begin()->my_link;
 
 						//m_decoder_context->relbr_table[dest_rva] = true;
 						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_relbr_target;
@@ -824,7 +853,7 @@ namespace dasm
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
-						if (!inst.used_symbol)
+						if (!inst.used_link)
 						{
 							log_error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
 							return current_routine->blocks.end();
@@ -846,7 +875,7 @@ namespace dasm
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 
-						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
+						inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
 
 						if (!m_lookup_table.is_self(dest_rva))
@@ -866,11 +895,11 @@ namespace dasm
 				{
 					cur_block_it->termination_type = block_t<>::termination_type_t::returns;
 
-					break;
+					goto ExitInstDecodeLoop;
 				}
 				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
 				{
-					break;
+					goto ExitInstDecodeLoop;
 				}
 			}
 
@@ -909,25 +938,9 @@ namespace dasm
 			//	return;
 			//}
 
-			// Since this is only available for x64...
-			//
-			if constexpr (Addr_width == addr_width::x64)
-			{
-				if (m_decoder_context->binary_interface->data_table->unsafe_get_symbol_for_rva(rva).has_func_data())
-				{
-					e_runtime_func.set(m_decoder_context->binary_interface->mapped_image +
-						m_decoder_context->binary_interface->data_table->get_func_data(rva).runtime_function_rva);
-
-					e_range_start = e_runtime_func.get_begin_address();
-					e_range_end = e_runtime_func.get_end_address();
-					e_unwind_info = e_runtime_func.get_unwindw_info_address();
-				}
-			}
-
 			completed_routines.emplace_back();
 			current_routine = &completed_routines.back();
-			current_routine->original_entry_rva = rva;
-			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
+			current_routine->entry_link = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 
 			if (decode_block(rva) == current_routine->blocks.end())
 			{
@@ -936,6 +949,11 @@ namespace dasm
 				return;
 			}
 
+			for (auto& block : current_routine->blocks)
+			{
+				block.link = block.instructions.front().my_link;
+				block.instructions.front().my_link = m_decoder_context->linker->allocate_link();
+			}
 		}
 	};
 
@@ -1017,13 +1035,6 @@ namespace dasm
 			while (thread_t<Addr_width>::queued_routine_count)
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-			// Union the repair and routine tables together so we know what needs to be removed
-			//
-			//for (uint32_t i = 0; i < m_context->raw_data_size; ++i)
-			//{
-			//	m_relbr_table[i] = (m_relbr_table[i] && m_routine_lookup_table[i]);
-			//}
-
 			for (auto& thread : m_threads)
 			{
 				// Repair could be done in parallel...
@@ -1033,14 +1044,6 @@ namespace dasm
 				thread.stop();
 			}
 
-			for (auto& routine : completed_routines)
-			{
-				for (auto& block : routine.blocks)
-				{
-					block.symbol = block.instructions.front().my_symbol;
-					block.instructions.front().my_symbol = m_context->binary_interface->data_table->get_arbitrary_symbol_index();
-				}
-			}
 		}
 
 		uint32_t count_instructions()

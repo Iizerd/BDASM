@@ -161,7 +161,7 @@
 //						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
 //						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 //						{
-//							inst.used_symbol = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
+//							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
 //							);*/
 //							inst.flags |= inst_flag::disp;
@@ -171,7 +171,7 @@
 //						{
 //							if (has_reloc)
 //							{
-//								inst.used_symbol = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
+//								inst.used_link = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 //									m_decoder_context->binary_interface->optional_header.get_image_base();
 //								/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
@@ -185,7 +185,7 @@
 //					else if (has_reloc && XED_OPERAND_IMM0 == operand_name &&
 //						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
 //					{
-//						inst.used_symbol = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
+//						inst.used_link = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 //							m_decoder_context->binary_interface->optional_header.get_image_base();
 //						/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
@@ -215,7 +215,7 @@
 //						return current_routine->blocks.end();
 //					}
 //
-//					inst.used_symbol = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
+//					inst.used_link = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
 //					inst.flags |= inst_flag::rel_br;
 //
 //					if (!m_lookup_table.is_inst_start(taken_rva))
@@ -253,7 +253,7 @@
 //						std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_GPRv.\n", rva - ilen);
 //						return current_routine->blocks.end();
 //					case XED_IFORM_JMP_MEMv:
-//						if (!inst.used_symbol)
+//						if (!inst.used_link)
 //						{
 //							std::printf("Unhandled inst[%08X]: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 //							return current_routine->blocks.end();
@@ -271,7 +271,7 @@
 //							std::printf("Unconditional branch to invalid rva.\n");
 //							goto ExitInstDecodeLoop;
 //						}
-//						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
+//						inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 //						inst.flags |= inst_flag::rel_br;
 //
 //
@@ -347,7 +347,7 @@
 //					case XED_IFORM_CALL_NEAR_MEMv:
 //						// Import or call to absolute address...
 //						//
-//						if (!inst.used_symbol)
+//						if (!inst.used_link)
 //						{
 //							std::printf("Unhandled inst[%08X]: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
 //							return current_routine->blocks.end();
@@ -367,7 +367,7 @@
 //
 //						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
 //
-//						inst.used_symbol = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
+//						inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 //						inst.flags |= inst_flag::rel_br;
 //
 //						if (!m_lookup_table.is_self(dest_rva))
@@ -451,7 +451,7 @@
 //			}
 //
 //			current_routine->original_entry_rva = rva;
-//			current_routine->entry_symbol = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
+//			current_routine->entry_link = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 //		}
 //	};
 //

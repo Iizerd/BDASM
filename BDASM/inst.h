@@ -28,7 +28,7 @@ namespace dasm
 
 		// This is for instructions that have relocs inside of them do these even exist?
 		// Seems that encoding mov rax,[64b] is valid instruction so i assume so?
-		// used_symbol is for the rva they pointed to in the original binary
+		// used_link is for the rva they pointed to in the original binary
 		//
 		constexpr type reloc_disp = (1 << 2);	// Form:	mov		rax,[base+rva]
 		constexpr type reloc_imm = (1 << 3);	// Form:	movabs	rax,base+rva
@@ -42,21 +42,17 @@ namespace dasm
 	public:
 		inst_flag::type flags;
 
-		union
-		{
-			// Symbol this instruction is responsible for setting the RVA of.
-			//
-			uint32_t my_symbol;
-
-			// Used by the disassembler since the symbol of an original instruction
-			// is its rva in the binary.
-			//
-			uint32_t original_rva;
-		};
-
-		// Symbol of target, used for calcuating deltas.
+		// 
 		//
-		uint32_t used_symbol;
+		uint32_t original_rva;
+
+		// Link this instruction is responsible for setting the RVA of.
+		//
+		uint32_t my_link;
+
+		// Link of target, used for calcuating deltas.
+		//
+		uint32_t used_link;
 
 		// Tells the state of the following xed_decoded_inst_t
 		//
@@ -77,15 +73,15 @@ namespace dasm
 
 		explicit inst_t()
 			: flags(0), 
-			my_symbol(0), 
-			used_symbol(0), 
+			my_link(0), 
+			used_link(0), 
 			is_encoder_request(false)
 		{}
 
 		explicit inst_t(inst_t const& to_copy)
 			: flags(to_copy.flags), 
-			my_symbol(to_copy.my_symbol), 
-			used_symbol(to_copy.used_symbol), 
+			my_link(to_copy.my_link), 
+			used_link(to_copy.used_link), 
 			is_encoder_request(to_copy.is_encoder_request),
 			decoded_inst(to_copy.decoded_inst)
 		{ }
@@ -177,7 +173,7 @@ namespace dasm
 			if (flags & inst_flag::rel_br)
 			{
 				int64_t ip = dest - binary->mapped_image + ilen;
-				int64_t br_disp = (int64_t)binary->data_table->get_symbol(used_symbol).address - ip;
+				int64_t br_disp = (int64_t)binary->data_table->get_symbol(used_link).address - ip;
 				if (!xed_patch_relbr(&decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst))))
 				{
 					std::printf("Failed to patch relbr.\n");
@@ -186,7 +182,7 @@ namespace dasm
 			else if (flags & inst_flag::disp)
 			{
 				int64_t ip = dest - binary->mapped_image + ilen;
-				int64_t br_disp = (int64_t)binary->data_table->get_symbol(used_symbol).address - ip;
+				int64_t br_disp = (int64_t)binary->data_table->get_symbol(used_link).address - ip;
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0))))
 				{
 					std::printf("Failed to patch displacement.\n");
@@ -194,7 +190,7 @@ namespace dasm
 			}
 			else if (flags & inst_flag::reloc_disp)
 			{
-				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->data_table->get_symbol(used_symbol).address);
+				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->data_table->get_symbol(used_link).address);
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
 				{
 					std::printf("Failed to patch reloc displacement.\n");
@@ -203,7 +199,7 @@ namespace dasm
 			}
 			else if (flags & inst_flag::reloc_imm)
 			{
-				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->data_table->get_symbol(used_symbol).address);
+				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<uint32_t>(binary->data_table->get_symbol(used_link).address);
 				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
 				{
 					std::printf("Failed to patch reloc imm.\n");
@@ -230,9 +226,11 @@ namespace dasm
 		
 		void print_details() const
 		{
-			std::printf("[0x%08X]\t%u\t%u\t%s\n", /*rva*/0, my_symbol, used_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&decoded_inst)));
+			std::printf("[0x%08X]\t%u\t%u\t%s\n", /*rva*/0, my_link, used_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&decoded_inst)));
 		}
 	};
+
+	auto meme = sizeof(inst_t<addr_width::x64>);
 
 	using inst32_t = inst_t<addr_width::x86>;
 	using inst64_t = inst_t<addr_width::x64>;

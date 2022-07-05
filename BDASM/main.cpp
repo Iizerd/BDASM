@@ -74,8 +74,9 @@ int main(int argc, char** argv)
 
 		dasm::decoder_context_t<addr_width::x64> context(&binary);
 		context.settings.recurse_calls = true;
+		context.linker = new dasm::linker_t(binary.optional_header.get_size_of_image(), 0x10000);
 
-		dasm::dasm_t<addr_width::x64, 1> disassembler(&context);
+		dasm::dasm_t<addr_width::x64, 8> disassembler(&context);
 
 		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
 		
@@ -95,9 +96,13 @@ int main(int argc, char** argv)
 			count++;
 		}
 		printf("added %u runtime functions\n", count);
-
+		auto start_time = std::chrono::high_resolution_clock::now();
 		disassembler.run();
 		disassembler.wait_for_completion();
+
+		auto time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time);
+
+		printf("Took %ums\n", time.count());
 
 		printf("Found %llu routines.\n", disassembler.completed_routines.size());
 
@@ -106,16 +111,16 @@ int main(int argc, char** argv)
 		uint32_t rva_of_max;
 		for (auto& rou : disassembler.completed_routines)
 		{
-			for (auto& block : rou.blocks)
+			/*for (auto& block : rou.blocks)
 			{
 				if (block.termination_type == dasm::block_t<>::termination_type_t::invalid)
 					std::printf("block terminatn invalid at %X %X\n", block.rva_start, block.rva_end);
-			}
+			}*/
 			block_count += rou.blocks.size();
 			if (rou.blocks.size() > block_max)
 			{
 				block_max = rou.blocks.size();
-				rva_of_max = rou.original_entry_rva;
+				rva_of_max = rou.entry_link;
 			}
 		}
 
@@ -136,19 +141,19 @@ int main(int argc, char** argv)
 		}*/
 
 
-		std::ifstream filememe2("C:\\@\\Work\\BDASM\\x64\\Release\\test.txt");
-		std::string temp = "";
-		while (filememe2 >> temp)
-		{
-			rvaset.insert(std::stoull(temp, nullptr, 16));
-		}
+		//std::ifstream filememe2("C:\\@\\Work\\BDASM\\x64\\Release\\test.txt");
+		//std::string temp = "";
+		//while (filememe2 >> temp)
+		//{
+		//	rvaset.insert(std::stoull(temp, nullptr, 16));
+		//}
 
-		std::vector<uint64_t> sorted_rvas;
-		for (auto& rou : disassembler.completed_routines)
-		{
-			sorted_rvas.push_back(rou.original_entry_rva);
-			rvaset.erase(rou.original_entry_rva);
-		}
+		//std::vector<uint64_t> sorted_rvas;
+		//for (auto& rou : disassembler.completed_routines)
+		//{
+		//	sorted_rvas.push_back(rou.entry_link);
+		//	rvaset.erase(rou.entry_link);
+		//}
 
 
 		//std::sort(std::begin(sorted_rvas), end(sorted_rvas));
@@ -158,16 +163,16 @@ int main(int argc, char** argv)
 		//rvasfile.close();
 
 
-		for (auto rva : rvaset)
+		/*for (auto rva : rvaset)
 		{
 			std::printf("Rva: %X\n", rva);
-		}
+		}*/
 
 		printf("total: %llu\n", rvaset.size());
 
 		/*for (auto& rou : disassembler.completed_routines)
 		{
-			if (rou.entry_symbol == 0x1030)
+			if (rou.entry_link == 0x1030)
 			{
 				rou.blocks.sort([](dasm::block_t<addr_width::x64> const& l, dasm::block_t<addr_width::x64> const& r)
 					{
@@ -187,19 +192,12 @@ int main(int argc, char** argv)
 
 		auto& routine = disassembler.completed_routines.front();
 
-		/*routine.blocks.sort([](dasm::block_t<addr_width::x64> const& l, dasm::block_t<addr_width::x64> const& r)
+		routine.blocks.sort([](dasm::block_t<addr_width::x64> const& l, dasm::block_t<addr_width::x64> const& r)
 			{
 				return (l.rva_start < r.rva_start);
 			});
 		printf("Found main:\n");
-		for (auto& blo : routine.blocks)
-		{
-			std::printf("Block: %08X %X %X\n", blo.symbol, blo.rva_start, blo.rva_end);
-			for (auto& inst : blo.instructions)
-				std::printf("\t%08X %s\n",inst.my_symbol, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
-			if (blo.fallthrough_block != routine.blocks.end())
-				std::printf("Fallthrough %X %08X\n", blo.fallthrough_block->rva_start, blo.fallthrough_block->symbol);
-		}*/
+		//routine.print_blocks();
 		uint32_t i = 0;
 
 		//routine.blocks.front().clear();
@@ -215,7 +213,7 @@ int main(int argc, char** argv)
 			for (auto& inst : block.instructions)
 				i++;
 		// SHOULD SEE 98 instructions
-		printf("%u instructions at %X\n", i, routine.entry_symbol);
+		printf("%u instructions at %X\n", i, routine.entry_link);
 
 	}
 	else
