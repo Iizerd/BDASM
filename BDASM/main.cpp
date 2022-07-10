@@ -38,6 +38,15 @@ int main(int argc, char** argv)
 {
 	xed_tables_init();
 
+
+	//uint8_t memes[] = { 0x48, 0x81, 0xEC, 0xB8, 0x22, 0x00, 0x00 };
+
+	//dasm::inst64_t inst;
+	//inst.decode(memes, sizeof(memes));
+	//std::printf("iform is %s\n", xed_iform_enum_t2str(xed_decoded_inst_get_iform_enum(&inst.decoded_inst)));
+	//std::printf("signed = %d\n", xed_decoded_inst_get_immediate_is_signed(&inst.decoded_inst));
+
+	//return 1;
 	std::string binary_path = image_name;
 
 	if (argc == 2)

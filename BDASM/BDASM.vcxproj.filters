@@ -31,7 +31,7 @@
     <ClInclude Include="dasm2.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
-    <ClInclude Include="obf.h">
+    <ClInclude Include="obf_structures.h">
       <Filter>headers\obfuscator</Filter>
     </ClInclude>
     <ClInclude Include="flags.h">
@@ -47,6 +47,21 @@
       <Filter>headers\utils</Filter>
     </ClInclude>
     <ClInclude Include="linker.h">
+      <Filter>headers\dasm</Filter>
+    </ClInclude>
+    <ClInclude Include="emu.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="mba.h">
+      <Filter>headers\obfuscator\passes</Filter>
+    </ClInclude>
+    <ClInclude Include="stack_allocation.h">
+      <Filter>headers\obfuscator\passes</Filter>
+    </ClInclude>
+    <ClInclude Include="obf.h">
+      <Filter>headers\obfuscator</Filter>
+    </ClInclude>
+    <ClInclude Include="stack_analysis.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
   </ItemGroup>
@@ -72,10 +87,18 @@
     <Filter Include="headers\utils">
       <UniqueIdentifier>{16f57466-8880-4c24-918d-0ea63aa306b9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="headers\obfuscator\passes">
+      <UniqueIdentifier>{98d91127-8483-46b5-beca-2eb974560df8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Testing</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="pi_blocks.h">
+      <Filter>headers\obfuscator\passes</Filter>
+    </None>
   </ItemGroup>
 </Project>

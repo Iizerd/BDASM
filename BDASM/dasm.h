@@ -204,6 +204,10 @@ namespace dasm
 		//
 		uint32_t link;
 
+		// This is a visited counter that comes in handy when obfuscating
+		//
+		uint32_t visited;
+
 		enum class termination_type_t : uint8_t
 		{
 			invalid,
@@ -255,6 +259,50 @@ namespace dasm
 			return *this;
 		}
 
+		// This makes recursively following control flow very simple
+		//
+		template<typename Function, typename... Params>
+		void invoke_for_next(Function func, Params... params)
+		{
+			switch (termination_type)
+			{
+			case termination_type_t::invalid:
+			case termination_type_t::returns:
+				break;
+
+			case termination_type_t::unconditional_br:
+				func(taken_block, params...);
+				break;
+
+			case termination_type_t::conditional_br:
+				func(taken_block, params...);
+				[[fallthrough]];
+			case termination_type_t::fallthrough:
+				func(fallthrough_block, params...);
+				break;
+
+			case termination_type_t::undetermined_unconditional_br:
+				break;
+			}
+		}
+
+	};
+
+	// Simple way to represent an instruction and the block its in
+	//
+	template<addr_width::type Addr_width = addr_width::x64>
+	struct inst_descriptor_t
+	{
+		std::list<block_t<Addr_width> >::iterator block;
+		inst_list_t<Addr_width>::iterator inst;
+
+		inst_descriptor_t(
+			std::list<block_t<Addr_width> >::iterator block_iterator, 
+			inst_list_t<Addr_width>::iterator inst_iterator
+		)
+			: block(block_iterator)
+			, inst(inst_iterator)
+		{}
 	};
 
 	// TODO: Write control flow following iterators
@@ -349,6 +397,12 @@ namespace dasm
 		// This is the rva in original binary
 		//
 		uint32_t entry_link;
+		std::list<block_t<Addr_width> >::iterator entry_block;
+		void reset_visited()
+		{
+			for (auto& block : blocks)
+				block.visited = 0;
+		}
 		void promote_relbrs()
 		{
 			for (auto& block : blocks)
@@ -396,7 +450,7 @@ namespace dasm
 					break;
 				case dasm::block_t<>::termination_type_t::conditional_br:
 					std::printf("Conditional Branch:\n -> Taken: %X [%X]\n -> ", block.taken_block->link, block.taken_block->rva_start);
-						__fallthrough;
+					[[fallthrough]];
 				case dasm::block_t<>::termination_type_t::fallthrough:
 					std::printf("Fallthrough %X [%X]\n\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);
 					break;
@@ -410,6 +464,7 @@ namespace dasm
 
 			}
 		}
+
 		/*iterator begin()
 		{
 			for (auto it = blocks.begin(); it != blocks.end(); ++it)
@@ -430,16 +485,16 @@ namespace dasm
 		//
 		routine_t<Addr_width>* current_routine;
 
-		// If this function starts in an seh block(RUNTIME_FUNCTION), it is described here
-		// However functions, as we see in dxgkrnl.sys, can be scattered about and have
-		// multiple blocks in different places. Thus having multiple RUNTIME_FUNCTION
-		// entries. So we must treat the bounds specified in RUNTIME_FUNCTION as weak bounds
-		// that can be steped outside of if deemed necessary.
-		//
-		uint64_t e_range_start;
-		uint64_t e_range_end;
-		uint64_t e_unwind_info; // rva
-		pex::image_runtime_function_it_t e_runtime_func;
+		//// If this function starts in an seh block(RUNTIME_FUNCTION), it is described here
+		//// However functions, as we see in dxgkrnl.sys, can be scattered about and have
+		//// multiple blocks in different places. Thus having multiple RUNTIME_FUNCTION
+		//// entries. So we must treat the bounds specified in RUNTIME_FUNCTION as weak bounds
+		//// that can be steped outside of if deemed necessary.
+		////
+		//uint64_t e_range_start;
+		//uint64_t e_range_end;
+		//uint64_t e_unwind_info; // rva
+		//pex::image_runtime_function_it_t e_runtime_func;
 
 
 		std::thread* m_thread;
@@ -472,13 +527,11 @@ namespace dasm
 			, m_signal_start(false)
 			, m_signal_shutdown(false)
 			, m_lookup_table(m_decoder_context->raw_data_size)
-			, e_runtime_func(nullptr)
 		{
 			m_thread = new std::thread(&thread_t::run, this);
 		}
 		explicit thread_t(thread_t const& to_copy)
-			: m_lookup_table(to_copy.m_decoder_context->raw_data_size),
-			e_runtime_func(to_copy.e_runtime_func.get())
+			: m_lookup_table(to_copy.m_decoder_context->raw_data_size)
 		{
 			std::printf("Copy constructor called. This is bad.\n");
 		}
@@ -580,7 +633,7 @@ namespace dasm
 		}
 
 		template<typename... Args>
-		void log_error(const char* format, Args... args)
+		finline void log_error(const char* format, Args... args)
 		{
 			std::printf("ERROR[%08X] ", static_cast<uint32_t>(current_routine->entry_link));
 			std::printf(format, args...);
@@ -932,17 +985,12 @@ namespace dasm
 				std::printf("Attempting to decode routine at invalid rva.\n");
 				return;
 			}
-			//if (m_decoder_context->relbr_table[rva])
-			//{
-				//std::printf("Skipping decode on a proposed routine start that is actually just a function chunk. %X\n", rva);
-			//	return;
-			//}
 
 			completed_routines.emplace_back();
 			current_routine = &completed_routines.back();
 			current_routine->entry_link = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 
-			if (decode_block(rva) == current_routine->blocks.end())
+			if ((current_routine->entry_block = decode_block(rva)) == current_routine->blocks.end())
 			{
 				completed_routines.pop_back();
 				++invalid_routine_count;
@@ -975,8 +1023,8 @@ namespace dasm
 
 		explicit dasm_t(decoder_context_t<Addr_width>* context)
 			: m_next_thread(0)
+			, m_context(context)
 		{
-			m_context = context;
 			m_context->report_routine_rva = std::bind(&dasm_t::add_routine, this, std::placeholders::_1, true);
 
 			m_global_lookup_table = new glt::Atomic_type[m_context->raw_data_size];

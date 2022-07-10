@@ -72,18 +72,19 @@ namespace dasm
 		}additional_data;
 
 		explicit inst_t()
-			: flags(0), 
-			my_link(0), 
-			used_link(0), 
-			is_encoder_request(false)
+			: flags(0)
+			, original_rva(0)
+			, my_link(0)
+			, used_link(0)
+			, is_encoder_request(false)
 		{}
 
 		explicit inst_t(inst_t const& to_copy)
-			: flags(to_copy.flags), 
-			my_link(to_copy.my_link), 
-			used_link(to_copy.used_link), 
-			is_encoder_request(to_copy.is_encoder_request),
-			decoded_inst(to_copy.decoded_inst)
+			: flags(to_copy.flags) 
+			, my_link(to_copy.my_link)
+			, used_link(to_copy.used_link)
+			, is_encoder_request(to_copy.is_encoder_request)
+			, decoded_inst(to_copy.decoded_inst)
 		{ }
 
 		void zero_and_set_mode()

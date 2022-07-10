@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -154,20 +154,27 @@
     <ClInclude Include="dasm.h" />
     <ClInclude Include="align.h" />
     <ClInclude Include="dasm2.h" />
+    <ClInclude Include="emu.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="flags.h" />
     <ClInclude Include="inst.h" />
     <ClInclude Include="dpattern.h" />
+    <ClInclude Include="mba.h" />
     <ClInclude Include="obf.h" />
+    <ClInclude Include="obf_structures.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
     <ClInclude Include="size_casting.h" />
     <ClInclude Include="linker.h" />
+    <ClInclude Include="stack_allocation.h" />
     <ClInclude Include="symbol.h" />
     <ClInclude Include="traits.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="pi_blocks.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
