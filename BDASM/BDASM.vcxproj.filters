@@ -61,8 +61,8 @@
     <ClInclude Include="obf.h">
       <Filter>headers\obfuscator</Filter>
     </ClInclude>
-    <ClInclude Include="stack_analysis.h">
-      <Filter>headers\dasm</Filter>
+    <ClInclude Include="substitution.h">
+      <Filter>headers\obfuscator\passes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -167,6 +167,7 @@
     <ClInclude Include="size_casting.h" />
     <ClInclude Include="linker.h" />
     <ClInclude Include="stack_allocation.h" />
+    <ClInclude Include="substitution.h" />
     <ClInclude Include="symbol.h" />
     <ClInclude Include="traits.h" />
   </ItemGroup>
