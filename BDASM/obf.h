@@ -4,6 +4,7 @@
 #include "mba.h"
 #include "pi_blocks.h"
 #include "stack_allocation.h"
+#include "opaques.h"
 
 #include "align.h"
 
@@ -126,19 +127,30 @@ namespace obf
 
 			for (auto& routine : obf_routines)
 			{
-				routine.mutation_pass<position_independent_blocks_t<Addr_width> >(context);
-
-
 				if (routine.m_routine.entry_block->rva_start == 0x1030)
 				{
-					printf("\n\nROUTINE AT %X\n", routine.m_routine.entry_block->rva_start);
+
+					//routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
+					//	{
+					//		return left.rva_start < right.rva_start;
+					//	});
+					printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
+
+					routine.mutation_pass<opaque_from_flags_t>(context);
+
+
+					printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
 
 					routine.m_routine.print_blocks();
-					int32_t alloc_size = 0x400;
-					auto pass_status = routine.mutation_pass<stack_allocation_t<Addr_width> >(context, alloc_size);
 
-					std::printf("allocated with %X %d\n", alloc_size, pass_status);
+					//int32_t alloc_size = 0x400;
+					//auto pass_status = routine.mutation_pass<stack_allocation_t>(context, alloc_size);
+
+					//std::printf("allocated with %X %d\n", alloc_size, pass_status);
 				}
+
+
+				routine.mutation_pass<position_independent_blocks_t>(context);
 			}
 		}
 

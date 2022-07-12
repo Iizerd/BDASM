@@ -15,9 +15,9 @@
 
 namespace obf
 {
-	template<addr_width::type Addr_width = addr_width::x64>
 	struct substitution_t
 	{
+		template<addr_width::type Addr_width = addr_width::x64>
 		static bool pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, uint32_t percent_chance, uint32_t min_count, bool red_space_store = false)
 		{
 

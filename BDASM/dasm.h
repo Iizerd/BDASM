@@ -169,6 +169,17 @@ namespace dasm
 		}
 	};
 	
+	// Termination type enums for the basic block
+	enum class termination_type_t : uint8_t
+	{
+		invalid,
+		returns,
+		unconditional_br,
+		conditional_br,
+		fallthrough,
+		undetermined_unconditional_br,
+	};
+
 	// A basic block exactly like LLVM's
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
@@ -208,15 +219,7 @@ namespace dasm
 		//
 		uint32_t visited;
 
-		enum class termination_type_t : uint8_t
-		{
-			invalid,
-			returns,
-			unconditional_br,
-			conditional_br,
-			fallthrough,
-			undetermined_unconditional_br,
-		} termination_type;
+		termination_type_t termination_type;
 
 
 		explicit block_t(std::list<block_t<Addr_width> >::iterator end)
@@ -468,27 +471,27 @@ namespace dasm
 				
 				switch (block.termination_type)
 				{
-				case dasm::block_t<>::termination_type_t::invalid:
+				case dasm::termination_type_t::invalid:
 					std::printf("Invalid block termination.\n\n");
 					break;
-				case dasm::block_t<>::termination_type_t::returns:
+				case dasm::termination_type_t::returns:
 					std::printf("Block returns.\n\n");
 					break;
-				case dasm::block_t<>::termination_type_t::unconditional_br:
+				case dasm::termination_type_t::unconditional_br:
 					std::printf("Unconditional branch: %X RVA:[%X]\n\n", block.taken_block->link, block.taken_block->rva_start);
 					break;
-				case dasm::block_t<>::termination_type_t::conditional_br:
+				case dasm::termination_type_t::conditional_br:
 					std::printf("Conditional Branch:\n -> Taken: %X RVA:[%X]\n -> ", block.taken_block->link, block.taken_block->rva_start);
 					[[fallthrough]];
-				case dasm::block_t<>::termination_type_t::fallthrough:
+				case dasm::termination_type_t::fallthrough:
 					std::printf("Fallthrough %X RVA:[%X]\n\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);
 					break;
-				case dasm::block_t<>::termination_type_t::undetermined_unconditional_br:
+				case dasm::termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
 					break;
 				}
 				
-				/*if (block.termination_type == dasm::block_t<>::termination_type_t::fallthrough)
+				/*if (block.termination_type == dasm::termination_type_t::fallthrough)
 					std::printf("Fallthrough %08X [%X]\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);*/
 
 			}
@@ -503,27 +506,27 @@ namespace dasm
 
 				switch (block.termination_type)
 				{
-				case dasm::block_t<>::termination_type_t::invalid:
+				case dasm::termination_type_t::invalid:
 					std::printf("Invalid block termination.\n\n");
 					break;
-				case dasm::block_t<>::termination_type_t::returns:
+				case dasm::termination_type_t::returns:
 					std::printf("Block returns.\n\n");
 					break;
-				case dasm::block_t<>::termination_type_t::unconditional_br:
+				case dasm::termination_type_t::unconditional_br:
 					std::printf("Unconditional branch: %X EVAL:[%X]\n\n", block.taken_block->link, linker->get_link_addr(block.taken_block->link));
 					break;
-				case dasm::block_t<>::termination_type_t::conditional_br:
+				case dasm::termination_type_t::conditional_br:
 					std::printf("Conditional Branch:\n -> Taken: %X EVAL:[%X]\n -> ", block.taken_block->link, linker->get_link_addr(block.taken_block->link));
 					[[fallthrough]];
-				case dasm::block_t<>::termination_type_t::fallthrough:
+				case dasm::termination_type_t::fallthrough:
 					std::printf("Fallthrough %X EVAL:[%X]\n\n", block.fallthrough_block->link, linker->get_link_addr(block.fallthrough_block->link));
 					break;
-				case dasm::block_t<>::termination_type_t::undetermined_unconditional_br:
+				case dasm::termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
 					break;
 				}
 
-				/*if (block.termination_type == dasm::block_t<>::termination_type_t::fallthrough)
+				/*if (block.termination_type == dasm::termination_type_t::fallthrough)
 					std::printf("Fallthrough %08X [%X]\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);*/
 
 			}
@@ -739,7 +742,7 @@ namespace dasm
 							new_block.rva_start = block_it->rva_start;
 							new_block.rva_end = rva;
 							new_block.fallthrough_block = block_it;
-							new_block.termination_type = block_t<>::termination_type_t::fallthrough;
+							new_block.termination_type = termination_type_t::fallthrough;
 							new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, block_it->instructions.begin(), inst_it);
 							
 							block_it->rva_start = rva;
@@ -792,9 +795,7 @@ namespace dasm
 						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
 						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
 						{
-							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
-								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
-							);*/
+							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);
 							inst.flags |= inst_flag::disp;
 						}
 						else if (XED_REG_INVALID == base_reg &&
@@ -804,10 +805,6 @@ namespace dasm
 							{
 								inst.used_link = static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
 									m_decoder_context->binary_interface->optional_header.get_image_base();
-								/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
-									static_cast<uint64_t>(xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)) -
-									m_decoder_context->binary_interface->optional_header.get_image_base()
-								);*/
 								inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
 								inst.flags |= inst_flag::reloc_disp;
 							}
@@ -817,11 +814,7 @@ namespace dasm
 						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
 					{
 						inst.used_link = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
-							m_decoder_context->binary_interface->optional_header.get_image_base(); 
-						/*m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
-							xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
-							m_decoder_context->binary_interface->optional_header.get_image_base()
-						);*/
+							m_decoder_context->binary_interface->optional_header.get_image_base();
 						inst.additional_data.reloc.original_rva = rva + inst.additional_data.reloc.offset_in_inst;
 						inst.flags |= inst_flag::reloc_imm;
 					}
@@ -889,7 +882,7 @@ namespace dasm
 						return current_routine->blocks.end();
 					}
 
-					cur_block_it->termination_type = block_t<>::termination_type_t::conditional_br;
+					cur_block_it->termination_type = termination_type_t::conditional_br;
 					cur_block_it->fallthrough_block = fallthrough;
 
 					goto ExitInstDecodeLoop;
@@ -909,7 +902,7 @@ namespace dasm
 							log_error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 							return current_routine->blocks.end();
 						}
-						cur_block_it->termination_type = block_t<>::termination_type_t::undetermined_unconditional_br;
+						cur_block_it->termination_type = termination_type_t::undetermined_unconditional_br;
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
 					case XED_IFORM_JMP_RELBRd:
@@ -950,7 +943,7 @@ namespace dasm
 
 						//m_decoder_context->relbr_table[dest_rva] = true;
 						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_relbr_target;
-						cur_block_it->termination_type = block_t<>::termination_type_t::unconditional_br;
+						cur_block_it->termination_type = termination_type_t::unconditional_br;
 
 						goto ExitInstDecodeLoop;
 					}
@@ -1012,7 +1005,7 @@ namespace dasm
 				}
 				else if (cat == XED_CATEGORY_RET)
 				{
-					cur_block_it->termination_type = block_t<>::termination_type_t::returns;
+					cur_block_it->termination_type = termination_type_t::returns;
 
 					goto ExitInstDecodeLoop;
 				}
@@ -1037,7 +1030,7 @@ namespace dasm
 					}
 				}
 			}
-			cur_block_it->termination_type = block_t<>::termination_type_t::fallthrough;
+			cur_block_it->termination_type = termination_type_t::fallthrough;
 
 		ExitInstDecodeLoop:
 			cur_block_it->rva_end = rva;

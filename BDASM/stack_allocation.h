@@ -8,9 +8,9 @@
 //
 namespace obf
 {
-	template<addr_width::type Addr_width = addr_width::x64>
 	struct stack_allocation_t
 	{
+		template<addr_width::type Addr_width = addr_width::x64>
 		struct my_context_t
 		{
 			context_t<Addr_width>& ctx;
@@ -48,7 +48,8 @@ namespace obf
 		// returns true if the function is a candidate for a custom allocation
 		// No calls or undetermined jumps
 		//
-		static void run_stack_analysis(my_context_t& ctx, dasm::routine_t<Addr_width>& routine)
+		template<addr_width::type Addr_width = addr_width::x64>
+		static void run_stack_analysis(my_context_t<Addr_width>& ctx, dasm::routine_t<Addr_width>& routine)
 		{
 			for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 			{
@@ -60,7 +61,7 @@ namespace obf
 					{
 						ctx.original_alloc = xed_decoded_inst_get_signed_immediate(&inst_it->decoded_inst);
 					}
-					else if (iform == XED_IFORM_MOV_GPRv_GPRv_89 &&
+					else if ((iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
 						get_max_reg_size<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
 						get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG1))
 					{
@@ -78,7 +79,8 @@ namespace obf
 			}
 		}
 
-		static void recursive_disp_fixup(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t& ctx, bool in_allocation)
+		template<addr_width::type Addr_width = addr_width::x64>
+		static void recursive_disp_fixup(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t<Addr_width>& ctx, bool in_allocation)
 		{
 			// Dont continue because we have already touched this block
 			//
@@ -124,25 +126,17 @@ namespace obf
 								//
 								if (disp > ctx.original_alloc)
 								{
-									inst_it->redecode();
 									xed_decoded_inst_set_memory_displacement(&inst_it->decoded_inst, disp + ctx.additional_alloc, 4);
-									//xed_decoded_inst_set_memory_displacement_bits(&inst_it->decoded_inst, disp + ctx.additional_alloc, 32);
-									//inst_it->redecode();
-
-									inst_it->redecode();
-									//printf("patched first. %X,  %X %X %X %X %X\n", inst_it->original_rva, disp, ctx.original_alloc, disp + ctx.additional_alloc, 
-									//	xed_decoded_inst_get_memory_displacement_width(&inst_it->decoded_inst, 0), inst_it->length());
-
 								}
 							}
 							else if (ctx.bp_based &&
 								get_max_reg_size<XED_REG_RBP, Addr_width>::value ==
 								xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0))
 							{
+								auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
 								// If our displacement is less than 0 we are accessing allocated space
 								// otherwise ''
 								//
-								auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
 								if (disp < 0)
 								{
 									xed_decoded_inst_set_memory_displacement_bits(&inst_it->decoded_inst, disp - ctx.additional_alloc, 32);
@@ -154,16 +148,17 @@ namespace obf
 			}
 
 			++block->visited;
-			block->invoke_for_next(recursive_disp_fixup, ctx, in_allocation);
+			block->invoke_for_next(recursive_disp_fixup<Addr_width>, ctx, in_allocation);
 		}
 
-		static void insert_deallocators(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t& ctx)
+		template<addr_width::type Addr_width = addr_width::x64>
+		static void insert_deallocators(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t<Addr_width>& ctx)
 		{
 			if (block->visited == ctx.visited)
 				return;
 
-			if (block->termination_type == dasm::block_t<>::termination_type_t::returns ||
-				block->termination_type == dasm::block_t<>::termination_type_t::undetermined_unconditional_br)
+			if (block->termination_type == dasm::termination_type_t::returns ||
+				block->termination_type == dasm::termination_type_t::undetermined_unconditional_br)
 			{
 				// Allocate and place the deallocator before the last terminating instruction
 				//
@@ -174,7 +169,7 @@ namespace obf
 						buffer,
 						addr_width::machine_state<Addr_width>::value,
 						XED_ICLASS_ADD,
-						64,
+						addr_width::bits<Addr_width>::value,
 						xed_reg(get_max_reg_size<XED_REG_RSP, Addr_width>::value),
 						xed_simm0(
 							ctx.additional_alloc,
@@ -185,16 +180,17 @@ namespace obf
 			}
 
 			++block->visited;
-			block->invoke_for_next(insert_deallocators, ctx);
+			block->invoke_for_next(insert_deallocators<Addr_width>, ctx);
 		}
 
 
 		// Puts the rsp offset where our data starts into allocation_size
 		//
+		template<addr_width::type Addr_width = addr_width::x64>
 		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, int32_t& allocation_size)
 		{
 			routine.reset_visited();
-			my_context_t my_ctx = { ctx, 1, allocation_size };
+			my_context_t<Addr_width> my_ctx = { ctx, 1, allocation_size };
 
 			run_stack_analysis(my_ctx, routine);
 			
@@ -214,7 +210,7 @@ namespace obf
 							buffer,
 							addr_width::machine_state<Addr_width>::value,
 							XED_ICLASS_SUB,
-							64,
+							addr_width::bits<Addr_width>::value,
 							xed_reg(get_max_reg_size<XED_REG_RSP, Addr_width>::value),
 							xed_simm0(
 								allocation_size, 

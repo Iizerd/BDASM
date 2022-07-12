@@ -9,26 +9,26 @@
 
 namespace obf
 {
-	template<addr_width::type Addr_width = addr_width::x64>
 	struct position_independent_blocks_t
 	{
+		template<addr_width::type Addr_width = addr_width::x64>
 		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx)
 		{
 			for (auto& block : routine.blocks)
 			{
 				switch (block.termination_type)
 				{
-				case dasm::block_t<>::termination_type_t::invalid:
+				case dasm::termination_type_t::invalid:
 					return pass_status_t::critical_failure;
-				case dasm::block_t<>::termination_type_t::returns:
-				case dasm::block_t<>::termination_type_t::unconditional_br:
+				case dasm::termination_type_t::returns:
+				case dasm::termination_type_t::unconditional_br:
 					break;
 
 					// These two termination types have fallthroughs and need to have an absolute 
 					// jump patched onto the end to make them position independent.
 					//
-				case dasm::block_t<>::termination_type_t::conditional_br: [[fallthrough]];
-				case dasm::block_t<>::termination_type_t::fallthrough:
+				case dasm::termination_type_t::conditional_br: [[fallthrough]];
+				case dasm::termination_type_t::fallthrough:
 
 					uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 
@@ -48,7 +48,7 @@ namespace obf
 					block.instructions.back().flags |= dasm::inst_flag::rel_br;
 
 					break;
-				case dasm::block_t<>::termination_type_t::undetermined_unconditional_br:
+				case dasm::termination_type_t::undetermined_unconditional_br:
 					break;
 				default:
 					return pass_status_t::critical_failure;

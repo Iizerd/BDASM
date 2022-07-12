@@ -138,7 +138,7 @@ int main(int argc, char** argv)
 		{
 			/*for (auto& block : rou.blocks)
 			{
-				if (block.termination_type == dasm::block_t<>::termination_type_t::invalid)
+				if (block.termination_type == dasm::termination_type_t::invalid)
 					std::printf("block terminatn invalid at %X %X\n", block.rva_start, block.rva_end);
 			}*/
 			block_count += rou.blocks.size();

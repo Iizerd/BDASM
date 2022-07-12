@@ -43,9 +43,14 @@ namespace dasm
 	public:
 		inst_flag::type flags;
 
-		// 
+		// This actually has a purpose. if zero, then this was an inserted instruction and we might not want
+		// to apply obfuscation techniques on it.
 		//
-		uint32_t original_rva;
+		union
+		{
+			uint32_t original_rva;
+			uint32_t visited;
+		};
 
 		// Link this instruction is responsible for setting the RVA of.
 		//
@@ -86,7 +91,9 @@ namespace dasm
 			, used_link(to_copy.used_link)
 			, is_encoder_request(to_copy.is_encoder_request)
 			, decoded_inst(to_copy.decoded_inst)
-		{ }
+		{ 
+			std::memcpy(&additional_data, &to_copy.additional_data, sizeof(inst_additional_data_t));
+		}
 
 		void zero_and_set_mode()
 		{

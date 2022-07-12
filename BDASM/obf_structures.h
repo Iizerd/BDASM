@@ -20,14 +20,19 @@ namespace obf
 		success,
 	};
 
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	class routine_t;
+
 	template<addr_width::type Addr_width = addr_width::x64>
 	struct context_t
 	{
 		dasm::linker_t* linker;
 		pex::binary_t<Addr_width>* bin;
+		std::list<routine_t<Addr_width> >* obf_routine_list;
 	};
 
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type Addr_width>
 	class routine_t
 	{
 	public:

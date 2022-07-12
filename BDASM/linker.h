@@ -31,6 +31,8 @@ namespace dasm
 		// Switch to a spinlock
 		std::mutex m_lock;
 	public:
+		static constexpr uint32_t invalid_link_value = 0xFFFFFFFF;
+
 		linker_t(uint32_t binary_size, uint32_t reserve_size = 0x1000)
 		{
 			m_table.reserve(binary_size + reserve_size);
