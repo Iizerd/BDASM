@@ -286,6 +286,35 @@ namespace dasm
 			}
 		}
 
+		uint32_t calc_byte_sizes()
+		{
+			uint32_t size = 0;
+			for (auto& inst : instructions)
+			{
+				size += xed_decoded_inst_get_length(&inst.decoded_inst);
+			}
+			return size;
+		}
+
+		void place_in_binary(uint64_t& start_address, linker_t* linker)
+		{
+			linker->set_link_addr(link, start_address);
+
+			for (auto& inst : instructions)
+			{
+				inst.redecode();
+				linker->set_link_addr(inst.my_link, start_address);
+				start_address += inst.length();
+			}
+		}
+
+		void encode_in_binary(pex::binary_t<Addr_width>* bin, linker_t* linker, uint8_t** dest)
+		{
+			for (auto& inst : instructions)
+			{
+				*dest += inst.encode_to_binary(bin, linker, *dest);
+			}
+		}
 	};
 
 	// Simple way to represent an instruction and the block its in
@@ -410,12 +439,12 @@ namespace dasm
 				for (auto& inst : block.instructions)
 				{
 					auto cat = xed_decoded_inst_get_category(&inst.decoded_inst);
-					if (cat == XED_CATEGORY_UNCOND_BR)
+					if (cat == XED_CATEGORY_COND_BR)
 					{
 						xed_decoded_inst_set_branch_displacement_bits(&inst.decoded_inst, 0, 32);
 						inst.redecode();
 					}
-					else if (cat == XED_CATEGORY_COND_BR)
+					else if (cat == XED_CATEGORY_UNCOND_BR)
 					{
 						switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
 						{
@@ -435,7 +464,7 @@ namespace dasm
 			{
 				std::printf("Block: %X [%X:%X]\n", block.link, block.rva_start, block.rva_end);
 				for (auto& inst : block.instructions)
-					std::printf("\t%08X %s\n", inst.my_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+					std::printf("\t%08X, %08X\t%s \n", inst.my_link, inst.used_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 				
 				switch (block.termination_type)
 				{
@@ -446,19 +475,54 @@ namespace dasm
 					std::printf("Block returns.\n\n");
 					break;
 				case dasm::block_t<>::termination_type_t::unconditional_br:
-					std::printf("Unconditional branch: %X [%X]\n\n", block.taken_block->link, block.taken_block->rva_start);
+					std::printf("Unconditional branch: %X RVA:[%X]\n\n", block.taken_block->link, block.taken_block->rva_start);
 					break;
 				case dasm::block_t<>::termination_type_t::conditional_br:
-					std::printf("Conditional Branch:\n -> Taken: %X [%X]\n -> ", block.taken_block->link, block.taken_block->rva_start);
+					std::printf("Conditional Branch:\n -> Taken: %X RVA:[%X]\n -> ", block.taken_block->link, block.taken_block->rva_start);
 					[[fallthrough]];
 				case dasm::block_t<>::termination_type_t::fallthrough:
-					std::printf("Fallthrough %X [%X]\n\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);
+					std::printf("Fallthrough %X RVA:[%X]\n\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);
 					break;
 				case dasm::block_t<>::termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
 					break;
 				}
 				
+				/*if (block.termination_type == dasm::block_t<>::termination_type_t::fallthrough)
+					std::printf("Fallthrough %08X [%X]\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);*/
+
+			}
+		}
+		void print_blocks(linker_t* linker)
+		{
+			for (auto& block : blocks)
+			{
+				std::printf("Block: %X [%X:%X]\n", block.link, block.rva_start, block.rva_end);
+				for (auto& inst : block.instructions)
+					std::printf("\t[%08X]: %08X, %08X\t%s \n", linker->get_link_addr(inst.my_link), inst.my_link, inst.used_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+
+				switch (block.termination_type)
+				{
+				case dasm::block_t<>::termination_type_t::invalid:
+					std::printf("Invalid block termination.\n\n");
+					break;
+				case dasm::block_t<>::termination_type_t::returns:
+					std::printf("Block returns.\n\n");
+					break;
+				case dasm::block_t<>::termination_type_t::unconditional_br:
+					std::printf("Unconditional branch: %X EVAL:[%X]\n\n", block.taken_block->link, linker->get_link_addr(block.taken_block->link));
+					break;
+				case dasm::block_t<>::termination_type_t::conditional_br:
+					std::printf("Conditional Branch:\n -> Taken: %X EVAL:[%X]\n -> ", block.taken_block->link, linker->get_link_addr(block.taken_block->link));
+					[[fallthrough]];
+				case dasm::block_t<>::termination_type_t::fallthrough:
+					std::printf("Fallthrough %X EVAL:[%X]\n\n", block.fallthrough_block->link, linker->get_link_addr(block.fallthrough_block->link));
+					break;
+				case dasm::block_t<>::termination_type_t::undetermined_unconditional_br:
+					std::printf("Undetermined unconditional branch.\n\n");
+					break;
+				}
+
 				/*if (block.termination_type == dasm::block_t<>::termination_type_t::fallthrough)
 					std::printf("Fallthrough %08X [%X]\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);*/
 
@@ -668,8 +732,9 @@ namespace dasm
 								if (block.fallthrough_block == block_it)
 									block.fallthrough_block = new_block_it;
 								if (block.taken_block == block_it)
-									block.taken_block = block_it;
+									block.taken_block = new_block_it;
 							}
+
 
 							new_block.rva_start = block_it->rva_start;
 							new_block.rva_end = rva;
@@ -800,9 +865,10 @@ namespace dasm
 							return current_routine->blocks.end();
 						}
 					}
+
+
 					inst.used_link = cur_block_it->taken_block->instructions.begin()->my_link;
 
-					//m_decoder_context->relbr_table[taken_rva] = true;
 					m_decoder_context->global_lookup_table[taken_rva] |= glt::is_relbr_target;
 
 					auto fallthrough = current_routine->blocks.end();
@@ -835,7 +901,7 @@ namespace dasm
 					case XED_IFORM_JMP_GPRv:
 						// Jump table.
 						//
-						log_error("Unhandled inst at%08X XED_IFORM_JMP_GPRv.\n", rva - ilen);
+						log_error("Unhandled inst at %08X XED_IFORM_JMP_GPRv.\n", rva - ilen);
 						return current_routine->blocks.end();
 					case XED_IFORM_JMP_MEMv:
 						if (!inst.used_link)
@@ -1021,6 +1087,8 @@ namespace dasm
 
 		std::list<routine_t<Addr_width> > completed_routines;
 
+		uint32_t invalid_routine_count;
+
 		explicit dasm_t(decoder_context_t<Addr_width>* context)
 			: m_next_thread(0)
 			, m_context(context)
@@ -1051,7 +1119,6 @@ namespace dasm
 				return;
 			}
 
-			//m_routine_lookup_table[routine_rva] = true;
 			m_global_lookup_table[routine_rva] |= glt::is_routine;
 
 			if (is_call_target)

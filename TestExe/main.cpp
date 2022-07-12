@@ -23,8 +23,28 @@ __declspec(noinline) int other_routine()
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
+	int memes = rand() % 3;
+	if (argc == 1)
+	{
+		memes = 1776 + rand();
+		printf("it was 1. %X %X\n", argc + 2, memes);
+	}
+	else
+	{
+		memes = 19912 + rand();
+		printf("it wasnt 1. %X %X\n", argc + 3, memes);
+	}
+
+	argc = rand() % 2;
+	printf("hello there. %X %X\n", argc, memes);
+
+	other_routine();
+
+	system("pause");
+	return 12;
+
 	////BDASM_Begin(MARKER_ATTRIBUTE_ENTIRE_FUNCTION, 0);
 
 	//printf("Hello Test. %llu\n", 0xFFEACC0DEF);
@@ -33,7 +53,7 @@ int main()
 	//printf("Result was %d\n", meme);
 	//system("pause");
 
-	__try
+	/*__try
 	{
 		for (int i = 0; i < 10; i++)
 		{
@@ -43,7 +63,7 @@ int main()
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
 		printf("here lies our exception handler.\n");
-	}
+	}*/
 
 	return 1;
 }

@@ -15,6 +15,8 @@
 #include "pex.h"
 
 #include "dpattern.h"
+
+#include "obf.h"
 //uint8_t bytes[] = { 0xFF, 0x15, 0x00 ,0x30 ,0x40 ,0x00 };
 //uint8_t bytes[] = { 0x48,0xFF ,0x15 ,0x39 ,0x6C ,0xC3 ,0xFF };
 
@@ -28,8 +30,10 @@
 //#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 //#else
 //#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
-#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
-#define image_out "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe2.exe"
+#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+
+//#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
+#define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe3.exe"
 //#endif
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
@@ -37,6 +41,18 @@
 int main(int argc, char** argv)
 {
 	xed_tables_init();
+
+	obf::obf_t<addr_width::x64, 1> obfuscator;
+
+	obfuscator.load_file(image_name);
+
+	obfuscator.run();
+	obfuscator.encode(obfuscator.place());
+
+	obfuscator.save_file(image_out);
+	system("pause");
+	return 1;
+	
 
 
 	//uint8_t memes[] = { 0x48, 0x81, 0xEC, 0xB8, 0x22, 0x00, 0x00 };

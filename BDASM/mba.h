@@ -8,7 +8,7 @@
 		A - B == ~A + ~B
 
 	OR:
-
+		
 	NOT:
 		~A == A ^ ~0
 */
@@ -18,20 +18,20 @@
 namespace obf
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	class mba_t
+	struct mba_t
 	{
 		enum class mba_type_t
 		{
-			add,
-			sub,
-			not,
-			and,
-			or,
-			xor,
+			_add,
+			_sub,
+			_not,
+			_and,
+			_or,
+			_xor,
 		};
 
-		template<xed_reg_enum_t... Store_regs>
-		static dasm::inst_list_t<Addr_width> gen_prologue(uint32_t base_of_allocation, Store_regs... regs)
+
+		static dasm::inst_list_t<Addr_width> add_1(dasm::inst_it_t<Addr_width> inst)
 		{
 
 		}
@@ -60,7 +60,7 @@ namespace obf
 		// min_count: minimum number of instructions to mutate
 		// red_space_store: store variables in unallocated stack memory
 		//
-		static bool pass(context_t<Addr_width>& ctx, dasm::routine_t<Addr_width>& routine, uint32_t percent_chance, uint32_t min_count, bool red_space_store = false)
+		static bool pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, uint32_t percent_chance, uint32_t min_count, bool red_space_store = false)
 		{
 
 		}

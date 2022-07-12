@@ -18,6 +18,10 @@ namespace dasm
 	struct link_t
 	{
 		uint64_t addr;
+		link_t()
+		{
+			addr = 0;
+		}
 	};
 
 	class linker_t
@@ -73,9 +77,22 @@ namespace dasm
 			return index;
 		}
 
-		link_t& get_link(uint32_t link_index)
+		finline link_t& get_link(uint32_t link_index)
 		{
 			return m_table[link_index];
+		}
+
+		finline void set_link_addr(uint32_t link_index, uint64_t address)
+		{
+			m_table[link_index].addr = address;
+		}
+		finline uint64_t get_link_addr(uint32_t link_index)
+		{
+			/*if (m_table[link_index].addr == 0)
+			{
+				printf("Accessing a 0 addr.\n");
+			}*/
+			return m_table[link_index].addr;
 		}
 	};
 

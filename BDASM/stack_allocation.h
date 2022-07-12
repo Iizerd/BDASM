@@ -9,7 +9,7 @@
 namespace obf
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	class stack_allocation_t
+	struct stack_allocation_t
 	{
 		struct my_context_t
 		{
@@ -73,7 +73,7 @@ namespace obf
 					}
 				}
 
-				if (block_it->termination_type == dasm::block_t<>::termination_type_t::undetermined_unconditional_br)
+				if (block_it->termination_type == dasm::block_t<Addr_width>::termination_type_t::undetermined_unconditional_br)
 					ctx.custom_alloc_possible = false;
 			}
 		}
@@ -81,6 +81,7 @@ namespace obf
 		static void recursive_disp_fixup(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t& ctx, bool in_allocation)
 		{
 			// Dont continue because we have already touched this block
+			//
 			if (block->visited == ctx.visited)
 				return;
 
@@ -90,14 +91,19 @@ namespace obf
 				if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
 					get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
+					//printf("Found allocator. %X\n", ctx.original_alloc + ctx.additional_alloc);
+					xed_decoded_inst_set_immediate_signed_bits(&inst_it->decoded_inst, ctx.original_alloc + ctx.additional_alloc, 32);
 					in_allocation = true;
 				}
 				else if (iform == XED_IFORM_ADD_GPRv_IMMz || XED_IFORM_ADD_GPRv_IMMb &&
 					get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
+					//printf("Found deallocator. %X\n", ctx.original_alloc + ctx.additional_alloc);
+
+					xed_decoded_inst_set_immediate_signed_bits(&inst_it->decoded_inst, ctx.original_alloc + ctx.additional_alloc, 32);
 					in_allocation = false;
 				}
-				else
+				else if (in_allocation)
 				{
 					auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
 					auto num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
@@ -108,6 +114,7 @@ namespace obf
 						auto operand_name = xed_operand_name(operand);
 						if (operand_name == XED_OPERAND_MEM0 || operand_name == XED_OPERAND_AGEN)
 						{
+							//printf("found one to patch. %X\n", inst_it->original_rva);
 							if (get_max_reg_size<XED_REG_RSP, Addr_width>::value ==
 								xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0))
 							{
@@ -115,9 +122,17 @@ namespace obf
 								// If our disp is less than the allocation size, we are accessing data in the allocation
 								// Otherwise we are accessing data in args, home space, or return addr
 								//
-								if (disp < ctx.original_alloc)
+								if (disp > ctx.original_alloc)
 								{
-									xed_decoded_inst_set_memory_displacement_bits(&inst_it->decoded_inst, disp + ctx.additional_alloc, 32);
+									inst_it->redecode();
+									xed_decoded_inst_set_memory_displacement(&inst_it->decoded_inst, disp + ctx.additional_alloc, 4);
+									//xed_decoded_inst_set_memory_displacement_bits(&inst_it->decoded_inst, disp + ctx.additional_alloc, 32);
+									//inst_it->redecode();
+
+									inst_it->redecode();
+									//printf("patched first. %X,  %X %X %X %X %X\n", inst_it->original_rva, disp, ctx.original_alloc, disp + ctx.additional_alloc, 
+									//	xed_decoded_inst_get_memory_displacement_width(&inst_it->decoded_inst, 0), inst_it->length());
+
 								}
 							}
 							else if (ctx.bp_based &&
@@ -160,7 +175,7 @@ namespace obf
 						addr_width::machine_state<Addr_width>::value,
 						XED_ICLASS_ADD,
 						64,
-						get_max_reg_size<XED_REG_RSP, Addr_width>::value,
+						xed_reg(get_max_reg_size<XED_REG_RSP, Addr_width>::value),
 						xed_simm0(
 							ctx.additional_alloc,
 							32
@@ -173,7 +188,7 @@ namespace obf
 			block->invoke_for_next(insert_deallocators, ctx);
 		}
 
-		static pass_status_t pass(context_t<Addr_width>& ctx, dasm::routine_t<Addr_width>& routine, int32_t& allocation_size)
+		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, int32_t& allocation_size)
 		{
 			routine.reset_visited();
 			my_context_t my_ctx = { ctx, 1, allocation_size };
@@ -197,7 +212,7 @@ namespace obf
 							addr_width::machine_state<Addr_width>::value,
 							XED_ICLASS_SUB,
 							64,
-							get_max_reg_size<XED_REG_RSP, Addr_width>::value,
+							xed_reg(get_max_reg_size<XED_REG_RSP, Addr_width>::value),
 							xed_simm0(
 								allocation_size, 
 								32

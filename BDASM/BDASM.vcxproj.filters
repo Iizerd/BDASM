@@ -64,6 +64,9 @@
     <ClInclude Include="substitution.h">
       <Filter>headers\obfuscator\passes</Filter>
     </ClInclude>
+    <ClInclude Include="opaques.h">
+      <Filter>headers\obfuscator\passes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
