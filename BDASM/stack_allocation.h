@@ -188,6 +188,9 @@ namespace obf
 			block->invoke_for_next(insert_deallocators, ctx);
 		}
 
+
+		// Puts the rsp offset where our data starts into allocation_size
+		//
 		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, int32_t& allocation_size)
 		{
 			routine.reset_visited();
