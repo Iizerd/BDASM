@@ -29,7 +29,7 @@ namespace obf
 	{
 		dasm::linker_t* linker;
 		pex::binary_t<Addr_width>* bin;
-		std::list<routine_t<Addr_width> >* obf_routine_list;
+		std::list<routine_t<Addr_width> >& obf_routine_list;
 	};
 
 	template<addr_width::type Addr_width>

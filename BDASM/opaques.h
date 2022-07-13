@@ -19,60 +19,236 @@ namespace obf
 	//
 	struct opaque_from_flags_t
 	{
-		// This splits an existing block, creating a fallthrough, and returning the link for the newly created block
+		// Will be using bitwise on the visited member here beacuse we need to differentiate
 		//
-		template<addr_width::type Addr_width = addr_width::x64>
-		static uint32_t split_random_block(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx)
-		{
 
-			auto block_it = routine.blocks.begin();
-			uint32_t max_count = routine.blocks.size() * 2;
-			while (block_it->instructions.size() < 2)
+		constexpr static uint32_t visited_1 = (1 << 0);
+		constexpr static uint32_t visited_2 = (1 << 1);
+
+		template<addr_width::type Addr_width = addr_width::x64>
+		struct my_context
+		{
+			dasm::routine_t<Addr_width>& routine;
+			context_t<Addr_width>& ctx;
+			my_context(dasm::routine_t<Addr_width>& r, context_t<Addr_width>& context)
+				: routine(r)
+				, ctx(context)
+			{}
+		};
+
+		template<addr_width::type Addr_width = addr_width::x64>
+		static bool multiple_references(my_context<Addr_width>& ctx, std::list<dasm::block_t<Addr_width> >::iterator check_block)
+		{
+			if (check_block == ctx.routine.blocks.end())
+				return false;
+			uint32_t count = 0;
+			for (auto& block : ctx.routine.blocks)
 			{
-				std::advance(block_it, rand() % routine.blocks.size());
-				if (--max_count == 0)
-					return dasm::linker_t::invalid_link_value;
+				if (block.fallthrough_block == check_block || block.taken_block == check_block)
+					++count;
+			}
+			return count > 1;
+		}
+
+		static xed_iclass_enum_t invert_jcc(xed_iclass_enum_t jcc)
+		{
+			switch (jcc)
+			{
+			case XED_ICLASS_JB: return XED_ICLASS_JNB;
+			case XED_ICLASS_JBE: return XED_ICLASS_JNBE;
+			case XED_ICLASS_JL: return XED_ICLASS_JNL;
+			case XED_ICLASS_JLE: return XED_ICLASS_JNLE;
+			case XED_ICLASS_JNB: return XED_ICLASS_JB;
+			case XED_ICLASS_JNBE: return XED_ICLASS_JBE;
+			case XED_ICLASS_JNL: return XED_ICLASS_JL;
+			case XED_ICLASS_JNLE: return XED_ICLASS_JLE;
+			case XED_ICLASS_JNO: return XED_ICLASS_JO;
+			case XED_ICLASS_JNP: return XED_ICLASS_JP;
+			case XED_ICLASS_JNS: return XED_ICLASS_JS;
+			case XED_ICLASS_JNZ: return XED_ICLASS_JZ;
+			case XED_ICLASS_JO: return XED_ICLASS_JNO;
+			case XED_ICLASS_JP: return XED_ICLASS_JNP;
+			case XED_ICLASS_JS: return XED_ICLASS_JNS;
+			case XED_ICLASS_JZ: return XED_ICLASS_JNZ;
+			default: return XED_ICLASS_INVALID;
+			}
+		}
+
+		static bool is_bad_iclass(xed_iclass_enum_t iclass)
+		{
+			switch (iclass)
+			{
+			case XED_ICLASS_CALL_NEAR:
+			case XED_ICLASS_SYSCALL:
+			case XED_ICLASS_RET_NEAR:
+				return true;
+			}
+			return false;
+		}
+		
+		template<addr_width::type Addr_width = addr_width::x64>
+		static void reset_visited_2(dasm::routine_t<Addr_width>& routine)
+		{
+			for (auto& block : routine.blocks)
+			{
+				block.visited &= ~visited_2;
+			}
+		}
+
+		template<addr_width::type Addr_width = addr_width::x64>
+		static uint32_t find_random_link(my_context<Addr_width>& ctx)
+		{
+			auto routine_it = ctx.ctx.obf_routine_list.begin();
+
+			std::advance(routine_it, rand() % ctx.ctx.obf_routine_list.size());
+
+			if (rand() % 100 < 30)
+			{
+				printf("using routine.\n");
+				return routine_it->m_routine.entry_link;
 			}
 
+			auto block_it = routine_it->m_routine.blocks.begin();
+			if (rand() % 100 < 30)
+			{
+				printf("using block.\n");
+				return block_it->link;
+			}
+			
 			auto inst_it = block_it->instructions.begin();
-			std::advance(inst_it, rand() % block_it->instructions.size() - 1); //-1 so we not at the end namean man?
+			std::advance(inst_it, rand() % block_it->instructions.size());
 
-			auto& new_block = routine.blocks.emplace_front(routine.blocks.end());
+			printf("using inst.\n");
+			return inst_it->my_link;
+		}
+		
 
-			// Setup new block
-			//
-			new_block.link = ctx.linker->allocate_link();
-			new_block.rva_start = inst_it->original_rva;
-			new_block.rva_end = block_it->rva_end;
-			new_block.termination_type = block_it->termination_type;
-			new_block.taken_block = block_it->taken_block;
-			new_block.fallthrough_block = block_it->fallthrough_block;
-			new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, inst_it, block_it->instructions.end());
+		template<addr_width::type Addr_width = addr_width::x64>
+		static void recursive_trace_and_place(std::list<dasm::block_t<Addr_width> >::iterator block, my_context<Addr_width>& ctx, xed_iclass_enum_t iclass, const xed_flag_set_t* flag_set, bool taken)
+		{
+			if (block->visited & visited_2)
+				return;
 
-			// Set old blocks termination_type to fallthrough
-			//
-			block_it->termination_type = dasm::termination_type_t::fallthrough;
-			block_it->fallthrough_block = routine.blocks.begin();
-			block_it->taken_block = routine.blocks.end();
-			block_it->rva_end = inst_it->original_rva;
+			auto place_jcc = [&](dasm::inst_it_t<Addr_width> inst_it)
+			{
+				printf("opaqued.\n");
+
+				if (taken)
+					iclass = invert_jcc(iclass);
+
+				uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
+
+				auto jcc = block->instructions.emplace(inst_it);
+				jcc->decode(
+					buffer,
+					encode_inst_in_place(
+						buffer,
+						addr_width::machine_state<Addr_width>::value,
+						iclass,
+						32,
+						xed_relbr(0, 32)
+					)
+				);
+				jcc->my_link = ctx.ctx.linker->allocate_link();
+				jcc->used_link = find_random_link(ctx);
+				jcc->original_rva = 0;
+				jcc->flags |= dasm::inst_flag::rel_br;
+
+			};
+
+			for (auto inst_it = block->instructions.begin(); inst_it != block->instructions.end(); ++inst_it)
+			{
+				auto simple_flag = xed_decoded_inst_get_rflags_info(&inst_it->decoded_inst);
+				if (is_bad_iclass(xed_decoded_inst_get_iclass(&inst_it->decoded_inst)) || (simple_flag && (flag_set->flat & (xed_simple_flag_get_undefined_flag_set(simple_flag)->flat | xed_simple_flag_get_written_flag_set(simple_flag)->flat))))
+				{
+					place_jcc(inst_it);
+
+					return;
+				}
+			}
 
 
+		/*	block->visited |= visited_2;
+			if (!multiple_references(ctx, block->fallthrough_block) && !multiple_references(ctx, block->taken_block))
+				block->invoke_for_next(recursive_trace_and_place<Addr_width>, ctx, iclass, flag_set, taken);
+*/
+
+
+			switch (block->termination_type)
+			{
+			case dasm::termination_type_t::invalid:
+			case dasm::termination_type_t::returns:
+				break;
+
+			case dasm::termination_type_t::unconditional_br:
+				if (!multiple_references(ctx, block->taken_block))
+					recursive_trace_and_place(block->taken_block, ctx, iclass, flag_set, taken);
+				else
+					place_jcc(std::prev(block->instructions.end()));
+				break;
+
+			case dasm::termination_type_t::conditional_br:
+				if (!multiple_references(ctx, block->taken_block) && !multiple_references(ctx, block->fallthrough_block))
+				{
+					recursive_trace_and_place(block->taken_block, ctx, iclass, flag_set, taken);
+					recursive_trace_and_place(block->fallthrough_block, ctx, iclass, flag_set, taken);
+				}
+				else
+					place_jcc(std::prev(block->instructions.end()));
+				break;
+			case dasm::termination_type_t::fallthrough:
+				if (!multiple_references(ctx, block->fallthrough_block))
+					recursive_trace_and_place(block->fallthrough_block, ctx, iclass, flag_set, taken);
+				else
+					place_jcc(block->instructions.end());
+				break;
+			case dasm::termination_type_t::undetermined_unconditional_br:
+				place_jcc(std::prev(block->instructions.end()));
+				break;
+			}
+		}
+
+		template<addr_width::type Addr_width = addr_width::x64>
+		static void recursive_application(std::list<dasm::block_t<Addr_width> >::iterator block, my_context<Addr_width>& ctx)
+		{
+			if (block->visited & visited_1)
+				return;
+
+
+			if (block->termination_type == dasm::termination_type_t::conditional_br)
+			{
+				auto simple_flag = xed_decoded_inst_get_rflags_info(&block->instructions.back().decoded_inst);
+				auto read_flags = xed_simple_flag_get_read_flag_set(simple_flag);
+				auto iclass = xed_decoded_inst_get_iclass(&block->instructions.back().decoded_inst);
+
+
+				if (!multiple_references(ctx, block->taken_block))
+					recursive_trace_and_place(block->taken_block, ctx, iclass, read_flags, true);
+
+				reset_visited_2(ctx.routine);
+
+				if (!multiple_references(ctx, block->fallthrough_block))
+					recursive_trace_and_place(block->fallthrough_block, ctx, iclass, read_flags, false);
+
+				reset_visited_2(ctx.routine);
+			}
+
+
+			block->visited |= visited_1;
+			block->invoke_for_next(recursive_application<Addr_width>, ctx);
 		}
 
 
 		template<addr_width::type Addr_width = addr_width::x64>
 		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx)
 		{
-			for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
-			{
-				for (auto inst_it = block_it->instructions.begin(); inst_it != routine.blocks.end(); ++inst_it)
-				{
+			routine.reset_visited();
 
-				}
-				auto cat = xed_decoded_inst_get_category()
-			}
-			//split_random_block(routine, ctx);
-			//return pass_status_t::success;
+			my_context<Addr_width> my_context = { routine, ctx };
+
+			recursive_application(routine.entry_block, my_context);
+
+			return pass_status_t::success;
 		}
 	};
 

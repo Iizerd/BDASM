@@ -226,6 +226,7 @@ namespace dasm
 			: rva_start(0)
 			, rva_end(0)
 			, link(0)
+			, visited(0)
 			, termination_type(termination_type_t::invalid)
 			, fallthrough_block(end)
 			, taken_block(end)
@@ -236,6 +237,7 @@ namespace dasm
 			, fallthrough_block(to_copy.fallthrough_block)
 			, taken_block(to_copy.taken_block)
 			, link(to_copy.link)
+			, visited(to_copy.visited)
 			, termination_type(to_copy.termination_type)
 		{
 			instructions.insert(instructions.end(), to_copy.instructions.begin(), to_copy.instructions.end());
@@ -246,6 +248,7 @@ namespace dasm
 			, fallthrough_block(to_move.fallthrough_block)
 			, taken_block(to_move.taken_block)
 			, link(to_move.link)
+			, visited(to_move.visited)
 			, termination_type(to_move.termination_type)
 		{
 			instructions.splice(instructions.end(), to_move.instructions);
@@ -257,6 +260,7 @@ namespace dasm
 			fallthrough_block = to_move.fallthrough_block;
 			taken_block = to_move.taken_block;
 			link = to_move.link;
+			visited = to_move.visited;
 			termination_type = to_move.termination_type;
 			instructions.splice(instructions.end(), to_move.instructions);
 			return *this;

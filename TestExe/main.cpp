@@ -28,12 +28,12 @@ int main(int argc, char** argv)
 	int memes = rand() % 3;
 	if (argc == 1)
 	{
-		memes = 1776 + rand();
+		memes = 1776 + 34;
 		printf("it was 1. %X %X\n", argc + 2, memes);
 	}
 	else
 	{
-		memes = 19912 + rand();
+		memes = 19912 + 12;
 		printf("it wasnt 1. %X %X\n", argc + 3, memes);
 	}
 

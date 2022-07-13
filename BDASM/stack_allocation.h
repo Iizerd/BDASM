@@ -74,7 +74,7 @@ namespace obf
 					}
 				}
 
-				if (block_it->termination_type == dasm::block_t<Addr_width>::termination_type_t::undetermined_unconditional_br)
+				if (block_it->termination_type == dasm::termination_type_t::undetermined_unconditional_br)
 					ctx.custom_alloc_possible = false;
 			}
 		}

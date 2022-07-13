@@ -123,32 +123,34 @@ namespace obf
 
 		void run()
 		{
-			context_t<Addr_width> context = { m_linker, bin };
+			context_t<Addr_width> context = { m_linker, bin, obf_routines };
 
 			for (auto& routine : obf_routines)
 			{
-				if (routine.m_routine.entry_block->rva_start == 0x1030)
-				{
+				//if (routine.m_routine.entry_block->rva_start == 0x1030)
+				//{
 
-					//routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
-					//	{
-					//		return left.rva_start < right.rva_start;
-					//	});
-					printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
+				//	//routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
+				//	//	{
+				//	//		return left.rva_start < right.rva_start;
+				//	//	});
+				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
 
+				//	//routine.mutation_pass<opaque_from_flags_t>(context);
+
+
+				//	routine.m_routine.print_blocks();
+
+				//	//int32_t alloc_size = 0x400;
+				//	//auto pass_status = routine.mutation_pass<stack_allocation_t>(context, alloc_size);
+
+				//	//std::printf("allocated with %X %d\n", alloc_size, pass_status);
+
+				//	routine.mutation_pass< opaque_from_flags_t>(context);
+				//}
+
+				//if (routine.m_routine.entry_block->rva_start == 0x1530)
 					routine.mutation_pass<opaque_from_flags_t>(context);
-
-
-					printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
-
-					routine.m_routine.print_blocks();
-
-					//int32_t alloc_size = 0x400;
-					//auto pass_status = routine.mutation_pass<stack_allocation_t>(context, alloc_size);
-
-					//std::printf("allocated with %X %d\n", alloc_size, pass_status);
-				}
-
 
 				routine.mutation_pass<position_independent_blocks_t>(context);
 			}

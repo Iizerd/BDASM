@@ -40,6 +40,7 @@
 
 int main(int argc, char** argv)
 {
+	srand(time(nullptr));
 	xed_tables_init();
 
 	obf::obf_t<addr_width::x64, 1> obfuscator;
