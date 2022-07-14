@@ -74,8 +74,15 @@ namespace dasm
 				uint8_t type;
 				uint32_t original_rva;
 			}reloc;
-
 		}additional_data;
+
+		// Data used when encoding. Shame this has to be here. Feels hacky
+		//
+		struct post_encode_data_t
+		{
+			uint8_t bytes[XED_MAX_INSTRUCTION_BYTES];
+			std::function<bool(uint8_t*, uint8_t*, linker_t*, pex::binary_t<Addr_width>*)> post_encode_routine;
+		}encode_data;
 
 		explicit inst_t()
 			: flags(0)
@@ -93,6 +100,9 @@ namespace dasm
 			, decoded_inst(to_copy.decoded_inst)
 		{ 
 			std::memcpy(&additional_data, &to_copy.additional_data, sizeof(inst_additional_data_t));
+			encode_data.post_encode_routine = to_copy.encode_data.post_encode_routine;
+			for (uint32_t i = 0; i < XED_MAX_INSTRUCTION_BYTES; ++i)
+				encode_data.bytes[i] = to_copy.encode_data.bytes[i];
 		}
 
 		void zero_and_set_mode()
@@ -233,8 +243,6 @@ namespace dasm
 		}
 
 	};
-
-	auto meme = sizeof(inst_t<addr_width::x64>);
 
 	using inst32_t = inst_t<addr_width::x86>;
 	using inst64_t = inst_t<addr_width::x64>;

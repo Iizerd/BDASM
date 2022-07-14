@@ -156,6 +156,7 @@
     <ClInclude Include="dasm2.h" />
     <ClInclude Include="emu.h" />
     <ClInclude Include="encoder.h" />
+    <ClInclude Include="encrypted_blocks.h" />
     <ClInclude Include="flags.h" />
     <ClInclude Include="inst.h" />
     <ClInclude Include="dpattern.h" />
@@ -171,6 +172,7 @@
     <ClInclude Include="substitution.h" />
     <ClInclude Include="symbol.h" />
     <ClInclude Include="traits.h" />
+    <ClInclude Include="original.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

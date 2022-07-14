@@ -394,15 +394,15 @@
 //
 //			// If we make it here, we found an already decoded instruction and need to set the fallthrough
 //			//
-//			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
+//			for (auto block_it_t = current_routine->blocks.begin(); block_it_t != current_routine->blocks.end(); ++block_it_t)
 //			{
-//				if (rva >= block_it->rva_start && rva < block_it->rva_end)
+//				if (rva >= block_it_t->rva_start && rva < block_it_t->rva_end)
 //				{
-//					for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
+//					for (auto inst_it = block_it_t->instructions.begin(); inst_it != block_it_t->instructions.end(); ++inst_it)
 //					{
 //						if (inst_it->original_rva == rva)
 //						{
-//							cur_block_it->fallthrough_block = block_it;
+//							cur_block_it->fallthrough_block = block_it_t;
 //						}
 //					}
 //				}

@@ -51,9 +51,9 @@ namespace obf
 		template<addr_width::type Addr_width = addr_width::x64>
 		static void run_stack_analysis(my_context_t<Addr_width>& ctx, dasm::routine_t<Addr_width>& routine)
 		{
-			for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
+			for (auto block_it_t = routine.blocks.begin(); block_it_t != routine.blocks.end(); ++block_it_t)
 			{
-				for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
+				for (auto inst_it = block_it_t->instructions.begin(); inst_it != block_it_t->instructions.end(); ++inst_it)
 				{
 					auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
 					if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
@@ -74,13 +74,13 @@ namespace obf
 					}
 				}
 
-				if (block_it->termination_type == dasm::termination_type_t::undetermined_unconditional_br)
+				if (block_it_t->termination_type == dasm::termination_type_t::undetermined_unconditional_br)
 					ctx.custom_alloc_possible = false;
 			}
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static void recursive_disp_fixup(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t<Addr_width>& ctx, bool in_allocation)
+		static void recursive_disp_fixup(dasm::block_it_t<Addr_width> block, my_context_t<Addr_width>& ctx, bool in_allocation)
 		{
 			// Dont continue because we have already touched this block
 			//
@@ -152,7 +152,7 @@ namespace obf
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static void insert_deallocators(std::list<dasm::block_t<Addr_width> >::iterator block, my_context_t<Addr_width>& ctx)
+		static void insert_deallocators(dasm::block_it_t<Addr_width> block, my_context_t<Addr_width>& ctx)
 		{
 			if (block->visited == ctx.visited)
 				return;

@@ -37,7 +37,7 @@ namespace obf
 		};
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static bool multiple_references(my_context<Addr_width>& ctx, std::list<dasm::block_t<Addr_width> >::iterator check_block)
+		static bool multiple_references(my_context<Addr_width>& ctx, dasm::block_it_t<Addr_width> check_block)
 		{
 			if (check_block == ctx.routine.blocks.end())
 				return false;
@@ -101,37 +101,36 @@ namespace obf
 			auto routine_it = ctx.ctx.obf_routine_list.begin();
 
 			std::advance(routine_it, rand() % ctx.ctx.obf_routine_list.size());
+			//if (rand() % 100 < 1)
+			//{
+			//	printf("using routine.\n");
+			//	return routine_it->m_routine.entry_link;
+			//}
 
-			if (rand() % 100 < 30)
-			{
-				printf("using routine.\n");
-				return routine_it->m_routine.entry_link;
-			}
-
-			auto block_it = routine_it->m_routine.blocks.begin();
-			if (rand() % 100 < 30)
-			{
-				printf("using block.\n");
-				return block_it->link;
-			}
+			auto block_it_t = routine_it->m_routine.blocks.begin();
+			//if (rand() % 100 < 1)
+			//{
+			//	printf("using block.\n");
+			//	return block_it_t->link;
+			//}
 			
-			auto inst_it = block_it->instructions.begin();
-			std::advance(inst_it, rand() % block_it->instructions.size());
+			auto inst_it = block_it_t->instructions.begin();
+			std::advance(inst_it, rand() % block_it_t->instructions.size());
 
-			printf("using inst.\n");
+			//printf("using inst.\n");
 			return inst_it->my_link;
 		}
 		
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static void recursive_trace_and_place(std::list<dasm::block_t<Addr_width> >::iterator block, my_context<Addr_width>& ctx, xed_iclass_enum_t iclass, const xed_flag_set_t* flag_set, bool taken)
+		static void recursive_trace_and_place(dasm::block_it_t<Addr_width> block, my_context<Addr_width>& ctx, xed_iclass_enum_t iclass, const xed_flag_set_t* flag_set, bool taken)
 		{
 			if (block->visited & visited_2)
 				return;
 
 			auto place_jcc = [&](dasm::inst_it_t<Addr_width> inst_it)
 			{
-				printf("opaqued.\n");
+				//printf("opaqued.\n");
 
 				if (taken)
 					iclass = invert_jcc(iclass);
@@ -209,7 +208,7 @@ namespace obf
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static void recursive_application(std::list<dasm::block_t<Addr_width> >::iterator block, my_context<Addr_width>& ctx)
+		static void recursive_application(dasm::block_it_t<Addr_width> block, my_context<Addr_width>& ctx)
 		{
 			if (block->visited & visited_1)
 				return;
@@ -222,15 +221,15 @@ namespace obf
 				auto iclass = xed_decoded_inst_get_iclass(&block->instructions.back().decoded_inst);
 
 
+				ctx.routine.reset_visited_bit(1);
 				if (!multiple_references(ctx, block->taken_block))
 					recursive_trace_and_place(block->taken_block, ctx, iclass, read_flags, true);
 
-				reset_visited_2(ctx.routine);
 
+				ctx.routine.reset_visited_bit(1);
 				if (!multiple_references(ctx, block->fallthrough_block))
 					recursive_trace_and_place(block->fallthrough_block, ctx, iclass, read_flags, false);
 
-				reset_visited_2(ctx.routine);
 			}
 
 

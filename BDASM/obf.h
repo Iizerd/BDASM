@@ -1,12 +1,15 @@
 
 
 #include "obf_structures.h"
+#include "align.h"
+
+// Passes
+//
 #include "mba.h"
 #include "pi_blocks.h"
 #include "stack_allocation.h"
 #include "opaques.h"
-
-#include "align.h"
+#include "original.h"
 
 namespace obf
 {
@@ -127,30 +130,26 @@ namespace obf
 
 			for (auto& routine : obf_routines)
 			{
-				//if (routine.m_routine.entry_block->rva_start == 0x1030)
-				//{
-
 				//	//routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
 				//	//	{
 				//	//		return left.rva_start < right.rva_start;
 				//	//	});
 				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
 
-				//	//routine.mutation_pass<opaque_from_flags_t>(context);
-
-
+				//if (routine.m_routine.entry_block->rva_start == 0x1530)
 				//	routine.m_routine.print_blocks();
-
 				//	//int32_t alloc_size = 0x400;
 				//	//auto pass_status = routine.mutation_pass<stack_allocation_t>(context, alloc_size);
-
 				//	//std::printf("allocated with %X %d\n", alloc_size, pass_status);
-
 				//	routine.mutation_pass< opaque_from_flags_t>(context);
-				//}
 
-				//if (routine.m_routine.entry_block->rva_start == 0x1530)
-					routine.mutation_pass<opaque_from_flags_t>(context);
+
+				// Make sure this is run first before any passes that invalidate rva_start and rva_end are run
+				//
+				routine.mutation_pass<pad_original_t>(context);
+
+
+				routine.mutation_pass<opaque_from_flags_t>(context);
 
 				routine.mutation_pass<position_independent_blocks_t>(context);
 			}
@@ -165,10 +164,17 @@ namespace obf
 			auto base = rva;
 			for (auto& routine : obf_routines)
 			{
+				for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
+				{
+					if (block_it == routine.m_routine.entry_block)
+						m_linker->set_link_addr(routine.m_routine.entry_link, rva);
+
+					block_it->place_in_binary(rva, m_linker);
+				}/*
 				for (auto& block : routine.m_routine.blocks)
 				{
 					block.place_in_binary(rva, m_linker);
-				}
+				}*/
 
 
 				rva = align_up(rva, 0x10);

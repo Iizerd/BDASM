@@ -179,10 +179,15 @@ namespace dasm
 		fallthrough,
 		undetermined_unconditional_br,
 	};
+	template<addr_width::type Addr_width = addr_width::x64>
+	class block_t;
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	using block_it_t = std::list<block_t<Addr_width> >::iterator;
 
 	// A basic block exactly like LLVM's
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type Addr_width>
 	class block_t
 	{
 	public:
@@ -200,11 +205,11 @@ namespace dasm
 		// instruction and must be encoded before its fallthrough block OR with a jump
 		// at the end
 		//
-		std::list<block_t<Addr_width> >::iterator fallthrough_block;
+		block_it_t<Addr_width> fallthrough_block;
 		
 		// If there is a jcc or uncond branch, this is the block it jumps to
 		//
-		std::list<block_t<Addr_width> >::iterator taken_block;
+		block_it_t<Addr_width> taken_block;
 
 		// Once we finish decoding everything, we run a pass over every finished routine
 		// and set this equal to the symbol(rva) of the first instruction inside of the
@@ -222,7 +227,7 @@ namespace dasm
 		termination_type_t termination_type;
 
 
-		explicit block_t(std::list<block_t<Addr_width> >::iterator end)
+		explicit block_t(block_it_t<Addr_width> end)
 			: rva_start(0)
 			, rva_end(0)
 			, link(0)
@@ -231,17 +236,17 @@ namespace dasm
 			, fallthrough_block(end)
 			, taken_block(end)
 		{}
-		block_t(block_t const& to_copy)
-			: rva_start(to_copy.rva_start)
-			, rva_end(to_copy.rva_end)
-			, fallthrough_block(to_copy.fallthrough_block)
-			, taken_block(to_copy.taken_block)
-			, link(to_copy.link)
-			, visited(to_copy.visited)
-			, termination_type(to_copy.termination_type)
-		{
-			instructions.insert(instructions.end(), to_copy.instructions.begin(), to_copy.instructions.end());
-		}
+		block_t(block_t const& to_copy) = delete;
+		//	: rva_start(to_copy.rva_start)
+		//	, rva_end(to_copy.rva_end)
+		//	, fallthrough_block(to_copy.fallthrough_block)
+		//	, taken_block(to_copy.taken_block)
+		//	, link(to_copy.link)
+		//	, visited(to_copy.visited)
+		//	, termination_type(to_copy.termination_type)
+		//{
+		//	instructions.insert(instructions.end(), to_copy.instructions.begin(), to_copy.instructions.end());
+		//}
 		block_t(block_t&& to_move)
 			: rva_start(to_move.rva_start)
 			, rva_end(to_move.rva_end)
@@ -326,20 +331,20 @@ namespace dasm
 
 	// Simple way to represent an instruction and the block its in
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
+	/*template<addr_width::type Addr_width = addr_width::x64>
 	struct inst_descriptor_t
 	{
-		std::list<block_t<Addr_width> >::iterator block;
+		block_it<Addr_width> block;
 		inst_list_t<Addr_width>::iterator inst;
 
 		inst_descriptor_t(
-			std::list<block_t<Addr_width> >::iterator block_iterator, 
+			block_it<Addr_width> block_iterator, 
 			inst_list_t<Addr_width>::iterator inst_iterator
 		)
 			: block(block_iterator)
 			, inst(inst_iterator)
 		{}
-	};
+	};*/
 
 	// TODO: Write control flow following iterators
 	//
@@ -433,11 +438,16 @@ namespace dasm
 		// This is the rva in original binary
 		//
 		uint32_t entry_link;
-		std::list<block_t<Addr_width> >::iterator entry_block;
+		block_it_t<Addr_width> entry_block;
 		void reset_visited()
 		{
 			for (auto& block : blocks)
 				block.visited = 0;
+		}
+		void reset_visited_bit(uint32_t bit)
+		{
+			for (auto& block : blocks)
+				block.visited &= ~(1<<bit);
 		}
 		void promote_relbrs()
 		{
@@ -712,7 +722,7 @@ namespace dasm
 
 		// For when we find a relative that jumps into an existing block, we need to split that block across
 		// the label and add fallthrough.
-		std::list<block_t<Addr_width> >::iterator split_block(uint64_t rva)
+		block_it_t<Addr_width> split_block(uint64_t rva)
 		{
 			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
 			{
@@ -760,7 +770,7 @@ namespace dasm
 			block_trace();
 			return current_routine->blocks.end();
 		}
-		std::list<block_t<Addr_width> >::iterator decode_block(uint64_t rva)
+		block_it_t<Addr_width> decode_block(uint64_t rva)
 		{
 			current_routine->blocks.emplace_front(current_routine->blocks.end()).rva_start = rva;
 			auto cur_block_it = current_routine->blocks.begin();
@@ -780,7 +790,7 @@ namespace dasm
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
 
-				inst.original_rva = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
+				inst.original_rva = rva;
 				inst.my_link = get_a_link();
 
 				m_lookup_table.update_inst(rva, ilen);

@@ -52,20 +52,26 @@
     <ClInclude Include="emu.h">
       <Filter>headers\obfuscator</Filter>
     </ClInclude>
-    <ClInclude Include="mba.h">
-      <Filter>headers\obfuscator\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="stack_allocation.h">
-      <Filter>headers\obfuscator\passes</Filter>
-    </ClInclude>
     <ClInclude Include="obf.h">
       <Filter>headers\obfuscator</Filter>
     </ClInclude>
+    <ClInclude Include="original.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
     <ClInclude Include="substitution.h">
-      <Filter>headers\obfuscator\passes</Filter>
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
+    <ClInclude Include="stack_allocation.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
     <ClInclude Include="opaques.h">
-      <Filter>headers\obfuscator\passes</Filter>
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
+    <ClInclude Include="mba.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
+    <ClInclude Include="encrypted_blocks.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -93,6 +99,9 @@
     <Filter Include="headers\obfuscator\passes">
       <UniqueIdentifier>{98d91127-8483-46b5-beca-2eb974560df8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="headers\obfuscator\passes\mutation">
+      <UniqueIdentifier>{8b341389-a348-4f53-a425-4812e390a8b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -101,7 +110,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="pi_blocks.h">
-      <Filter>headers\obfuscator\passes</Filter>
+      <Filter>headers\obfuscator\passes\mutation</Filter>
     </None>
   </ItemGroup>
 </Project>
