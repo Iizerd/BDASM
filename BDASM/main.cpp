@@ -43,6 +43,39 @@ int main(int argc, char** argv)
 	srand(time(nullptr));
 	xed_tables_init();
 
+	//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
+
+	//dasm::inst_t<addr_width::x64> inst(
+	//	XED_ICLASS_NOP,
+	//	32
+	//);
+
+	///*dasm::inst_t<addr_width::x64> inst;
+
+	//
+
+	//auto len = encode_inst_in_place(buffer, addr_width::machine_state<addr_width::x64>::value, 
+	//	XED_ICLASS_XCHG,
+	//	8,
+	//	xed_mem_bd(
+	//		get_max_reg_size<XED_REG_RIP, addr_width::x64>::value,
+	//		xed_disp(0, 32),
+	//		8
+	//	),
+	//	xed_reg(XED_REG_AL)
+	//);*/
+
+
+	//inst.dumb_encode(buffer);
+
+	//for (auto i = 0; i < inst.length(); i++)
+	//{
+	//	std::printf("%02X ", buffer[i]);
+	//}
+	//std::printf("\n");
+
+	//return 1;
+
 	obf::obf_t<addr_width::x64, 1> obfuscator;
 
 	obfuscator.load_file(image_name);

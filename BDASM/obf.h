@@ -10,6 +10,7 @@
 #include "stack_allocation.h"
 #include "opaques.h"
 #include "original.h"
+#include "encrypted_blocks.h"
 
 namespace obf
 {
@@ -130,10 +131,10 @@ namespace obf
 
 			for (auto& routine : obf_routines)
 			{
-				//	//routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
-				//	//	{
-				//	//		return left.rva_start < right.rva_start;
-				//	//	});
+					routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
+						{
+							return left.rva_start < right.rva_start;
+						});
 				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
 
 				//if (routine.m_routine.entry_block->rva_start == 0x1530)
@@ -148,10 +149,12 @@ namespace obf
 				//
 				routine.mutation_pass<pad_original_t>(context);
 
-
 				routine.mutation_pass<opaque_from_flags_t>(context);
 
 				routine.mutation_pass<position_independent_blocks_t>(context);
+
+				routine.mutation_pass<encrypted_blocks_t>(context);
+
 			}
 		}
 
@@ -183,7 +186,7 @@ namespace obf
 		}
 		void encode(uint32_t section_size)
 		{
-			uint64_t rva = bin->append_section(".TEST", section_size, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE, true);
+			uint64_t rva = bin->append_section(".TEST", section_size, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_WRITE, true);
 			auto dest = bin->mapped_image + rva;
 			for (auto& routine : obf_routines)
 			{

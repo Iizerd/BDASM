@@ -13,35 +13,158 @@ namespace obf
 	// then releasing it on exit. The order is as follows
 	// 
 	//		- Wait to acquire spinlock
-	//		- Decrypt routine
-	//		- Execute
-	//		- Encrypt routine
+	//		- Decrypt block
+	//		- Execute block
+	//		- Encrypt block
 	//		- Release spinlock
 	// 
 	//
 
 	struct encrypted_blocks_t
 	{
+		template<addr_width::type Addr_width = addr_width::x64, uint8_t Offset, typename Xor_val_type>
+		static bool post_encode_xor_callback(dasm::inst_t<Addr_width>* inst, uint8_t* target, dasm::linker_t* linker, pex::binary_t<Addr_width>* bin, Xor_val_type xor_val)
+		{
+			*reinterpret_cast<Xor_val_type*>(target + Offset) ^= xor_val;
+			return true;
+		}
+
 		// Takes a link that represents a byte in memory to use as the spinlock
 		//
 		template<addr_width::type Addr_width = addr_width::x64>
-		static dasm::inst_list_t<Addr_width> acquire_spinlock(uint32_t spinlock_link)
+		static dasm::inst_list_t<Addr_width> acquire_spinlock(context_t<Addr_width>& ctx, uint32_t spinlock_link)
 		{
+			//	 pushfq
+			//	 push rax
 			// continue_wait:
-			//   mov al,1
-			//   lock cmpxchg [rip+spinlock_offset],al
+			//   mov al,0x90
+			//   lock xchg [rip+spinlock_offset],al
+			//   test al,al
 			//   jnz continue_wait
+			//	 pop rax
+			//   popfq
 			//
+
+			uint32_t continue_wait = ctx.linker->allocate_link();
+
+			dasm::inst_list_t<Addr_width> result;
+
+			
+			result.emplace_back(
+				XED_ICLASS_PUSHF,
+				addr_width::bits<Addr_width>::value
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+
+			result.emplace_back(
+				XED_ICLASS_PUSH,
+				addr_width::bits<Addr_width>::value,
+				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+			result.emplace_back(
+				XED_ICLASS_MOV,
+				8,
+				xed_reg(XED_REG_AL),
+				xed_imm0(0x90, 8)
+			).common_edit(continue_wait, 0, 0);
+
+
+			result.emplace_back(
+				XED_ICLASS_XCHG,
+				8,
+				xed_mem_bd(
+					get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+					xed_disp(0, 32),
+					8
+				),
+				xed_reg(XED_REG_AL)
+			).common_edit(ctx.linker->allocate_link(), spinlock_link, dasm::inst_flag::disp);
+
+			result.back().encode_callback = std::bind(post_encode_xor_callback < Addr_width, 0, uint32_t>,
+				std::placeholders::_1,
+				std::placeholders::_2,
+				std::placeholders::_3,
+				std::placeholders::_4,
+				0xFFFFAAFFAA
+			);
+
+			result.emplace_back(
+				XED_ICLASS_TEST,
+				8,
+				xed_reg(XED_REG_AL),
+				xed_reg(XED_REG_AL)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+
+			result.emplace_back(
+				XED_ICLASS_JZ,
+				8,
+				xed_relbr(0, 32)
+			).common_edit(ctx.linker->allocate_link(), continue_wait, dasm::inst_flag::rel_br);
+
+
+			result.emplace_back(
+				XED_ICLASS_POP,
+				addr_width::bits<Addr_width>::value,
+				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+
+			result.emplace_back(
+				XED_ICLASS_POPF,
+				addr_width::bits<Addr_width>::value
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+			return result;
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static dasm::inst_list_t<Addr_width> release_spinlock(uint32_t spinlock_link)
+		static dasm::inst_list_t<Addr_width> release_spinlock(context_t<Addr_width>&ctx, uint32_t spinlock_link)
 		{
 			// push rax
-			// mov al,1
+			// mov al,0
 			// lock xchg [rip+spinlock_offset],al
 			// pop rax
 			//
+
+			uint32_t continue_wait = ctx.linker->allocate_link();
+
+			dasm::inst_list_t<Addr_width> result;
+
+			result.emplace_back(
+				XED_ICLASS_PUSH,
+				addr_width::bits<Addr_width>::value,
+				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+
+			result.emplace_back(
+				XED_ICLASS_MOV,
+				8,
+				xed_reg(XED_REG_AL),
+				xed_imm0(0, 8)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+
+			result.emplace_back(
+				XED_ICLASS_XCHG,
+				8,
+				xed_mem_bd(
+					get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+					xed_disp(0, 32),
+					8
+				),
+				xed_reg(XED_REG_AL)
+			).common_edit(ctx.linker->allocate_link(), spinlock_link, dasm::inst_flag::disp);
+
+			result.emplace_back(
+				XED_ICLASS_POP,
+				addr_width::bits<Addr_width>::value,
+				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+			return result;
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
@@ -52,11 +175,11 @@ namespace obf
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width> > encryption_prolog_epilogue(dasm::block_it_t<Addr_width> block)
+		static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width> > encryption(context_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block)
 		{
 			dasm::inst_list_t<Addr_width> prologue, epilogue;
 
-			for (auto& inst : block->instructions)
+			for (auto& inst : block.instructions)
 			{
 				gen_prologue_epilogue_combo(inst, prologue, epilogue);
 			}
@@ -65,9 +188,69 @@ namespace obf
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
-		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx)
+		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, bool spinlock = true)
 		{
+			/*auto [prologue, epilogue] = encryption();*/
 
+			for (auto& block : routine.blocks)
+			{
+				// Now we need to find where to insert the epilogue and spinlock release
+				//
+				auto inst_it = block.instructions.end();
+				uint32_t terminator_size = 0;
+
+				do
+				{/*
+					if (inst_it == block.instructions.begin())
+						break;*/
+					--inst_it;
+				} while (inst_it->flags & dasm::inst_flag::block_terminator);
+
+				//while (inst_it->flags & dasm::inst_flag::block_terminator)
+				//{
+				//	/*if (!(inst_it->flags & dasm::inst_flag::block_terminator))
+				//	{
+				//		++inst_it;
+				//		break;
+				//	}
+				//	else if (inst_it == block.instructions.begin())
+				//		break;*/
+
+				//	--inst_it;
+				//	++terminator_size;
+				//}
+
+
+				// Make sure there are actually some instructions we can encrypt
+				//
+				//if (block.instructions.size() <= terminator_size)
+				//	continue;
+
+
+				uint32_t spinlock_link = ctx.linker->allocate_link();
+
+				// Gen the prologue and epilogues here, prepend and append them
+				//
+				//auto [prologue, epilogue] = encryption(ctx, block);
+
+				//block.instructions.splice(block.instructions.begin(), prologue);
+				//block.instructions.splice(inst_it, epilogue);
+
+				// Now add the spinlock acquire and release
+				//
+				auto acquire = acquire_spinlock(ctx, spinlock_link);
+				auto release = release_spinlock(ctx, spinlock_link);
+
+				block.instructions.splice(block.instructions.begin(), acquire);
+				block.instructions.splice(inst_it, release);
+
+				block.instructions.emplace_back(
+					XED_ICLASS_NOP,
+					32
+				).common_edit(spinlock_link, 0, dasm::inst_flag::block_terminator);
+			}
+
+			return pass_status_t::success;
 		}
 	};
 }

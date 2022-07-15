@@ -900,6 +900,7 @@ namespace dasm
 					cur_block_it->fallthrough_block = fallthrough;
 
 					goto ExitInstDecodeLoop;
+					inst.flags |= inst_flag::block_terminator;
 				}
 				else if (cat == XED_CATEGORY_UNCOND_BR)
 				{
@@ -917,6 +918,7 @@ namespace dasm
 							return current_routine->blocks.end();
 						}
 						cur_block_it->termination_type = termination_type_t::undetermined_unconditional_br;
+						inst.flags |= inst_flag::block_terminator;
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
 					case XED_IFORM_JMP_RELBRd:
@@ -928,7 +930,7 @@ namespace dasm
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
 							log_error("Unconditional branch to invalid rva.\n");
-							goto ExitInstDecodeLoop;
+							return current_routine->blocks.end();
 						}
 						//inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= inst_flag::rel_br;
@@ -959,6 +961,7 @@ namespace dasm
 						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_relbr_target;
 						cur_block_it->termination_type = termination_type_t::unconditional_br;
 
+						inst.flags |= inst_flag::block_terminator;
 						goto ExitInstDecodeLoop;
 					}
 					case XED_IFORM_JMP_FAR_MEMp2:
@@ -1020,7 +1023,7 @@ namespace dasm
 				else if (cat == XED_CATEGORY_RET)
 				{
 					cur_block_it->termination_type = termination_type_t::returns;
-
+					inst.flags |= inst_flag::block_terminator;
 					goto ExitInstDecodeLoop;
 				}
 				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)

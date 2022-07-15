@@ -32,20 +32,12 @@ namespace obf
 
 					uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 
-					block.instructions.emplace_back().decode(
-						buffer, 
-						encode_inst_in_place(
-							buffer,
-							addr_width::machine_state<Addr_width>::value,
-							XED_ICLASS_JMP,
+					block.instructions.emplace_back(
+						XED_ICLASS_JMP,
 							32,
 							xed_relbr(0, 32)
-						)
-					);
-					block.instructions.back().my_link = ctx.linker->allocate_link();
-					block.instructions.back().used_link = block.fallthrough_block->link;
+					).common_edit(ctx.linker->allocate_link(), block.fallthrough_block->link, dasm::inst_flag::rel_br | dasm::inst_flag::block_terminator);
 					block.instructions.back().original_rva = 0;
-					block.instructions.back().flags |= dasm::inst_flag::rel_br;
 
 					break;
 				case dasm::termination_type_t::undetermined_unconditional_br:

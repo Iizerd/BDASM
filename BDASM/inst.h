@@ -1,13 +1,9 @@
 #pragma once
 
 
-extern "C"
-{
-#include <xed/xed-interface.h>
-}
-
 #include <list>
 
+#include "encoder.h"
 #include "traits.h"
 #include "addr_width.h"
 #include "symbol.h"
@@ -35,6 +31,10 @@ namespace dasm
 		constexpr type reloc_imm = (1 << 3);	// Form:	movabs	rax,base+rva
 
 		constexpr type uses_symbol = (rel_br | disp | reloc_disp | reloc_imm);
+
+		// This is so we know what instructions are vital for block termination
+		//
+		constexpr type block_terminator = (1 << 4);
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
@@ -81,8 +81,12 @@ namespace dasm
 		struct post_encode_data_t
 		{
 			uint8_t bytes[XED_MAX_INSTRUCTION_BYTES];
-			std::function<bool(uint8_t*, uint8_t*, linker_t*, pex::binary_t<Addr_width>*)> post_encode_routine;
 		}encode_data;
+
+		// This is called after the instruction is encoded
+		//
+		std::function<bool(inst_t<Addr_width>*, uint8_t*, linker_t*, pex::binary_t<Addr_width>*)> encode_callback;
+
 
 		explicit inst_t()
 			: flags(0)
@@ -92,15 +96,28 @@ namespace dasm
 			, is_encoder_request(false)
 		{}
 
+		template<typename... Operands, uint32_t Operand_count = sizeof...(Operands)>
+		explicit inst_t(xed_iclass_enum_t iclass, xed_uint_t effective_operand_width, Operands... operands)
+			: flags(0)
+			, original_rva(0)
+			, my_link(0)
+			, used_link(0)
+			, is_encoder_request(false)
+		{
+			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
+			
+			decode(buffer, encode_inst_in_place(buffer, addr_width::machine_state<Addr_width>::value, iclass, effective_operand_width, operands...));
+		}
+
 		explicit inst_t(inst_t const& to_copy)
 			: flags(to_copy.flags) 
 			, my_link(to_copy.my_link)
 			, used_link(to_copy.used_link)
 			, is_encoder_request(to_copy.is_encoder_request)
 			, decoded_inst(to_copy.decoded_inst)
+			, encode_callback(to_copy.encode_callback)
 		{ 
-			std::memcpy(&additional_data, &to_copy.additional_data, sizeof(inst_additional_data_t));
-			encode_data.post_encode_routine = to_copy.encode_data.post_encode_routine;
+			std::memcpy(&additional_data, &to_copy.additional_data, sizeof inst_additional_data_t);
 			for (uint32_t i = 0; i < XED_MAX_INSTRUCTION_BYTES; ++i)
 				encode_data.bytes[i] = to_copy.encode_data.bytes[i];
 		}
@@ -167,7 +184,7 @@ namespace dasm
 		uint32_t dumb_encode(uint8_t* target)
 		{
 			if (!is_encoder_request)
-				return 0;
+				to_encoder_request();
 
 			uint32_t out_size = 0;
 			xed_error_enum_t err = xed_encode(&decoded_inst, target, XED_MAX_INSTRUCTION_BYTES, &out_size);
@@ -195,7 +212,7 @@ namespace dasm
 				int64_t br_disp = (int64_t)linker->get_link_addr(used_link) - ip; //(int64_t)binary->data_table->get_symbol(used_link).address - ip;
 				if (!xed_patch_relbr(&decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst))))
 				{
-					std::printf("Failed to patch relbr.\n");
+					std::printf("Failed to patch relbr at %X\n", ip);
 				}
 			}
 			else if (flags & inst_flag::disp)
@@ -204,15 +221,15 @@ namespace dasm
 				int64_t br_disp = (int64_t)linker->get_link_addr(used_link) - ip;
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0))))
 				{
-					std::printf("Failed to patch displacement.\n");
+					std::printf("Failed to patch displacement at %X\n", ip);
 				}
 			}
-			else if (flags & inst_flag::reloc_disp)
+			if (flags & inst_flag::reloc_disp)
 			{
 				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
 				{
-					std::printf("Failed to patch reloc displacement.\n");
+					std::printf("Failed to patch reloc displacement at %X\n", dest - binary->mapped_image);
 				}
 				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
 			}
@@ -221,11 +238,14 @@ namespace dasm
 				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
 				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
 				{
-					std::printf("Failed to patch reloc imm.\n");
+					std::printf("Failed to patch reloc imm at %X\n", dest - binary->mapped_image);
 				}
 				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
 			}
 			// TODO: make these^ manipulate the reloc vector inside of the binary.
+
+			if (encode_callback)
+				encode_callback(this, dest, linker, binary);
 
 			return ilen;
 		}
@@ -240,6 +260,13 @@ namespace dasm
 		finline uint8_t calc_reloc_offset() const
 		{
 			return length() - addr_width::bytes<Addr_width>::value;
+		}
+
+		finline void common_edit(uint32_t mlink, uint32_t ulink, inst_flag::type flg)
+		{
+			my_link = mlink;
+			used_link = ulink;
+			flags |= flg;
 		}
 
 	};
