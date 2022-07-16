@@ -293,6 +293,11 @@ namespace obf
 			return { prologue, epilogue };
 		}
 
+		// TODO:
+		//	- Make large blocks over a certain threshold use a loop and simple xor encrypting
+		//  - Add different types of crypting
+		//
+
 		template<addr_width::type Addr_width = addr_width::x64>
 		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx, bool spinlock = true)
 		{
