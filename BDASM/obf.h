@@ -131,10 +131,10 @@ namespace obf
 
 			for (auto& routine : obf_routines)
 			{
-					routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
-						{
-							return left.rva_start < right.rva_start;
-						});
+				routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
+					{
+						return left.rva_start < right.rva_start;
+					});
 				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
 
 				//if (routine.m_routine.entry_block->rva_start == 0x1530)
@@ -145,6 +145,29 @@ namespace obf
 				//	routine.mutation_pass< opaque_from_flags_t>(context);
 
 
+				
+				for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
+				{
+
+					for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
+					{
+						auto cat = xed_decoded_inst_get_category(&inst_it->decoded_inst);
+
+						if (cat == XED_CATEGORY_COND_BR)
+						{
+							if (!(inst_it->flags & dasm::inst_flag::block_terminator))
+							{
+								std::printf("was not block terminator. %X\n", inst_it->original_rva);
+							}
+							if (std::next(inst_it) != block_it->instructions.end())
+							{
+								std::printf("was not last instruction. %X\n", inst_it->original_rva);
+							}
+						}
+					}
+
+				}
+
 				// Make sure this is run first before any passes that invalidate rva_start and rva_end are run
 				//
 				routine.mutation_pass<pad_original_t>(context);
@@ -152,7 +175,7 @@ namespace obf
 				routine.mutation_pass<opaque_from_flags_t>(context);
 
 				routine.mutation_pass<position_independent_blocks_t>(context);
-
+				//if (routine.m_routine.entry_block->rva_start == 0x1030)
 				routine.mutation_pass<encrypted_blocks_t>(context);
 
 			}

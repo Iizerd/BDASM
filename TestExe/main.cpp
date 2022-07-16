@@ -25,15 +25,15 @@ __declspec(noinline) int other_routine()
 
 int main(int argc, char** argv)
 {
-	if (argc == 1)
+	/*if (argc == 1)
 	{
 		printf("it was 1.\n");
 	}
-	
+	printf("it was 1.\n");
 	system("pause");
-	return 1;
+	return 1;*/
 
-	/*int memes = rand() % 3;
+	int memes = rand() % 3;
 	if (argc == 1)
 	{
 		memes = 1776 + 34;
@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 	other_routine();
 
 	system("pause");
-	return 12;*/
+	return 12;
 
 
 

@@ -94,6 +94,7 @@ namespace dasm
 			, my_link(0)
 			, used_link(0)
 			, is_encoder_request(false)
+			, encode_callback(nullptr)
 		{}
 
 		template<typename... Operands, uint32_t Operand_count = sizeof...(Operands)>
@@ -103,6 +104,7 @@ namespace dasm
 			, my_link(0)
 			, used_link(0)
 			, is_encoder_request(false)
+			, encode_callback(nullptr)
 		{
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 			

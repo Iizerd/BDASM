@@ -835,7 +835,6 @@ namespace dasm
 				}
 
 				rva += ilen;
-
 				// Update the end of the current block so its correct if we need to call split_block
 				cur_block_it->rva_end = rva;
 
@@ -854,7 +853,7 @@ namespace dasm
 					}
 
 					//inst.used_link = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
-					inst.flags |= inst_flag::rel_br;
+					inst.flags |= inst_flag::rel_br | inst_flag::block_terminator;
 
 					if (!m_lookup_table.is_inst_start(taken_rva))
 					{
@@ -900,7 +899,6 @@ namespace dasm
 					cur_block_it->fallthrough_block = fallthrough;
 
 					goto ExitInstDecodeLoop;
-					inst.flags |= inst_flag::block_terminator;
 				}
 				else if (cat == XED_CATEGORY_UNCOND_BR)
 				{
@@ -933,7 +931,7 @@ namespace dasm
 							return current_routine->blocks.end();
 						}
 						//inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
-						inst.flags |= inst_flag::rel_br;
+						inst.flags |= inst_flag::rel_br | inst_flag::block_terminator;
 
 
 						// REWRITE ME
@@ -961,7 +959,6 @@ namespace dasm
 						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_relbr_target;
 						cur_block_it->termination_type = termination_type_t::unconditional_br;
 
-						inst.flags |= inst_flag::block_terminator;
 						goto ExitInstDecodeLoop;
 					}
 					case XED_IFORM_JMP_FAR_MEMp2:
