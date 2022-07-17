@@ -1078,7 +1078,6 @@ namespace dasm
 		}
 	};
 
-
 	template<addr_width::type Addr_width = addr_width::x64, uint8_t Thread_count = 1>
 	class dasm_t
 	{

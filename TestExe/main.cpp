@@ -49,6 +49,7 @@ int main(int argc, char** argv)
 	printf("hello there. %X %X\n", argc, memes);
 
 	other_routine();
+	other_routine();
 
 	system("pause");
 	return 12;
