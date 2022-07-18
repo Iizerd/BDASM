@@ -151,12 +151,14 @@
   <ItemGroup>
     <ClInclude Include="..\sdk.h" />
     <ClInclude Include="addr_width.h" />
+    <ClInclude Include="common_code.h" />
     <ClInclude Include="dasm.h" />
     <ClInclude Include="align.h" />
     <ClInclude Include="dasm2.h" />
     <ClInclude Include="emu.h" />
     <ClInclude Include="encoder.h" />
     <ClInclude Include="encrypted_blocks.h" />
+    <ClInclude Include="encrypted_routines.h" />
     <ClInclude Include="flags.h" />
     <ClInclude Include="inst.h" />
     <ClInclude Include="dpattern.h" />

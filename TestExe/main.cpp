@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <Windows.h>
 
+#include <chrono>
+
+
 
 //holy christ im such a beast.
 __declspec(noinline) int other_routine()
@@ -22,9 +25,59 @@ __declspec(noinline) int other_routine()
 	return 12;
 }
 
+#include <iostream>
+#include <string>
 
 int main(int argc, char** argv)
 {
+	std::string input;
+	while (true)
+	{
+		std::cout << "Enter the password: ";
+		std::cin >> input;
+		if (input == "password")
+		{
+			std::cout << "Correct\n";
+			break;
+		}
+	}
+
+	system("pause");
+	return 1;
+
+
+	//std::cout << input << '\n';
+	//while (true)
+	//{
+	//	std::cout << "Enter the password: ";
+	//	std::cin >> input;
+	//	/*if (input == "password")
+	//	{
+	//		std::cout << "Correct.\n";
+	//		break;
+	//	}
+	//	else
+	//		std::cout << "Incorrect.\n";*/
+	//	std::cout << input << '\n';
+	//}
+
+
+	/*printf("it was 1.\n");
+	system("pause");
+	return 1;*/
+
+	/*auto start = std::chrono::high_resolution_clock::now();
+
+	uint64_t count = 0;
+	for (uint32_t i = 0; i < 0xFFFFF; ++i)
+	{
+		count += i;
+	}
+
+	std::printf("it tool %llu.\n", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count());
+
+	system("pause");
+	return 1;*/
 	/*if (argc == 1)
 	{
 		printf("it was 1.\n");
@@ -33,7 +86,7 @@ int main(int argc, char** argv)
 	system("pause");
 	return 1;*/
 
-	int memes = rand() % 3;
+	/*int memes = rand() % 3;
 	if (argc == 1)
 	{
 		memes = 1776 + 34;
@@ -52,7 +105,7 @@ int main(int argc, char** argv)
 	other_routine();
 
 	system("pause");
-	return 12;
+	return 12;*/
 
 
 

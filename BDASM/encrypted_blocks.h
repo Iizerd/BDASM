@@ -9,6 +9,7 @@
 
 namespace obf
 {
+
 	// So this is an interesting one, it should be done LAST if you want all instructions to be encrypted
 	// The way it works and maintains its thread saftey is by acquiring a spinlock before entering the function
 	// then releasing it on exit. The order is as follows
@@ -35,9 +36,7 @@ namespace obf
 		{
 			auto len = inst->length();
 			for (uint32_t i = 0; i < len; ++i)
-			{
 				target[i] ^= xor_val;
-			}
 			return true;
 		}
 
@@ -65,7 +64,6 @@ namespace obf
 				addr_width::bits<Addr_width>::value
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-
 			result.emplace_back(
 				XED_ICLASS_PUSH,
 				addr_width::bits<Addr_width>::value,
@@ -79,7 +77,6 @@ namespace obf
 				xed_imm0(0, 8)
 			).common_edit(continue_wait, 0, 0);
 
-
 			result.emplace_back(
 				XED_ICLASS_XCHG,
 				8,
@@ -91,14 +88,12 @@ namespace obf
 				xed_reg(XED_REG_AL)
 			).common_edit(ctx.linker->allocate_link(), spinlock_link, dasm::inst_flag::disp);
 
-		
 			result.emplace_back(
 				XED_ICLASS_TEST,
 				8,
 				xed_reg(XED_REG_AL),
 				xed_reg(XED_REG_AL)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
-
 
 			result.emplace_back(
 				XED_ICLASS_JZ,
@@ -119,16 +114,7 @@ namespace obf
 			// popfq
 			//
 
-			uint32_t continue_wait = ctx.linker->allocate_link();
-
 			dasm::inst_list_t<Addr_width> result;
-
-			/*result.emplace_back(
-				XED_ICLASS_PUSH,
-				addr_width::bits<Addr_width>::value,
-				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
-			).common_edit(ctx.linker->allocate_link(), 0, 0);*/
-
 
 			result.emplace_back(
 				XED_ICLASS_MOV,
@@ -136,7 +122,6 @@ namespace obf
 				xed_reg(XED_REG_AL),
 				xed_imm0(0x90, 8)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
-
 
 			result.emplace_back(
 				XED_ICLASS_XCHG,
@@ -226,11 +211,10 @@ namespace obf
 
 			if (post_encode)
 			{
-
 				switch (width)
 				{
 				case 1:
-					inst.encode_callback = std::bind(post_encode_xor_callback < Addr_width, uint8_t>,
+					inst.encode_callback = std::bind(post_encode_xor_callback<Addr_width, uint8_t>,
 						std::placeholders::_1,
 						std::placeholders::_2,
 						std::placeholders::_3,
@@ -239,7 +223,7 @@ namespace obf
 					);
 					break;
 				case 2:
-					inst.encode_callback = std::bind(post_encode_xor_callback < Addr_width, uint16_t>,
+					inst.encode_callback = std::bind(post_encode_xor_callback<Addr_width, uint16_t>,
 						std::placeholders::_1,
 						std::placeholders::_2,
 						std::placeholders::_3,
@@ -248,7 +232,7 @@ namespace obf
 					);
 					break;
 				case 4:
-					inst.encode_callback = std::bind(post_encode_xor_callback < Addr_width, uint32_t>,
+					inst.encode_callback = std::bind(post_encode_xor_callback<Addr_width, uint32_t>,
 						std::placeholders::_1,
 						std::placeholders::_2,
 						std::placeholders::_3,
@@ -404,7 +388,7 @@ namespace obf
 		{
 			dasm::inst_list_t<Addr_width> prologue, epilogue;
 
-			if (block.instructions.size() < 0x4000)
+			if (block.instructions.size() < 10)
 			{
 				for (auto& inst : block.instructions)
 				{
@@ -439,8 +423,9 @@ namespace obf
 			}
 			else
 			{
-				prologue = gen_encryption_loop(ctx, block, 0x20, true);
-				epilogue = gen_encryption_loop(ctx, block, 0x20, false);
+				uint8_t xor_key = rand();
+				prologue = gen_encryption_loop(ctx, block, xor_key, true);
+				epilogue = gen_encryption_loop(ctx, block, xor_key, false);
 			}
 
 			prologue.emplace_back(

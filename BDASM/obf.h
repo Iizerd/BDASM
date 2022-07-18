@@ -11,6 +11,7 @@
 #include "opaques.h"
 #include "original.h"
 #include "encrypted_blocks.h"
+#include "encrypted_routines.h"
 
 namespace obf
 {
@@ -105,7 +106,7 @@ namespace obf
 
 			for (auto& routine : dasm->completed_routines)
 			{
-				if (routine.entry_block->calc_byte_sizes() > 5/*&& routine.entry_block->rva_start == 0x13A8*//*0x13A8*/)
+				if (routine.entry_block->calc_byte_sizes() > 5/* && routine.entry_block->rva_start == 0x1040*//*0x13A8*/)
 				{
 					routine.promote_relbrs();
 					obf_routines.emplace_back(routine);
@@ -131,6 +132,10 @@ namespace obf
 
 			for (auto& routine : obf_routines)
 			{
+				for (auto& block : routine.m_routine.blocks)
+					for (auto& inst : block.instructions)
+						inst.redecode();
+
 				routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
 					{
 						return left.rva_start < right.rva_start;
@@ -165,7 +170,6 @@ namespace obf
 							}
 						}
 					}
-
 				}
 
 				// Make sure this is run first before any passes that invalidate rva_start and rva_end are run
@@ -175,8 +179,12 @@ namespace obf
 				routine.mutation_pass<opaque_from_flags_t>(context);
 
 				routine.mutation_pass<position_independent_blocks_t>(context);
+
+				//routine.mutation_pass<encrypted_blocks_t>(context);
+
 				//if (routine.m_routine.entry_block->rva_start == 0x1030)
-				routine.mutation_pass<encrypted_blocks_t>(context);
+				routine.mutation_pass<encrypted_routine_t>(context);
+
 
 			}
 		}

@@ -244,7 +244,7 @@ namespace pex
 	_M(_Sd, _Sn, NumberOfRvaAndSizes, number_of_rva_and_sizes)
 #define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type
 	template <addr_width::type Addr_width = addr_width::x64>
-	class optional_header_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>>>::type
+	class optional_header_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width> >, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width> > >::type
 	{
 
 		using _Header_type = optional_header_conditional_type(Addr_width);
@@ -261,7 +261,7 @@ namespace pex
 			return nullptr;
 		}
 		_OPTIONAL_HEADER_ITEM_LIST(_Header_type, this->m_pdata->, _DEFINE_GETTER)
-			_OPTIONAL_HEADER_ITEM_LIST(_Header_type, this->m_pdata->, _DEFINE_SETTER)
+		_OPTIONAL_HEADER_ITEM_LIST(_Header_type, this->m_pdata->, _DEFINE_SETTER)
 	};
 
 
@@ -272,7 +272,7 @@ namespace pex
 	_M(_Sd, _Sn, u1.AddressOfData, address_of_data)
 #define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
 	template <addr_width::type Addr_width = addr_width::x64>
-	class image_thunk_data_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>>>::type
+	class image_thunk_data_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width> >, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width> > >::type
 	{
 		using _Thunk_data_type = thunk_data_conditional_type(Addr_width);
 		using _Thunk_ordinal_type = std::conditional<Addr_width == addr_width::x86, DWORD, ULONGLONG>::type;

@@ -35,6 +35,11 @@ namespace dasm
 		// This is so we know what instructions are vital for block termination
 		//
 		constexpr type block_terminator = (1 << 4);
+
+		// This is for things like a ret or undetermined unconditional jumps. Pretty much
+		// anything that exits/finishes the current routine.
+		//
+		constexpr type routine_terminator = (1 << 5);
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>

@@ -77,18 +77,18 @@ namespace dasm
 		std::function<void(uint64_t)> report_routine_rva;
 
 		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t)> rva_reporter = nullptr)
-			: binary_interface(binary),
-			report_routine_rva(rva_reporter),
-			raw_data_start(binary->mapped_image),
-			raw_data_size(binary->optional_header.get_size_of_image())
+			: binary_interface(binary)
+			, report_routine_rva(rva_reporter)
+			, raw_data_start(binary->mapped_image)
+			, raw_data_size(binary->optional_header.get_size_of_image())
 		{
 			settings.recurse_calls = false;
 		}
 		explicit decoder_context_t(decoder_context_t const& to_copy)
-			: binary_interface(to_copy.binary_interface),
-			report_routine_rva(to_copy.report_routine_rva),
-			raw_data_start(to_copy.raw_data_start),
-			raw_data_size(to_copy.raw_data_size)
+			: binary_interface(to_copy.binary_interface)
+			, report_routine_rva(to_copy.report_routine_rva)
+			, raw_data_start(to_copy.raw_data_start)
+			, raw_data_size(to_copy.raw_data_size)
 		{
 			settings.recurse_calls = to_copy.settings.recurse_calls;
 		}
@@ -178,6 +178,11 @@ namespace dasm
 		conditional_br,
 		fallthrough,
 		undetermined_unconditional_br,
+
+		// Just top if you see this. This means that the termination of the block
+		// relies on some logic that cant be described generally.
+		//
+		ends,
 	};
 	template<addr_width::type Addr_width = addr_width::x64>
 	class block_t;
@@ -278,7 +283,7 @@ namespace dasm
 		{
 			switch (termination_type)
 			{
-			case termination_type_t::invalid:
+			case termination_type_t::invalid: [[fallthrough]];
 			case termination_type_t::returns:
 				break;
 
@@ -293,7 +298,8 @@ namespace dasm
 				func(fallthrough_block, params...);
 				break;
 
-			case termination_type_t::undetermined_unconditional_br:
+			case termination_type_t::undetermined_unconditional_br: [[fallthrough]];
+			case termination_type_t::ends:
 				break;
 			}
 		}
@@ -328,23 +334,6 @@ namespace dasm
 			}
 		}
 	};
-
-	// Simple way to represent an instruction and the block its in
-	//
-	/*template<addr_width::type Addr_width = addr_width::x64>
-	struct inst_descriptor_t
-	{
-		block_it<Addr_width> block;
-		inst_list_t<Addr_width>::iterator inst;
-
-		inst_descriptor_t(
-			block_it<Addr_width> block_iterator, 
-			inst_list_t<Addr_width>::iterator inst_iterator
-		)
-			: block(block_iterator)
-			, inst(inst_iterator)
-		{}
-	};*/
 
 	// TODO: Write control flow following iterators
 	//
@@ -485,23 +474,26 @@ namespace dasm
 				
 				switch (block.termination_type)
 				{
-				case dasm::termination_type_t::invalid:
+				case termination_type_t::invalid:
 					std::printf("Invalid block termination.\n\n");
 					break;
-				case dasm::termination_type_t::returns:
+				case termination_type_t::returns:
 					std::printf("Block returns.\n\n");
 					break;
-				case dasm::termination_type_t::unconditional_br:
+				case termination_type_t::unconditional_br:
 					std::printf("Unconditional branch: %X RVA:[%X]\n\n", block.taken_block->link, block.taken_block->rva_start);
 					break;
-				case dasm::termination_type_t::conditional_br:
+				case termination_type_t::conditional_br:
 					std::printf("Conditional Branch:\n -> Taken: %X RVA:[%X]\n -> ", block.taken_block->link, block.taken_block->rva_start);
 					[[fallthrough]];
-				case dasm::termination_type_t::fallthrough:
+				case termination_type_t::fallthrough:
 					std::printf("Fallthrough %X RVA:[%X]\n\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);
 					break;
-				case dasm::termination_type_t::undetermined_unconditional_br:
+				case termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
+					break;
+				case termination_type_t::ends:
+					std::printf("Indescribable block termination.\n\n");
 					break;
 				}
 				
@@ -520,23 +512,26 @@ namespace dasm
 
 				switch (block.termination_type)
 				{
-				case dasm::termination_type_t::invalid:
+				case termination_type_t::invalid:
 					std::printf("Invalid block termination.\n\n");
 					break;
-				case dasm::termination_type_t::returns:
+				case termination_type_t::returns:
 					std::printf("Block returns.\n\n");
 					break;
-				case dasm::termination_type_t::unconditional_br:
+				case termination_type_t::unconditional_br:
 					std::printf("Unconditional branch: %X EVAL:[%X]\n\n", block.taken_block->link, linker->get_link_addr(block.taken_block->link));
 					break;
-				case dasm::termination_type_t::conditional_br:
+				case termination_type_t::conditional_br:
 					std::printf("Conditional Branch:\n -> Taken: %X EVAL:[%X]\n -> ", block.taken_block->link, linker->get_link_addr(block.taken_block->link));
 					[[fallthrough]];
-				case dasm::termination_type_t::fallthrough:
+				case termination_type_t::fallthrough:
 					std::printf("Fallthrough %X EVAL:[%X]\n\n", block.fallthrough_block->link, linker->get_link_addr(block.fallthrough_block->link));
 					break;
-				case dasm::termination_type_t::undetermined_unconditional_br:
+				case termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
+					break; 
+				case termination_type_t::ends:
+					std::printf("Indescribable block termination.\n\n");
 					break;
 				}
 
@@ -570,7 +565,9 @@ namespace dasm
 		//// However functions, as we see in dxgkrnl.sys, can be scattered about and have
 		//// multiple blocks in different places. Thus having multiple RUNTIME_FUNCTION
 		//// entries. So we must treat the bounds specified in RUNTIME_FUNCTION as weak bounds
-		//// that can be steped outside of if deemed necessary.
+		//// that can be steped outside of if deemed necessary. In addition, we cant know if 
+		//// there is a function start at a RUNTIME_FUNCTION's rva, or if its just another 
+		//// scattered block. 
 		////
 		//uint64_t e_range_start;
 		//uint64_t e_range_end;
@@ -752,7 +749,6 @@ namespace dasm
 									block.taken_block = new_block_it;
 							}
 
-
 							new_block.rva_start = block_it->rva_start;
 							new_block.rva_end = rva;
 							new_block.fallthrough_block = block_it;
@@ -853,7 +849,7 @@ namespace dasm
 					}
 
 					//inst.used_link = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
-					inst.flags |= inst_flag::rel_br | inst_flag::block_terminator;
+					inst.flags |= (inst_flag::rel_br | inst_flag::block_terminator);
 
 					if (!m_lookup_table.is_inst_start(taken_rva))
 					{
@@ -916,7 +912,7 @@ namespace dasm
 							return current_routine->blocks.end();
 						}
 						cur_block_it->termination_type = termination_type_t::undetermined_unconditional_br;
-						inst.flags |= inst_flag::block_terminator;
+						inst.flags |= (inst_flag::block_terminator | inst_flag::routine_terminator);
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
 					case XED_IFORM_JMP_RELBRd:
@@ -931,7 +927,7 @@ namespace dasm
 							return current_routine->blocks.end();
 						}
 						//inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
-						inst.flags |= inst_flag::rel_br | inst_flag::block_terminator;
+						inst.flags |= (inst_flag::rel_br | inst_flag::block_terminator);
 
 
 						// REWRITE ME
@@ -979,11 +975,11 @@ namespace dasm
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
-						if (!inst.used_link)
+						/*if (!inst.used_link)
 						{
 							log_error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
 							return current_routine->blocks.end();
-						}
+						}*/
 						break;
 
 					case XED_IFORM_CALL_NEAR_RELBRd:
@@ -992,7 +988,7 @@ namespace dasm
 						int32_t call_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
 						uint64_t dest_rva = rva + call_disp;
 						
-
+						
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
 							log_error("Call to invalid rva.\n");
@@ -1020,7 +1016,7 @@ namespace dasm
 				else if (cat == XED_CATEGORY_RET)
 				{
 					cur_block_it->termination_type = termination_type_t::returns;
-					inst.flags |= inst_flag::block_terminator;
+					inst.flags |= (inst_flag::block_terminator | inst_flag::routine_terminator);
 					goto ExitInstDecodeLoop;
 				}
 				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
@@ -1059,21 +1055,27 @@ namespace dasm
 				return;
 			}
 
+			auto entry_rva = rva;
+
 			completed_routines.emplace_back();
 			current_routine = &completed_routines.back();
 			current_routine->entry_link = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 
-			if ((current_routine->entry_block = decode_block(rva)) == current_routine->blocks.end())
+			if (decode_block(rva) == current_routine->blocks.end())
 			{
 				completed_routines.pop_back();
 				++invalid_routine_count;
 				return;
 			}
 
-			for (auto& block : current_routine->blocks)
+
+
+			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
 			{
-				block.link = block.instructions.front().my_link;
-				block.instructions.front().my_link = m_decoder_context->linker->allocate_link();
+				if (block_it->rva_start == entry_rva)
+					current_routine->entry_block = block_it;
+				block_it->link = block_it->instructions.front().my_link;
+				block_it->instructions.front().my_link = m_decoder_context->linker->allocate_link();
 			}
 		}
 	};
@@ -1164,7 +1166,6 @@ namespace dasm
 				completed_routines.splice(completed_routines.end(), thread.completed_routines);
 				thread.stop();
 			}
-
 		}
 
 		uint32_t count_instructions()

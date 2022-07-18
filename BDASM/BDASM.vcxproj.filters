@@ -73,6 +73,12 @@
     <ClInclude Include="encrypted_blocks.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
+    <ClInclude Include="encrypted_routines.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
+    <ClInclude Include="common_code.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

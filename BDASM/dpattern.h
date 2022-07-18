@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "inst.h"
+#include "traits.h"
 
 
 namespace dasm
@@ -30,6 +31,42 @@ namespace dasm
 		{
 			return ((Compare_list == Accessor(&(start++)->decoded_inst)) && ...);
 		}
+	};
+
+	template<addr_width::type Addr_width, auto Accessor, typename Compare_type = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*> >
+	class dynamic_pattern_t
+	{
+		Accessor m_accessor;
+		std::vector<Compare_type> m_compare_list;
+		uint32_t m_index;
+
+	public:
+		constexpr dynamic_pattern_t(Accessor accessor, std::initializer_list<Compare_type> list)
+			: m_accessor(accessor)
+			, m_index(0)
+		{
+			for (auto val : list)
+				m_compare_list.push_back(val);
+		}
+
+		finline reset()
+		{
+			m_index = 0;
+		}
+
+		bool advance(inst_it_t<Addr_width> inst_it, Compare_type compare_value)
+		{
+			if (m_index++ < m_compare_list.size())
+				return (compare_value == m_accessor(&inst_it->decoded_inst));
+			return true;
+		}
+		
+	};
+
+
+	class multi_pattern_t
+	{
+
 	};
 
 

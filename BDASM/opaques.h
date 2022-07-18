@@ -101,23 +101,12 @@ namespace obf
 			auto routine_it = ctx.ctx.obf_routine_list.begin();
 
 			std::advance(routine_it, rand() % ctx.ctx.obf_routine_list.size());
-			//if (rand() % 100 < 1)
-			//{
-			//	printf("using routine.\n");
-			//	return routine_it->m_routine.entry_link;
-			//}
 
 			auto block_it_t = routine_it->m_routine.blocks.begin();
-			//if (rand() % 100 < 1)
-			//{
-			//	printf("using block.\n");
-			//	return block_it_t->link;
-			//}
-			
+
 			auto inst_it = block_it_t->instructions.begin();
 			std::advance(inst_it, rand() % block_it_t->instructions.size());
 
-			//printf("using inst.\n");
 			return inst_it->my_link;
 		}
 		
@@ -204,6 +193,8 @@ namespace obf
 			case dasm::termination_type_t::undetermined_unconditional_br:
 				place_jcc(std::prev(block->instructions.end()));
 				break;
+			case dasm::termination_type_t::ends:
+					break;
 			}
 		}
 
@@ -251,6 +242,11 @@ namespace obf
 		}
 	};
 
+	// Search for constant non zero values. Trace forward until its written to and place a test and jcc
+	// right before. make sure flags are clobbered so they dont need to be preserved.
+	//  mov reg,nonzero
+	//  or reg,nonzero
+	//  
 	struct opaque_from_const_t
 	{
 		template<addr_width::type Addr_width = addr_width::x64>
