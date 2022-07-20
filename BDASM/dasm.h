@@ -557,9 +557,13 @@ namespace dasm
 	template<addr_width::type Addr_width = addr_width::x64>
 	class thread_t
 	{
+		std::vector<block_it_t<Addr_width> > stack;
+
 		// Only valid while disassembling, points to the list of blocks in the routine
 		//
 		routine_t<Addr_width>* current_routine;
+
+		block_it_t<Addr_width> current_block;
 
 		//// If this function starts in an seh block(RUNTIME_FUNCTION), it is described here
 		//// However functions, as we see in dxgkrnl.sys, can be scattered about and have
@@ -607,6 +611,7 @@ namespace dasm
 			, m_lookup_table(m_decoder_context->raw_data_size)
 		{
 			m_thread = new std::thread(&thread_t::run, this);
+			stack.clear();
 		}
 		explicit thread_t(thread_t const& to_copy)
 			: m_lookup_table(to_copy.m_decoder_context->raw_data_size)
@@ -717,6 +722,41 @@ namespace dasm
 			std::printf(format, args...);
 		}
 
+		block_it_t<Addr_width> enter(uint64_t rva)
+		{
+			stack.push_back(current_block);
+			current_routine->blocks.emplace_front(current_routine->blocks.end()).rva_start = rva;
+			current_block = current_routine->blocks.begin();
+			return current_block;
+		}
+
+		void leave()
+		{
+			auto last = stack.back();
+			stack.pop_back();
+			current_block = last;
+		}
+
+		block_it_t<Addr_width> error()
+		{
+			leave();
+			return current_routine->blocks.end();
+		}
+
+		template<typename... Args>
+		block_it_t<Addr_width> error(const char* format, Args... args)
+		{
+			log_error(format, args...);
+			leave();
+			return current_routine->blocks.end();
+		}
+
+		block_it_t<Addr_width> success()
+		{
+			auto me = current_block;
+			leave();
+			return me;
+		}
 		// For when we find a relative that jumps into an existing block, we need to split that block across
 		// the label and add fallthrough.
 		block_it_t<Addr_width> split_block(uint64_t rva)
@@ -739,25 +779,35 @@ namespace dasm
 							auto& new_block = current_routine->blocks.emplace_front(current_routine->blocks.end());
 							auto new_block_it = current_routine->blocks.begin();
 
-							// Update any other blocks that may have used this blocks iterator
-							//
-							for (auto& block : current_routine->blocks)
+
+							new_block.rva_start = rva;
+							new_block.rva_end = block_it->rva_end;
+							new_block.termination_type = block_it->termination_type;
+							new_block.fallthrough_block = block_it->fallthrough_block;
+							new_block.taken_block = block_it->taken_block;
+							new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, inst_it, block_it->instructions.end());
+
+							if (rva == 0x1058)
 							{
-								if (block.fallthrough_block == block_it)
-									block.fallthrough_block = new_block_it;
-								if (block.taken_block == block_it)
-									block.taken_block = new_block_it;
+								std::printf("split the block namean.\n");
 							}
 
-							new_block.rva_start = block_it->rva_start;
-							new_block.rva_end = rva;
-							new_block.fallthrough_block = block_it;
-							new_block.termination_type = termination_type_t::fallthrough;
-							new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, block_it->instructions.begin(), inst_it);
-							
-							block_it->rva_start = rva;
-							
-							return block_it;
+							block_it->rva_end = rva;
+							block_it->termination_type = termination_type_t::fallthrough;
+							block_it->fallthrough_block = new_block_it;
+
+							for (uint32_t i = 1; i < stack.size(); ++i)
+								if (stack[i] == block_it)
+									stack[i] = new_block_it;
+
+							/*for (auto& it : stack)
+								if (it == block_it)
+									it = new_block_it;*/
+
+							if (current_block == block_it)
+								current_block = new_block_it;
+
+							return new_block_it;
 						}
 					}
 				}
@@ -768,20 +818,16 @@ namespace dasm
 		}
 		block_it_t<Addr_width> decode_block(uint64_t rva)
 		{
-			current_routine->blocks.emplace_front(current_routine->blocks.end()).rva_start = rva;
-			auto cur_block_it = current_routine->blocks.begin();
-			cur_block_it->fallthrough_block = current_routine->blocks.end();
-			cur_block_it->taken_block = current_routine->blocks.end();
-			cur_block_it->rva_end = m_decoder_context->raw_data_size;
+			auto entry_block = enter(rva);
+
 			while (!m_lookup_table.is_inst_start(rva))
 			{
-				auto& inst = cur_block_it->instructions.emplace_back();
+				auto& inst = current_block->instructions.emplace_back();
 
 				int32_t ilen = inst.decode(const_cast<uint8_t*>(m_decoder_context->raw_data_start + rva), m_decoder_context->raw_data_size - rva);
 				if (ilen == 0)
 				{
-					log_error("Failed to decode, 0 inst length. RVA: 0x%p\n", rva);
-					return current_routine->blocks.end();
+					return error("Failed to decode, 0 inst length. RVA: 0x%p\n", rva);
 				}
 
 				//std::printf("IClass: %s\n", xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
@@ -832,7 +878,7 @@ namespace dasm
 
 				rva += ilen;
 				// Update the end of the current block so its correct if we need to call split_block
-				cur_block_it->rva_end = rva;
+				current_block->rva_end = rva;
 
 				// Follow control flow
 				//
@@ -844,8 +890,7 @@ namespace dasm
 
 					if (!m_decoder_context->validate_rva(taken_rva))
 					{
-						log_error("Conditional branch to invalid rva.\n");
-						return current_routine->blocks.end();
+						return error("Conditional branch to invalid rva.\n");
 					}
 
 					//inst.used_link = taken_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(taken_rva);
@@ -853,23 +898,21 @@ namespace dasm
 
 					if (!m_lookup_table.is_inst_start(taken_rva))
 					{
-						if ((cur_block_it->taken_block = decode_block(taken_rva)) == current_routine->blocks.end())
+						if ((current_block->taken_block = decode_block(taken_rva)) == current_routine->blocks.end())
 						{
-							log_error("Failed to decode a new block for conditional branch at %p\n", rva - ilen);
-							return current_routine->blocks.end();
+							return error("Failed to decode a new block for conditional branch at %p\n", rva - ilen);
 						}
 					}
 					else
 					{
-						if ((cur_block_it->taken_block = split_block(taken_rva)) == current_routine->blocks.end())
+						if ((current_block->taken_block = split_block(taken_rva)) == current_routine->blocks.end())
 						{
-							log_error("Failed to split block for conditional branch at %p\n", rva - ilen);
-							return current_routine->blocks.end();
+							return error("Failed to split block for conditional branch at %p\n", rva - ilen);
 						}
 					}
 
 
-					inst.used_link = cur_block_it->taken_block->instructions.begin()->my_link;
+					inst.used_link = current_block->taken_block->instructions.begin()->my_link;
 
 					m_decoder_context->global_lookup_table[taken_rva] |= glt::is_relbr_target;
 
@@ -887,12 +930,11 @@ namespace dasm
 
 					if (fallthrough == current_routine->blocks.end())
 					{
-						log_error("Error decoding fallthrough at %p\n", rva);
-						return current_routine->blocks.end();
+						return error("Error decoding fallthrough at %p\n", rva);
 					}
 
-					cur_block_it->termination_type = termination_type_t::conditional_br;
-					cur_block_it->fallthrough_block = fallthrough;
+					current_block->termination_type = termination_type_t::conditional_br;
+					current_block->fallthrough_block = fallthrough;
 
 					goto ExitInstDecodeLoop;
 				}
@@ -903,15 +945,13 @@ namespace dasm
 					case XED_IFORM_JMP_GPRv:
 						// Jump table.
 						//
-						log_error("Unhandled inst at %08X XED_IFORM_JMP_GPRv.\n", rva - ilen);
-						return current_routine->blocks.end();
+						return error("Unhandled inst at %08X XED_IFORM_JMP_GPRv.\n", rva - ilen);
 					case XED_IFORM_JMP_MEMv:
 						if (!inst.used_link)
 						{
-							log_error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
-							return current_routine->blocks.end();
+							return error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 						}
-						cur_block_it->termination_type = termination_type_t::undetermined_unconditional_br;
+						current_block->termination_type = termination_type_t::undetermined_unconditional_br;
 						inst.flags |= (inst_flag::block_terminator | inst_flag::routine_terminator);
 						goto ExitInstDecodeLoop;
 					case XED_IFORM_JMP_RELBRb:
@@ -923,8 +963,7 @@ namespace dasm
 
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
-							log_error("Unconditional branch to invalid rva.\n");
-							return current_routine->blocks.end();
+							return error("Unconditional branch to invalid rva.\n");
 						}
 						//inst.used_link = dest_rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(dest_rva);
 						inst.flags |= (inst_flag::rel_br | inst_flag::block_terminator);
@@ -933,34 +972,31 @@ namespace dasm
 						// REWRITE ME
 						if (!m_lookup_table.is_inst_start(dest_rva))
 						{
-							if ((cur_block_it->taken_block = decode_block(dest_rva)) == current_routine->blocks.end())
+							if ((current_block->taken_block = decode_block(dest_rva)) == current_routine->blocks.end())
 							{
-								log_error("Failed to decode a new block for un-conditional branch at %p\n", rva - ilen);
-								return current_routine->blocks.end();
+								return error("Failed to decode a new block for un-conditional branch at %p\n", rva - ilen);
 							}
 
 						}
 						else
 						{
-							if ((cur_block_it->taken_block = split_block(dest_rva)) == current_routine->blocks.end())
+							if ((current_block->taken_block = split_block(dest_rva)) == current_routine->blocks.end())
 							{
-								log_error("Failed to split a new block for un-conditional branch at %p\n", rva - ilen);
-								return current_routine->blocks.end();
+								return error("Failed to split a new block for un-conditional branch at %p\n", rva - ilen);
 							}
 						}
 
-						inst.used_link = cur_block_it->taken_block->instructions.begin()->my_link;
+						inst.used_link = current_block->taken_block->instructions.begin()->my_link;
 
 						//m_decoder_context->relbr_table[dest_rva] = true;
 						m_decoder_context->global_lookup_table[dest_rva] |= glt::is_relbr_target;
-						cur_block_it->termination_type = termination_type_t::unconditional_br;
+						current_block->termination_type = termination_type_t::unconditional_br;
 
 						goto ExitInstDecodeLoop;
 					}
 					case XED_IFORM_JMP_FAR_MEMp2:
 					case XED_IFORM_JMP_FAR_PTRp_IMMw:
-						log_error("Unhandled inst at %08X: JMP_FAR_MEM/PTR.\n", rva - ilen);
-						return current_routine->blocks.end();
+						return error("Unhandled inst at %08X: JMP_FAR_MEM/PTR.\n", rva - ilen);
 					}
 				}
 				else if (cat == XED_CATEGORY_CALL && m_decoder_context->settings.recurse_calls)
@@ -970,15 +1006,14 @@ namespace dasm
 					case XED_IFORM_CALL_NEAR_GPRv:
 						// Call table?!
 						//
-						log_error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
-						return current_routine->blocks.end();
+						return error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_GPRv.\n", rva - ilen);
 					case XED_IFORM_CALL_NEAR_MEMv:
 						// Import or call to absolute address...
 						//
 						/*if (!inst.used_link)
 						{
 							log_error("Unhandled inst at %08X: XED_IFORM_CALL_NEAR_MEMv.\n", rva - ilen);
-							return current_routine->blocks.end();
+							return error();
 						}*/
 						break;
 
@@ -991,8 +1026,7 @@ namespace dasm
 						
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
-							log_error("Call to invalid rva.\n");
-							return current_routine->blocks.end();
+							return error("Call to invalid rva.\n");
 						}
 
 						//std::printf("Found call at 0x%X, 0x%X\n", rva - ilen, dest_rva);
@@ -1009,13 +1043,12 @@ namespace dasm
 					}
 					case XED_IFORM_CALL_FAR_MEMp2:
 					case XED_IFORM_CALL_FAR_PTRp_IMMw:
-						log_error("Unhandled inst at %08X: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
-						return current_routine->blocks.end();
+						return error("Unhandled inst at %08X: XED_IFORM_CALL_FAR_MEM/PTR.\n", rva - ilen);
 					}
 				}
 				else if (cat == XED_CATEGORY_RET)
 				{
-					cur_block_it->termination_type = termination_type_t::returns;
+					current_block->termination_type = termination_type_t::returns;
 					inst.flags |= (inst_flag::block_terminator | inst_flag::routine_terminator);
 					goto ExitInstDecodeLoop;
 				}
@@ -1035,17 +1068,17 @@ namespace dasm
 					{
 						if (inst_it->original_rva == rva)
 						{
-							cur_block_it->fallthrough_block = block_it;
+							current_block->fallthrough_block = block_it;
 						}
 					}
 				}
 			}
-			cur_block_it->termination_type = termination_type_t::fallthrough;
+			current_block->termination_type = termination_type_t::fallthrough;
 
 		ExitInstDecodeLoop:
-			cur_block_it->rva_end = rva;
-
-			return cur_block_it;
+			current_block->rva_end = rva;
+			leave();
+			return entry_block;
 		}
 		void decode(uint64_t rva)
 		{
@@ -1061,7 +1094,7 @@ namespace dasm
 			current_routine = &completed_routines.back();
 			current_routine->entry_link = rva; // m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(rva);
 
-			if (decode_block(rva) == current_routine->blocks.end())
+			if ((current_routine->entry_block = decode_block(rva)) == current_routine->blocks.end())
 			{
 				completed_routines.pop_back();
 				++invalid_routine_count;
@@ -1071,9 +1104,9 @@ namespace dasm
 
 
 			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
-			{
+			{/*
 				if (block_it->rva_start == entry_rva)
-					current_routine->entry_block = block_it;
+					current_routine->entry_block = block_it;*/
 				block_it->link = block_it->instructions.front().my_link;
 				block_it->instructions.front().my_link = m_decoder_context->linker->allocate_link();
 			}

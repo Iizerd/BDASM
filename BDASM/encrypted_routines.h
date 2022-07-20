@@ -79,6 +79,21 @@ namespace obf
 		}
 
 		template<addr_width::type Addr_width = addr_width::x64>
+		static void shuffle_list(dasm::inst_list_t<Addr_width>& list)
+		{
+			for (uint32_t i = 0; i < 8; ++i)
+			{
+				for (auto inst_it = list.begin(); inst_it != list.end();)
+				{
+					auto next = std::next(inst_it);
+					if (rand() % 100 < 50)
+						list.splice(list.begin(), list, inst_it);
+					inst_it = next;
+				}
+			}
+		}
+
+		template<addr_width::type Addr_width = addr_width::x64>
 		static dasm::inst_list_t<Addr_width> acquire_spinlock(context_t<Addr_width>& ctx, uint32_t spinlock_link)
 		{
 			// continue_wait:
@@ -482,11 +497,17 @@ namespace obf
 		{
 			if (block.instructions.size() < 10)
 			{
+				dasm::inst_list_t<Addr_width> p, e;
 				for (auto& inst : block.instructions)
 				{
 					inst.redecode();
-					gen_encryption_pair(ctx, inst, prologue, epilogue, !(inst.flags & dasm::inst_flag::routine_terminator));
+					gen_encryption_pair(ctx, inst, p, e, !(inst.flags & dasm::inst_flag::routine_terminator));
 				}
+				shuffle_list(p);
+				shuffle_list(e);
+
+				prologue.splice(prologue.end(), p);
+				epilogue.splice(epilogue.end(), e);
 			}
 			else
 			{
@@ -526,7 +547,6 @@ namespace obf
 					block_it->instructions.emplace(std::prev(block_it->instructions.end()),
 						XED_ICLASS_CALL_NEAR,
 						32,
-
 						xed_relbr(0, 32)
 					)->common_edit(ctx.linker->allocate_link(), epilogue.link, dasm::inst_flag::rel_br);
 				}
@@ -557,7 +577,7 @@ namespace obf
 				std::placeholders::_4
 			);
 
-
+			return pass_status_t::success;
 		}
 	};
 }

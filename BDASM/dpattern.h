@@ -33,7 +33,7 @@ namespace dasm
 		}
 	};
 
-	template<addr_width::type Addr_width, auto Accessor, typename Compare_type = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*> >
+	/*template<addr_width::type Addr_width, auto Accessor, typename Compare_type = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*> >
 	class dynamic_pattern_t
 	{
 		Accessor m_accessor;
@@ -67,7 +67,7 @@ namespace dasm
 	class multi_pattern_t
 	{
 
-	};
+	};*/
 
 
 	//template<addr_width::type Addr_width = addr_width::x64>

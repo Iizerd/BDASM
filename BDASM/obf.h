@@ -172,6 +172,14 @@ namespace obf
 					}
 				}
 
+				//if (routine.m_routine.entry_block->rva_start == 0x1040)
+				//{
+				//	routine.m_routine.print_blocks();
+				//	return;
+				//}
+
+				//continue;
+
 				// Make sure this is run first before any passes that invalidate rva_start and rva_end are run
 				//
 				routine.mutation_pass<pad_original_t>(context);
