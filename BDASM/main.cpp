@@ -30,7 +30,8 @@
 //#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 //#else
 //#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
-#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+//#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+#define image_name "C:\\$Fanta\\FntaLoada\\x64\\Release\\FntaLoada.exe"
 
 //#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
 #define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe4.exe"
