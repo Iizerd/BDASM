@@ -17,6 +17,19 @@
 #include "dpattern.h"
 
 #include "obf.h"
+
+// Passes
+//
+#include "mba.h"
+#include "pi_blocks.h"
+#include "stack_allocation.h"
+#include "opaques.h"
+#include "original.h"
+#include "encrypted_blocks.h"
+#include "encrypted_routines.h"
+
+
+
 //uint8_t bytes[] = { 0xFF, 0x15, 0x00 ,0x30 ,0x40 ,0x00 };
 //uint8_t bytes[] = { 0x48,0xFF ,0x15 ,0x39 ,0x6C ,0xC3 ,0xFF };
 
@@ -30,8 +43,7 @@
 //#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 //#else
 //#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
-//#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
-#define image_name "C:\\$Fanta\\FntaLoada\\x64\\Release\\FntaLoada.exe"
+#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
 
 //#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
 #define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe4.exe"
@@ -41,7 +53,7 @@
 
 int main(int argc, char** argv)
 {
-	srand(1); // time(nullptr));
+	srand(time(nullptr));
 	xed_tables_init();
 
 	//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
@@ -81,7 +93,12 @@ int main(int argc, char** argv)
 
 	obfuscator.load_file(image_name);
 
-	obfuscator.run();
+	obfuscator.register_single_pass<pad_original_t>();
+	obfuscator.register_single_pass<opaque_from_flags_t>();
+	obfuscator.register_single_pass<position_independent_blocks_t>();
+	obfuscator.register_single_pass<encrypted_routine_t>();
+
+	obfuscator.run_single_passes();
 	obfuscator.encode(obfuscator.place());
 
 	obfuscator.save_file(image_out);

@@ -1,25 +1,66 @@
+#pragma once
 
+#include <vector>
+#include <functional>
 
-#include "obf_structures.h"
 #include "align.h"
-
-// Passes
-//
-#include "mba.h"
-#include "pi_blocks.h"
-#include "stack_allocation.h"
-#include "opaques.h"
-#include "original.h"
-#include "encrypted_blocks.h"
-#include "encrypted_routines.h"
+#include "dasm.h"
 
 namespace obf
 {
+	enum class pass_status_t
+	{
+		// Complete and total failure that means we need to scrub the whole process
+		//
+		critical_failure,
+
+		// Failure but its ok, the routine is still intact and we can proceed with other routines
+		//
+		failure,
+
+		// 
+		//
+		success,
+	};
+
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	class routine_t;
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	struct context_t
+	{
+		dasm::linker_t& linker;
+		pex::binary_t<Addr_width>& bin;
+		std::list<routine_t<Addr_width> >& obf_routine_list;
+		std::list<dasm::routine_t<Addr_width> >& additional_routines;
+	};
+
+	template<addr_width::type Addr_width>
+	class routine_t
+	{
+	public:
+		dasm::routine_t<Addr_width>& m_routine;
+
+	public:
+
+		routine_t(dasm::routine_t<Addr_width>& routine)
+			: m_routine(routine)
+		{}
+
+		template<typename Pass_type, typename... Params>
+		pass_status_t mutation_pass(context_t<Addr_width>& ctx, Params... params)
+		{
+			return Pass_type::pass(m_routine, ctx, params...);
+		}
+	};
+
 	//https://www.youtube.com/watch?v=pXwbj_ZPKwg&ab_channel=VvporTV
 	//
 	template<addr_width::type Addr_width = addr_width::x64, uint32_t Thread_count = 1>
 	class obf_t
 	{
+		std::vector<std::function<pass_status_t(dasm::routine_t<Addr_width>&, obf::context_t<Addr_width>&)> > single_passes;
 
 		dasm::decoder_context_t<Addr_width>* m_decoder_context;
 
@@ -31,6 +72,10 @@ namespace obf
 		pex::binary_t<Addr_width>* bin;
 
 		std::list<routine_t<Addr_width> > obf_routines;
+
+		// These are routines that are added after the fact
+		//
+		std::list<dasm::routine_t<Addr_width> > additional_routines;
 
 		obf_t()
 			: dasm(nullptr)
@@ -114,7 +159,6 @@ namespace obf
 			}
 		}
 
-
 		void save_file(std::string const& file_path)
 		{
 			uint32_t data_size = 0;
@@ -126,9 +170,23 @@ namespace obf
 		}
 
 
-		void run()
+		template<typename Pass_type, typename... Params>
+		pass_status_t group_pass(context_t<Addr_width>& ctx, Params... params)
 		{
-			context_t<Addr_width> context = { m_linker, bin, obf_routines };
+			return Pass_type::pass(ctx, params...);
+		}
+
+		template<typename Pass_type, typename... Params>
+		void register_single_pass(Params... params)
+		{
+			single_passes.push_back(std::bind(&Pass_type::template pass<Addr_width>, std::placeholders::_1, std::placeholders::_2, params...));
+		}
+
+
+
+		void run_single_passes()
+		{
+			context_t<Addr_width> context = { *m_linker, *bin, obf_routines, additional_routines };
 
 			for (auto& routine : obf_routines)
 			{
@@ -140,6 +198,12 @@ namespace obf
 					{
 						return left.rva_start < right.rva_start;
 					});
+
+				for (auto pass : single_passes)
+				{
+					pass(routine.m_routine, context);
+				}
+
 				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
 
 				//if (routine.m_routine.entry_block->rva_start == 0x1530)
@@ -150,10 +214,10 @@ namespace obf
 				//	routine.mutation_pass< opaque_from_flags_t>(context);
 
 
-				
-				for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
+				// Basic sanity check
+				//
+				/*for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
 				{
-
 					for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
 					{
 						auto cat = xed_decoded_inst_get_category(&inst_it->decoded_inst);
@@ -170,24 +234,35 @@ namespace obf
 							}
 						}
 					}
-				}
+				}*/
 
 
 				// Make sure this is run first before any passes that invalidate rva_start and rva_end are run
 				//
-				routine.mutation_pass<pad_original_t>(context);
+				//routine.mutation_pass<pad_original_t>(context);
 
-				routine.mutation_pass<opaque_from_flags_t>(context);
+				//routine.mutation_pass<opaque_from_flags_t>(context);
 
-				routine.mutation_pass<position_independent_blocks_t>(context);
+				//routine.mutation_pass<position_independent_blocks_t>(context);
 
-				//routine.mutation_pass<encrypted_blocks_t>(context);
+				////routine.mutation_pass<encrypted_blocks_t>(context);
 
-				//if (routine.m_routine.entry_block->rva_start == 0x1030)
-				routine.mutation_pass<encrypted_routine_t>(context);
+				////if (routine.m_routine.entry_block->rva_start == 0x1030)
+				//routine.mutation_pass<encrypted_routine_t>(context);
 
 
 			}
+
+			//individual_pass<pad_original_t>(context);
+
+			//individual_pass<opaque_from_flags_t>(context);
+
+			//individual_pass<position_independent_blocks_t>(context);
+
+			////routine.mutation_pass<encrypted_blocks_t>(context);
+
+			////if (routine.m_routine.entry_block->rva_start == 0x1030)
+			//individual_pass<encrypted_routine_t>(context);
 		}
 
 		// These two functions REQUIRE that the order is not changed between their calls

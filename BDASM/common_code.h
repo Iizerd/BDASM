@@ -1,6 +1,6 @@
 #pragma once
 
-#include "obf_structures.h"
+#include "obf.h"
 
 // So, a lot of code is repeated in binaries. So the idea is ill put these common blocks of code that 
 // all routines can jump to. Like vm handlers :)
@@ -13,17 +13,30 @@
 // allocations and home space storage.
 //
 
-namespace obf
+struct common_prologue_t
 {
-
-
-	struct common_code_t
+	template<addr_width::type Addr_width = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
 	{
-		template<addr_width::type Addr_width = addr_width::x64>
-		static pass_status_t pass(dasm::routine_t<Addr_width>& routine, context_t<Addr_width>& ctx)
-		{
 
-		}
-	};
-}
+	}
+};
+
+struct common_epilogue_t
+{
+	template<addr_width::type Addr_width = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	{
+
+	}
+};
+
+struct common_code_t
+{
+	template<addr_width::type Addr_width = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	{
+
+	}
+};
 

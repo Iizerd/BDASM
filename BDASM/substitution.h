@@ -1,6 +1,6 @@
 #pragma once
 
-#include "obf_structures.h"
+#include "obf.h"
 #include "encoder.h"
 
 // The goal of this is to substitute instructions with other harder to understand 

@@ -335,6 +335,23 @@ namespace dasm
 		}
 	};
 
+	namespace routine_flag
+	{
+		typedef uint8_t type;
+
+		constexpr uint8_t none = 0;
+
+		// Routine does not call other routines
+		//
+		constexpr uint8_t leaf = (1 << 0);
+
+		// Routine modifies rsp in some way
+		// Not currently filled
+		//
+		constexpr uint8_t stack_allocation = (1 << 2);
+
+
+	}
 	// TODO: Write control flow following iterators
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
@@ -342,92 +359,25 @@ namespace dasm
 	{
 	public:
 
-		//template<addr_width::type Addr_width = addr_width::x64>
-		/*class iterator
-		{
-			using iterator_category = std::bidirectional_iterator_tag;
-			using difference_type = std::ptrdiff_t;
-			using value_type = inst_t<Addr_width>;
-			using pointer = inst_t<Addr_width>*;
-			using reference = inst_t<Addr_width>&;
-
-			using my_type = iterator;
-			using list_it_type = std::list<inst_list_t<Addr_width> >::iterator;
-			using inst_it_type = inst_list_t<Addr_width>::iterator;
-
-			list_it_type list_end;
-			list_it_type list_it;
-			inst_it_type inst_it;
-
-		public:
-			iterator(list_it_type lend, list_it_type ilist, inst_it_type iinst)
-				: list_end(lend), list_it(ilist), inst_it(iinst)
-			{}
-
-			reference operator*() const
-			{
-				return *inst_it;
-			}
-			pointer operator->()
-			{
-				return &*inst_it;
-			}
-
-			my_type& operator++()
-			{
-				++inst_it;
-				if (inst_it == list_it->end())
-				{
-					do
-					{
-						if (++list_it == list_end)
-							break;
-						else
-							inst_it = list_it->begin();
-					} while (!list_it->size());
-				}
-				return *this;
-			}
-
-			my_type operator++(int)
-			{
-				my_type tmp = *this;
-				++(*this); return tmp;
-			}
-
-			my_type& operator--()
-			{
-				if (inst_it == list_it->begin())
-				{
-					while (!(--list_it)->size()) {}
-					inst_it = std::prev(list_it->end());
-				}
-				else
-				{
-					--inst_it;
-				}
-				return *this;
-			}
-
-			my_type operator--(int)
-			{
-				my_type tmp = *this;
-				--(*this); return tmp;
-			}
-
-			bool operator!=(my_type const& com)
-			{
-				return (com.list_it != list_it ||
-					com.inst_it != inst_it);
-			}
-
-		};*/
 		std::list<block_t<Addr_width> > blocks;
+
+		routine_flag::type flags;
 
 		// This is the rva in original binary
 		//
 		uint32_t entry_link;
+
+		// Iterator of the entry block
+		//
 		block_it_t<Addr_width> entry_block;
+
+		routine_t()
+			: flags(routine_flag::none)
+			, entry_link(linker_t::invalid_link_value)
+			, entry_block(blocks.end())
+		{
+
+		}
 		void reset_visited()
 		{
 			for (auto& block : blocks)
@@ -436,7 +386,7 @@ namespace dasm
 		void reset_visited_bit(uint32_t bit)
 		{
 			for (auto& block : blocks)
-				block.visited &= ~(1<<bit);
+				block.visited &= ~(1 << bit);
 		}
 		void promote_relbrs()
 		{
@@ -540,18 +490,6 @@ namespace dasm
 
 			}
 		}
-
-		/*iterator begin()
-		{
-			for (auto it = blocks.begin(); it != blocks.end(); ++it)
-				if (it->size())
-					return iterator(blocks.end(), it, it->begin());
-			return end();
-		}
-		iterator end()
-		{
-			return iterator(blocks.end(), blocks.end(), blocks.back().end());
-		}*/
 	};
 
 	template<addr_width::type Addr_width = addr_width::x64>

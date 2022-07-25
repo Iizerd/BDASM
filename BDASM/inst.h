@@ -99,8 +99,8 @@ namespace dasm
 		explicit inst_t()
 			: flags(0)
 			, original_rva(0)
-			, my_link(0)
-			, used_link(0)
+			, my_link(linker_t::invalid_link_value)
+			, used_link(linker_t::invalid_link_value)
 			, is_encoder_request(false)
 			, encode_callback(nullptr)
 		{
@@ -111,8 +111,8 @@ namespace dasm
 		explicit inst_t(xed_iclass_enum_t iclass, xed_uint_t effective_operand_width, Operands... operands)
 			: flags(0)
 			, original_rva(0)
-			, my_link(0)
-			, used_link(0)
+			, my_link(linker_t::invalid_link_value)
+			, used_link(linker_t::invalid_link_value)
 			, is_encoder_request(false)
 			, encode_callback(nullptr)
 		{

@@ -164,7 +164,6 @@
     <ClInclude Include="dpattern.h" />
     <ClInclude Include="mba.h" />
     <ClInclude Include="obf.h" />
-    <ClInclude Include="obf_structures.h" />
     <ClInclude Include="opaques.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
