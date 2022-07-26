@@ -17,9 +17,9 @@ struct position_independent_blocks_t
 			switch (block.termination_type)
 			{
 			case dasm::termination_type_t::invalid:
-				std::printf("Invalid block termination type in block [%08X:%08X]\n", block.rva_start, block.rva_end);
-				return obf::pass_status_t::critical_failure;
-			case dasm::termination_type_t::returns:
+				std::printf("Invalid block termination type in block [%08X:%08X]\n", block.rva_start, block.rva_end); [[fallthrough]];
+				return obf::pass_status_t::critical_failure; [[fallthrough]];
+			case dasm::termination_type_t::returns: [[fallthrough]];
 			case dasm::termination_type_t::unconditional_br:
 				break;
 
@@ -39,7 +39,8 @@ struct position_independent_blocks_t
 				block.instructions.back().original_rva = 0;
 
 				break;
-			case dasm::termination_type_t::undetermined_unconditional_br:
+			case dasm::termination_type_t::undetermined_unconditional_br: [[fallthrough]];
+			case dasm::termination_type_t::unknown_logic:
 				break;
 			default:
 				std::printf("Unknown block termination type.\n");
