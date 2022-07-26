@@ -65,7 +65,7 @@ struct encrypted_blocks_t
 		result.emplace_back(
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
@@ -79,7 +79,7 @@ struct encrypted_blocks_t
 			XED_ICLASS_XCHG,
 			8,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				8
 			),
@@ -125,7 +125,7 @@ struct encrypted_blocks_t
 			XED_ICLASS_XCHG,
 			8,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				8
 			),
@@ -135,7 +135,7 @@ struct encrypted_blocks_t
 		result.emplace_back(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
@@ -189,7 +189,7 @@ struct encrypted_blocks_t
 			XED_ICLASS_XOR,
 			width_bits,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				width_bits
 			),
@@ -200,7 +200,7 @@ struct encrypted_blocks_t
 			XED_ICLASS_XOR,
 			width_bits,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				width_bits
 			),
@@ -303,22 +303,22 @@ struct encrypted_blocks_t
 			result.emplace_back(
 				XED_ICLASS_PUSH,
 				addr_width::bits<Addr_width>::value,
-				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 			).common_edit(ctx.linker.allocate_link(), 0, 0);
 		}
 
 		result.emplace_back(
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_LEA,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				addr_width::bits<Addr_width>::value
 			)
@@ -327,9 +327,9 @@ struct encrypted_blocks_t
 		result.emplace_back(
 			XED_ICLASS_LEA,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value),
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				addr_width::bits<Addr_width>::value
 			)
@@ -339,22 +339,22 @@ struct encrypted_blocks_t
 		result.emplace_back(
 			XED_ICLASS_XOR,
 			addr_width::bits<Addr_width>::value,
-			xed_mem_b(get_max_reg_size<XED_REG_RAX, Addr_width>::value, 8),
+			xed_mem_b(max_reg_width<XED_REG_RAX, Addr_width>::value, 8),
 			xed_imm0(xor_key, 8)
 		).common_edit(continue_loop, 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_ADD,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_imm0(1, 8)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_CMP,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
@@ -366,7 +366,7 @@ struct encrypted_blocks_t
 		result.emplace_back(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		if (pre)
@@ -374,7 +374,7 @@ struct encrypted_blocks_t
 			result.emplace_back(
 				XED_ICLASS_POP,
 				addr_width::bits<Addr_width>::value,
-				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 			).common_edit(ctx.linker.allocate_link(), 0, 0);
 		}
 
@@ -403,7 +403,7 @@ struct encrypted_blocks_t
 			epilogue.emplace_front(
 				XED_ICLASS_PUSH,
 				addr_width::bits<Addr_width>::value,
-				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 			).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 			epilogue.emplace_front(
@@ -415,7 +415,7 @@ struct encrypted_blocks_t
 			prologue.emplace_back(
 				XED_ICLASS_POP,
 				addr_width::bits<Addr_width>::value,
-				xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 			).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		}

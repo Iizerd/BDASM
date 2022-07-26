@@ -23,23 +23,27 @@ namespace dasm
 		constexpr type rel_br = (1 << 0);
 		constexpr type disp = (1 << 1);
 
+		// Patch a 32 bit immediate with an rva inside the binary
+		//
+		constexpr type rva_imm32 = (1 << 2);
+
 		// This is for instructions that have relocs inside of them do these even exist?
 		// Seems that encoding mov rax,[64b] is valid instruction so i assume so?
 		// used_link is for the rva they pointed to in the original binary
 		//
-		constexpr type reloc_disp = (1 << 2);	// Form:	mov		rax,[base+rva]
-		constexpr type reloc_imm = (1 << 3);	// Form:	movabs	rax,base+rva
+		constexpr type reloc_disp = (1 << 6);	// Form:	mov		rax,[base+rva]
+		constexpr type reloc_imm = (1 << 7);	// Form:	movabs	rax,base+rva
 
 		constexpr type uses_symbol = (rel_br | disp | reloc_disp | reloc_imm);
 
 		// This is so we know what instructions are vital for block termination
 		//
-		constexpr type block_terminator = (1 << 4);
+		constexpr type block_terminator = (1 << 8);
 
 		// This is for things like a ret or undetermined unconditional jumps. Pretty much
 		// anything that exits/finishes the current routine.
 		//
-		constexpr type routine_terminator = (1 << 5);
+		constexpr type routine_terminator = (1 << 9);
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
@@ -239,7 +243,18 @@ namespace dasm
 					std::printf("Failed to patch displacement at %X\n", ip);
 				}
 			}
-			if (flags & inst_flag::reloc_disp)
+			else if (flags & inst_flag::rva_imm32)
+			{
+				if (xed_decoded_inst_get_immediate_is_signed(&decoded_inst))
+				{
+					xed_decoded_inst_set_immediate_signed_bits(&decoded_inst, linker->get_link_addr(used_link), 32);
+				}
+				else
+				{
+					xed_decoded_inst_set_immediate_unsigned_bits(&decoded_inst, linker->get_link_addr(used_link), 32);
+				}
+			}
+			else if (flags & inst_flag::reloc_disp)
 			{
 				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
 				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))

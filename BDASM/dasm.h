@@ -177,13 +177,23 @@ namespace dasm
 		unconditional_br,
 		conditional_br,
 		fallthrough,
+
+		// An unconditional branch to something like an import
+		//
 		undetermined_unconditional_br,
 
-		// Just top if you see this. This means that the termination of the block
-		// relies on some logic that cant be described generally.
+		// This is not yet implemented, I think I need to add another member to block_t
+		// A vector of block_it_t's which contains all the possible targets of the jump table
 		//
-		ends,
+		jump_table,
+		
+		// Just top if you see this. This means that the termination of the block relies
+		// on some logic that cant be described generally. I see this happening when there
+		// are calls to non returning functions, there is an int3 right after them.
+		//
+		unknown_logic,
 	};
+
 	template<addr_width::type Addr_width = addr_width::x64>
 	class block_t;
 
@@ -299,7 +309,7 @@ namespace dasm
 				break;
 
 			case termination_type_t::undetermined_unconditional_br: [[fallthrough]];
-			case termination_type_t::ends:
+			case termination_type_t::unknown_logic:
 				break;
 			}
 		}
@@ -442,7 +452,7 @@ namespace dasm
 				case termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
 					break;
-				case termination_type_t::ends:
+				case termination_type_t::unknown_logic:
 					std::printf("Indescribable block termination.\n\n");
 					break;
 				}
@@ -480,7 +490,7 @@ namespace dasm
 				case termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
 					break; 
-				case termination_type_t::ends:
+				case termination_type_t::unknown_logic:
 					std::printf("Indescribable block termination.\n\n");
 					break;
 				}
@@ -787,7 +797,7 @@ namespace dasm
 					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
 					{
 						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
-						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
+						if (max_reg_width<XED_REG_RIP, Addr_width>::value == base_reg)
 						{
 							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);
 							inst.flags |= inst_flag::disp;
@@ -889,6 +899,7 @@ namespace dasm
 						{
 							return error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 						}
+						//return error("Unhandled inst at %08X: XED_IFORM_JMP_MEMv.\n", rva - ilen);
 						current_block->termination_type = termination_type_t::undetermined_unconditional_br;
 						inst.flags |= (inst_flag::block_terminator | inst_flag::routine_terminator);
 						goto ExitInstDecodeLoop;
@@ -992,6 +1003,7 @@ namespace dasm
 				}
 				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
 				{
+					current_block->termination_type = termination_type_t::unknown_logic;
 					goto ExitInstDecodeLoop;
 				}
 			}

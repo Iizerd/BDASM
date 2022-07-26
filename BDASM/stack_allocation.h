@@ -55,13 +55,13 @@ struct stack_allocation_t
 			{
 				auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
 				if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
-					get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
 					ctx.original_alloc = xed_decoded_inst_get_signed_immediate(&inst_it->decoded_inst);
 				}
 				else if ((iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
-					get_max_reg_size<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
-					get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG1))
+					max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
+					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG1))
 				{
 					ctx.bp_based = true;
 				}
@@ -89,14 +89,14 @@ struct stack_allocation_t
 		{
 			auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
 			if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
-				get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+				max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 			{
 				//printf("Found allocator. %X\n", ctx.original_alloc + ctx.additional_alloc);
 				xed_decoded_inst_set_immediate_signed_bits(&inst_it->decoded_inst, ctx.original_alloc + ctx.additional_alloc, 32);
 				in_allocation = true;
 			}
 			else if (iform == XED_IFORM_ADD_GPRv_IMMz || XED_IFORM_ADD_GPRv_IMMb &&
-				get_max_reg_size<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+				max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 			{
 				//printf("Found deallocator. %X\n", ctx.original_alloc + ctx.additional_alloc);
 
@@ -115,7 +115,7 @@ struct stack_allocation_t
 					if (operand_name == XED_OPERAND_MEM0 || operand_name == XED_OPERAND_AGEN)
 					{
 						//printf("found one to patch. %X\n", inst_it->original_rva);
-						if (get_max_reg_size<XED_REG_RSP, Addr_width>::value ==
+						if (max_reg_width<XED_REG_RSP, Addr_width>::value ==
 							xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0))
 						{
 							auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
@@ -128,7 +128,7 @@ struct stack_allocation_t
 							}
 						}
 						else if (ctx.bp_based &&
-							get_max_reg_size<XED_REG_RBP, Addr_width>::value ==
+							max_reg_width<XED_REG_RBP, Addr_width>::value ==
 							xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0))
 						{
 							auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
@@ -168,7 +168,7 @@ struct stack_allocation_t
 					addr_width::machine_state<Addr_width>::value,
 					XED_ICLASS_ADD,
 					addr_width::bits<Addr_width>::value,
-					xed_reg(get_max_reg_size<XED_REG_RSP, Addr_width>::value),
+					xed_reg(max_reg_width<XED_REG_RSP, Addr_width>::value),
 					xed_simm0(
 						ctx.additional_alloc,
 						32
@@ -209,7 +209,7 @@ struct stack_allocation_t
 						addr_width::machine_state<Addr_width>::value,
 						XED_ICLASS_SUB,
 						addr_width::bits<Addr_width>::value,
-						xed_reg(get_max_reg_size<XED_REG_RSP, Addr_width>::value),
+						xed_reg(max_reg_width<XED_REG_RSP, Addr_width>::value),
 						xed_simm0(
 							allocation_size,
 							32

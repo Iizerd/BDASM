@@ -159,7 +159,7 @@
 //					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
 //					{
 //						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
-//						if (get_max_reg_size<XED_REG_RIP, Addr_width>::value == base_reg)
+//						if (max_reg_width<XED_REG_RIP, Addr_width>::value == base_reg)
 //						{
 //							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)

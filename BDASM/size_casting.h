@@ -68,13 +68,13 @@ constexpr uint32_t __reg_enum_to_internal_id(xed_reg_enum_t reg)
 }
 
 template<xed_reg_enum_t Register_enum, register_width Register_width>
-struct get_reg_as_size
+struct reg_as_width
 {
 	inline constexpr static xed_reg_enum_t value = __reg_size_map[__reg_enum_to_internal_id(Register_enum) * 4 + static_cast<uint32_t>(Register_width)];
 };
 
 template<xed_reg_enum_t Register_enum, addr_width::type Addr_width>
-struct get_max_reg_size
+struct max_reg_width
 {
 	inline constexpr static xed_reg_enum_t value = __reg_size_map[__reg_enum_to_internal_id(Register_enum) * 4 + static_cast<uint32_t>(Addr_width) + 2];
 };

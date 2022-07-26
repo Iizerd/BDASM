@@ -42,10 +42,14 @@ namespace obf
 	public:
 		dasm::routine_t<Addr_width>& m_routine;
 
+		// Space the original function occupied, how much we have to place a jump
+		//
+		uint32_t original_space;
 	public:
 
-		routine_t(dasm::routine_t<Addr_width>& routine)
+		routine_t(dasm::routine_t<Addr_width>& routine, uint32_t space)
 			: m_routine(routine)
+			, original_space(space)
 		{}
 
 		template<typename Pass_type, typename... Params>
@@ -94,6 +98,39 @@ namespace obf
 				delete m_linker;
 
 			delete bin;
+		}
+
+		bool routine_analysis(dasm::routine_t<Addr_width>& routine, uint32_t& start_size)
+		{
+			uint32_t start = routine.entry_block->rva_start;
+			uint32_t end = routine.entry_block->rva_end;
+			start_size = end - start;
+
+			std::vector<dasm::block_t<Addr_width>*> blocks;
+			for (auto& block : routine.blocks)
+				blocks.emplace_back(&block);
+
+			for (uint32_t i = 0; i < blocks.size();)
+			{
+				if (blocks[i]->termination_type == dasm::termination_type_t::invalid)
+				{
+					printf("Invalid block at [%X:%X]\n", blocks[i]->rva_start, blocks[i]->rva_end);
+					return false;
+				}
+				if (blocks[i]->rva_start == end)
+				{
+					end = blocks[i]->rva_end;
+					std::swap(blocks[i], blocks[blocks.size() - 1]);
+					blocks.pop_back();
+					i = 0;
+				}
+				else
+					++i;
+			}
+
+			start_size = end - start;
+
+			return true;
 		}
 
 		bool load_file(std::string const& file_path)
@@ -151,10 +188,10 @@ namespace obf
 
 			for (auto& routine : dasm->completed_routines)
 			{
-				if (routine.entry_block->calc_byte_sizes() > 5/* && routine.entry_block->rva_start == 0x1040*//*0x13A8*/)
+				if (uint32_t size = 0; routine_analysis(routine, size) && size > 5)
 				{
 					routine.promote_relbrs();
-					obf_routines.emplace_back(routine);
+					obf_routines.emplace_back(routine, size);
 				}
 			}
 		}
@@ -181,8 +218,6 @@ namespace obf
 		{
 			single_passes.push_back(std::bind(&Pass_type::template pass<Addr_width>, std::placeholders::_1, std::placeholders::_2, params...));
 		}
-
-
 
 		void run_single_passes()
 		{
@@ -235,34 +270,8 @@ namespace obf
 						}
 					}
 				}*/
-
-
-				// Make sure this is run first before any passes that invalidate rva_start and rva_end are run
-				//
-				//routine.mutation_pass<pad_original_t>(context);
-
-				//routine.mutation_pass<opaque_from_flags_t>(context);
-
-				//routine.mutation_pass<position_independent_blocks_t>(context);
-
-				////routine.mutation_pass<encrypted_blocks_t>(context);
-
-				////if (routine.m_routine.entry_block->rva_start == 0x1030)
-				//routine.mutation_pass<encrypted_routine_t>(context);
-
-
 			}
 
-			//individual_pass<pad_original_t>(context);
-
-			//individual_pass<opaque_from_flags_t>(context);
-
-			//individual_pass<position_independent_blocks_t>(context);
-
-			////routine.mutation_pass<encrypted_blocks_t>(context);
-
-			////if (routine.m_routine.entry_block->rva_start == 0x1030)
-			//individual_pass<encrypted_routine_t>(context);
 		}
 
 		// These two functions REQUIRE that the order is not changed between their calls
@@ -274,18 +283,14 @@ namespace obf
 			auto base = rva;
 			for (auto& routine : obf_routines)
 			{
+				
 				for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
 				{
 					if (block_it == routine.m_routine.entry_block)
 						m_linker->set_link_addr(routine.m_routine.entry_link, rva);
 
 					block_it->place_in_binary(rva, m_linker);
-				}/*
-				for (auto& block : routine.m_routine.blocks)
-				{
-					block.place_in_binary(rva, m_linker);
-				}*/
-
+				}
 
 				rva = align_up(rva, 0x10);
 			}
@@ -297,30 +302,61 @@ namespace obf
 			auto dest = bin->mapped_image + rva;
 			for (auto& routine : obf_routines)
 			{
-				/*if (routine.m_routine.entry_block->rva_start == 0x13A8)
-				{
-					printf("\n\n");
-					routine.m_routine.print_blocks(m_linker);
-					printf("placing routine at 0x%X\n", dest - bin->mapped_image);
-				}*/
 				for (auto& block : routine.m_routine.blocks)
 				{
 					block.encode_in_binary(bin, m_linker, &dest);
-
 				}
 
 				dest = align_up_ptr(dest, 0x10);
 
-				// Put a jump at the location of the original function, in case we didnt disassemble something
-				//
-				int32_t disp = m_linker->get_link_addr(routine.m_routine.entry_block->link) - routine.m_routine.entry_block->rva_start - 5;
-				encode_inst_in_place(
-					bin->mapped_image + routine.m_routine.entry_block->rva_start,
-					addr_width::machine_state<Addr_width>::value,
-					XED_ICLASS_JMP,
-					32,
-					xed_relbr(disp, 32)
-				);
+
+				if (routine.original_space >= 15)
+				{
+					int32_t random = rand() % 0xFFFF;
+					uint32_t rva = routine.m_routine.entry_block->rva_start;
+					uint32_t off = encode_inst_in_place(
+						bin->mapped_image + rva,
+						addr_width::machine_state<Addr_width>::value,
+						XED_ICLASS_LEA,
+						addr_width::bits<Addr_width>::value,
+						xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+						xed_mem_bd(
+							max_reg_width<XED_REG_RIP, Addr_width>::value,
+							xed_disp(-static_cast<int32_t>(rva + 7) + random, 32),
+							addr_width::bits<Addr_width>::value
+						)
+					);
+					off += encode_inst_in_place(
+						bin->mapped_image + rva + off,
+						addr_width::machine_state<Addr_width>::value,
+						XED_ICLASS_ADD,
+						addr_width::bits<Addr_width>::value,
+						xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+						xed_simm0(m_linker->get_link_addr(routine.m_routine.entry_block->link) - random, 32)
+					);
+					encode_inst_in_place(
+						bin->mapped_image + rva + off,
+						addr_width::machine_state<Addr_width>::value,
+						XED_ICLASS_JMP,
+						addr_width::bits<Addr_width>::value,
+						xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+					);
+					
+				}
+				else
+				{
+
+					// Put a jump at the location of the original function, in case we didnt disassemble something
+					//
+					int32_t disp = m_linker->get_link_addr(routine.m_routine.entry_block->link) - routine.m_routine.entry_block->rva_start - 5;
+					encode_inst_in_place(
+						bin->mapped_image + routine.m_routine.entry_block->rva_start,
+						addr_width::machine_state<Addr_width>::value,
+						XED_ICLASS_JMP,
+						32,
+						xed_relbr(disp, 32)
+					);
+				}
 			}
 		}
 	};

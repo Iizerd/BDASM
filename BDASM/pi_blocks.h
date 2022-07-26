@@ -17,6 +17,7 @@ struct position_independent_blocks_t
 			switch (block.termination_type)
 			{
 			case dasm::termination_type_t::invalid:
+				std::printf("Invalid block termination type in block [%08X:%08X]\n", block.rva_start, block.rva_end);
 				return obf::pass_status_t::critical_failure;
 			case dasm::termination_type_t::returns:
 			case dasm::termination_type_t::unconditional_br:
@@ -41,6 +42,7 @@ struct position_independent_blocks_t
 			case dasm::termination_type_t::undetermined_unconditional_br:
 				break;
 			default:
+				std::printf("Unknown block termination type.\n");
 				return obf::pass_status_t::critical_failure;
 			}
 		}

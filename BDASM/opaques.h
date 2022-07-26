@@ -191,7 +191,7 @@ struct opaque_from_flags_t
 		case dasm::termination_type_t::undetermined_unconditional_br:
 			place_jcc(std::prev(block->instructions.end()));
 			break;
-		case dasm::termination_type_t::ends:
+		case dasm::termination_type_t::unknown_logic:
 			break;
 		}
 	}

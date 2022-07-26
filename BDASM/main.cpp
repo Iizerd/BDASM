@@ -71,7 +71,7 @@ int main(int argc, char** argv)
 	//	XED_ICLASS_XCHG,
 	//	8,
 	//	xed_mem_bd(
-	//		get_max_reg_size<XED_REG_RIP, addr_width::x64>::value,
+	//		max_reg_width<XED_REG_RIP, addr_width::x64>::value,
 	//		xed_disp(0, 32),
 	//		8
 	//	),
@@ -96,7 +96,7 @@ int main(int argc, char** argv)
 	obfuscator.register_single_pass<pad_original_t>();
 	obfuscator.register_single_pass<opaque_from_flags_t>();
 	obfuscator.register_single_pass<position_independent_blocks_t>();
-	obfuscator.register_single_pass<encrypted_routine_t>();
+	//obfuscator.register_single_pass<encrypted_routine_t>();
 
 	obfuscator.run_single_passes();
 	obfuscator.encode(obfuscator.place());

@@ -116,7 +116,7 @@ struct encrypted_routine_t
 			XED_ICLASS_XCHG,
 			8,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				8
 			),
@@ -159,7 +159,7 @@ struct encrypted_routine_t
 			XED_ICLASS_XCHG,
 			8,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				8
 			),
@@ -182,13 +182,13 @@ struct encrypted_routine_t
 		result.emplace_front(
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_front(
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		return result;
@@ -202,13 +202,13 @@ struct encrypted_routine_t
 		result.emplace_front(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_front(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_front(
@@ -244,7 +244,7 @@ struct encrypted_routine_t
 			32,
 			xed_reg(XED_REG_EAX),
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				32
 			)
@@ -259,7 +259,7 @@ struct encrypted_routine_t
 			XED_ICLASS_ADD,
 			32,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				32
 			),
@@ -294,7 +294,7 @@ struct encrypted_routine_t
 			XED_ICLASS_SUB,
 			32,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				32
 			),
@@ -339,7 +339,7 @@ struct encrypted_routine_t
 			XED_ICLASS_XOR,
 			width_bits,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				width_bits
 			),
@@ -350,7 +350,7 @@ struct encrypted_routine_t
 			XED_ICLASS_XOR,
 			width_bits,
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				width_bits
 			),
@@ -440,9 +440,9 @@ struct encrypted_routine_t
 		result.emplace_back(
 			XED_ICLASS_LEA,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				addr_width::bits<Addr_width>::value
 			)
@@ -451,9 +451,9 @@ struct encrypted_routine_t
 		result.emplace_back(
 			XED_ICLASS_LEA,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value),
 			xed_mem_bd(
-				get_max_reg_size<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, Addr_width>::value,
 				xed_disp(0, 32),
 				addr_width::bits<Addr_width>::value
 			)
@@ -463,22 +463,22 @@ struct encrypted_routine_t
 		result.emplace_back(
 			XED_ICLASS_XOR,
 			addr_width::bits<Addr_width>::value,
-			xed_mem_b(get_max_reg_size<XED_REG_RAX, Addr_width>::value, 8),
+			xed_mem_b(max_reg_width<XED_REG_RAX, Addr_width>::value, 8),
 			xed_imm0(xor_key, 8)
 		).common_edit(continue_loop, 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_ADD,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_imm0(1, 8)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_CMP,
 			addr_width::bits<Addr_width>::value,
-			xed_reg(get_max_reg_size<XED_REG_RAX, Addr_width>::value),
-			xed_reg(get_max_reg_size<XED_REG_RBX, Addr_width>::value)
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		result.emplace_back(
@@ -526,7 +526,7 @@ struct encrypted_routine_t
 		//
 		dasm::inst_list_t<Addr_width> prologue;
 		auto& epilogue = routine.blocks.emplace_front(routine.blocks.end());
-		epilogue.termination_type = dasm::termination_type_t::ends;
+		epilogue.termination_type = dasm::termination_type_t::unknown_logic;
 		epilogue.link = ctx.linker.allocate_link();
 
 		for (auto block_it = std::next(routine.blocks.begin()); block_it != routine.blocks.end(); ++block_it)

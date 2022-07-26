@@ -40,6 +40,8 @@ int main(int argc, char** argv)
 			std::cout << "Correct\n";
 			break;
 		}
+		else
+			std::cout << "Innorrect\n";
 	}
 
 	system("pause");
