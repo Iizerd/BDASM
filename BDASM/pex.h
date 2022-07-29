@@ -244,7 +244,7 @@ namespace pex
 	_M(_Sd, _Sn, NumberOfRvaAndSizes, number_of_rva_and_sizes)
 #define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type
 	template <addr_width::type Addr_width = addr_width::x64>
-	class optional_header_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width> >, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width> > >::type
+	class optional_header_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>> >::type
 	{
 
 		using _Header_type = optional_header_conditional_type(Addr_width);
@@ -272,7 +272,7 @@ namespace pex
 	_M(_Sd, _Sn, u1.AddressOfData, address_of_data)
 #define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
 	template <addr_width::type Addr_width = addr_width::x64>
-	class image_thunk_data_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width> >, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width> > >::type
+	class image_thunk_data_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>> >::type
 	{
 		using _Thunk_data_type = thunk_data_conditional_type(Addr_width);
 		using _Thunk_ordinal_type = std::conditional<Addr_width == addr_width::x86, DWORD, ULONGLONG>::type;
@@ -735,7 +735,7 @@ namespace pex
 		exports_t m_exports;
 
 		bool relocs_changed;
-		std::vector<std::pair<uint8_t, uint32_t> > base_relocs;
+		std::vector<std::pair<uint8_t, uint32_t>> base_relocs;
 
 		template<typename Ptr_type>
 		Ptr_type* rva_as(uint32_t rva)
@@ -953,7 +953,7 @@ namespace pex
 			
 			
 			uint32_t cur_base = base_relocs.front().second;
-			reloc_blocks.emplace_back(cur_base, std::vector<std::pair<uint8_t, uint16_t> >());
+			reloc_blocks.emplace_back(cur_base, std::vector<std::pair<uint8_t, uint16_t>>());
 			for (auto const& reloc : base_relocs)
 			{
 				if (auto offset = reloc.second - cur_base; offset < 0x1000)
@@ -961,7 +961,7 @@ namespace pex
 				else
 				{
 					cur_base = reloc.second;
-					reloc_blocks.emplace_back(cur_base, std::vector<std::pair<uint8_t, uint16_t> >());
+					reloc_blocks.emplace_back(cur_base, std::vector<std::pair<uint8_t, uint16_t>>());
 					reloc_blocks.back().second.emplace_back(reloc.first, 0);
 				}
 			}
@@ -1187,7 +1187,7 @@ namespace pex
 
 					//std::printf("Module Name: %s\n", m_imports.back().module_name.data());
 
-					for (auto thunk_data_it = get_it<image_thunk_data_it_t<Addr_width> >(import_descriptor_it.get_original_first_thunk());
+					for (auto thunk_data_it = get_it<image_thunk_data_it_t<Addr_width>>(import_descriptor_it.get_original_first_thunk());
 						!thunk_data_it.is_null(); ++thunk_data_it)
 					{
 						uint32_t symbol_index = data_table->unsafe_get_symbol_index_for_rva(

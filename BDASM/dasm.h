@@ -99,7 +99,7 @@ namespace dasm
 		}
 	};
 
-	
+
 	namespace lookup_table_flag
 	{
 		typedef uint8_t type;
@@ -168,8 +168,9 @@ namespace dasm
 			}
 		}
 	};
-	
+
 	// Termination type enums for the basic block
+	//
 	enum class termination_type_t : uint8_t
 	{
 		invalid,
@@ -186,7 +187,7 @@ namespace dasm
 		// A vector of block_it_t's which contains all the possible targets of the jump table
 		//
 		jump_table,
-		
+
 		// Just top if you see this. This means that the termination of the block relies
 		// on some logic that cant be described generally. I see this happening when there
 		// are calls to non returning functions, there is an int3 right after them.
@@ -198,7 +199,7 @@ namespace dasm
 	class block_t;
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	using block_it_t = std::list<block_t<Addr_width> >::iterator;
+	using block_it_t = std::list<block_t<Addr_width>>::iterator;
 
 	// A basic block exactly like LLVM's
 	//
@@ -221,7 +222,7 @@ namespace dasm
 		// at the end
 		//
 		block_it_t<Addr_width> fallthrough_block;
-		
+
 		// If there is a jcc or uncond branch, this is the block it jumps to
 		//
 		block_it_t<Addr_width> taken_block;
@@ -308,10 +309,43 @@ namespace dasm
 				func(fallthrough_block, params...);
 				break;
 
+			case termination_type_t::jump_table: [[fallthrough]];
 			case termination_type_t::undetermined_unconditional_br: [[fallthrough]];
 			case termination_type_t::unknown_logic:
 				break;
 			}
+		}
+
+		// This one returns a boolean result, checking for false and returning after only the first
+		// failure if was a conditional. RETURNS TRUE BY DEFAULT!
+		//
+		template<typename Function, typename... Params>
+		bool invoke_for_next_check_bool(Function func, Params... params)
+		{
+			switch (termination_type)
+			{
+			case termination_type_t::invalid: [[fallthrough]];
+			case termination_type_t::returns:
+				break;
+
+			case termination_type_t::unconditional_br:
+				return func(taken_block, params...);
+				break;
+
+			case termination_type_t::conditional_br:
+				if (!func(taken_block, params...))
+					return false;
+				[[fallthrough]];
+			case termination_type_t::fallthrough:
+				return func(fallthrough_block, params...);
+				break;
+
+			case termination_type_t::jump_table: [[fallthrough]];
+			case termination_type_t::undetermined_unconditional_br: [[fallthrough]];
+			case termination_type_t::unknown_logic:
+				break;
+			}
+			return true;
 		}
 
 		uint32_t calc_byte_sizes()
@@ -369,7 +403,7 @@ namespace dasm
 	{
 	public:
 
-		std::list<block_t<Addr_width> > blocks;
+		std::list<block_t<Addr_width>> blocks;
 
 		routine_flag::type flags;
 
@@ -431,7 +465,7 @@ namespace dasm
 				std::printf("Block: %X [%X:%X]\n", block.link, block.rva_start, block.rva_end);
 				for (auto& inst : block.instructions)
 					std::printf("\t%08X, %08X\t%s \n", inst.my_link, inst.used_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
-				
+
 				switch (block.termination_type)
 				{
 				case termination_type_t::invalid:
@@ -456,7 +490,7 @@ namespace dasm
 					std::printf("Indescribable block termination.\n\n");
 					break;
 				}
-				
+
 				/*if (block.termination_type == dasm::termination_type_t::fallthrough)
 					std::printf("Fallthrough %08X [%X]\n", block.fallthrough_block->link, block.fallthrough_block->rva_start);*/
 
@@ -489,7 +523,7 @@ namespace dasm
 					break;
 				case termination_type_t::undetermined_unconditional_br:
 					std::printf("Undetermined unconditional branch.\n\n");
-					break; 
+					break;
 				case termination_type_t::unknown_logic:
 					std::printf("Indescribable block termination.\n\n");
 					break;
@@ -505,7 +539,7 @@ namespace dasm
 	template<addr_width::type Addr_width = addr_width::x64>
 	class thread_t
 	{
-		std::vector<block_it_t<Addr_width> > stack;
+		std::vector<block_it_t<Addr_width>> stack;
 
 		// Only valid while disassembling, points to the list of blocks in the routine
 		//
@@ -545,7 +579,7 @@ namespace dasm
 
 		// The list of completed routines to be merged at the end
 		//
-		std::list<routine_t<Addr_width> > completed_routines;
+		std::list<routine_t<Addr_width>> completed_routines;
 
 		// The number of times we stopped decoding a block => function because of an unhandled
 		// instruction. Want to get this number as low as possible :)
@@ -720,13 +754,12 @@ namespace dasm
 							// Return if this already at the start of a block nameen?
 							//
 							if (inst_it == block_it->instructions.begin())
-								return block_it; 
+								return block_it;
 
 							// Otherwise, create a new block and fill it with all instructions in the current block up to rva.
 							//
 							auto& new_block = current_routine->blocks.emplace_front(current_routine->blocks.end());
 							auto new_block_it = current_routine->blocks.begin();
-
 
 							new_block.rva_start = rva;
 							new_block.rva_end = block_it->rva_end;
@@ -735,11 +768,6 @@ namespace dasm
 							new_block.taken_block = block_it->taken_block;
 							new_block.instructions.splice(new_block.instructions.end(), block_it->instructions, inst_it, block_it->instructions.end());
 
-							if (rva == 0x1058)
-							{
-								std::printf("split the block namean.\n");
-							}
-
 							block_it->rva_end = rva;
 							block_it->termination_type = termination_type_t::fallthrough;
 							block_it->fallthrough_block = new_block_it;
@@ -747,10 +775,6 @@ namespace dasm
 							for (uint32_t i = 1; i < stack.size(); ++i)
 								if (stack[i] == block_it)
 									stack[i] = new_block_it;
-
-							/*for (auto& it : stack)
-								if (it == block_it)
-									it = new_block_it;*/
 
 							if (current_block == block_it)
 								current_block = new_block_it;
@@ -971,8 +995,8 @@ namespace dasm
 					{
 						int32_t call_disp = xed_decoded_inst_get_branch_displacement(&inst.decoded_inst);
 						uint64_t dest_rva = rva + call_disp;
-						
-						
+
+
 						if (!m_decoder_context->validate_rva(dest_rva))
 						{
 							return error("Call to invalid rva.\n");
@@ -1070,13 +1094,13 @@ namespace dasm
 
 		uint8_t m_next_thread;
 
-		std::vector<thread_t<Addr_width> > m_threads;
+		std::vector<thread_t<Addr_width>> m_threads;
 
 		glt::Atomic_type* m_global_lookup_table;
 
 	public:
 
-		std::list<routine_t<Addr_width> > completed_routines;
+		std::list<routine_t<Addr_width>> completed_routines;
 
 		uint32_t invalid_routine_count;
 

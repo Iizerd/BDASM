@@ -240,13 +240,105 @@ struct opaque_from_flags_t
 	}
 };
 
-// Search for constant non zero values. Trace forward until its written to and place a test and jcc
+// Search for known values of zero or nonzero. Trace forward until its written to and place a test and jcc
 // right before. make sure flags are clobbered so they dont need to be preserved.
-//  mov reg,nonzero
-//  or reg,nonzero
+//  Examples:
+//		mov reg,nonzero		;
+//		or reg,nonzero		;
+//		mov [reg],val		; reg couldnt be zero
+//		mov reg2,[reg1]		; reg1 couldnt be zero
+//		xor reg,reg			; reg is zero
 //  
 struct opaque_from_const_t
 {
+	// Returns true if a certain value can be assured of a register
+	//
+	template<addr_width::type Addr_width = addr_width::x64>
+	bool assures_value(dasm::inst_it_t<Addr_width> inst_it, bool& is_zero, xed_reg_enum_t& reg)
+	{
+		uint32_t num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
+		auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
+
+		for (uint32_t i = 0; i < num_operands; ++i)
+		{
+			if (XED_OPERAND_MEM0 == xed_operand_name(xed_operand(inst, i)))
+			{
+				is_zero = false;
+				reg = xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0);
+				return true;
+			}
+		}
+
+		switch (xed_decoded_inst_get_iform_enum(&inst->decoded_inst))
+		{
+		case XED_IFORM_MOV_GPRv_IMMv:
+		case XED_IFORM_MOV_GPRv_IMMz:
+		case XED_IFORM_OR_GPRv_IMMb:
+		case XED_IFORM_OR_GPRv_IMMz:
+			// This is kinda a meme to find the reg we write to that isnt flags
+			uint32_t operand_reg = XED_OPERAND_REG0;
+			while (true)
+			{
+				reg = xed_decoded_inst_get_reg(&inst_it->decoded_inst, static_cast<xed_operand_enum_t>(operand_reg));
+				if (reg != max_reg_width<XED_REG_RFLAGS, Addr_width>::value)
+					break;
+				++operand_reg;
+			}
+
+			if (xed_decoded_inst_get_immediate_is_signed(&inst_it->decoded_inst))
+				is_zero = (xed_decoded_inst_get_signed_immediate(&inst_it->decoded_inst) == 0);
+			else
+				is_zero = (xed_decoded_inst_get_unsigned_immediate(&inst_it->decoded_inst) == 0);
+			return true;
+
+		case XED_IFORM_XOR_GPRv_GPRv_31:
+		case XED_IFORM_XOR_GPRv_GPRv_33:
+
+			is_zero = true;
+			xed_reg_enum_t left_reg = XED_REG_INVALID;
+			for (uint32_t i = 0; i < num_operands; ++i)
+			{
+				if (auto operand_name = xed_operand_name(xed_operand(inst, i));
+					xed_operand_is_register(operand_name))
+				{
+					auto cur_reg = xed_decoded_inst_get_reg(operand_name);
+					if (cur_reg != max_reg_width<XED_REG_RFLAGS, Addr_width>::value)
+					{
+						if (left_reg == XED_REG_INVALID)
+							left_reg = cur_reg;
+						else
+							return (left_reg == cur_reg);
+					}
+				}
+			}
+
+			return false;
+		}
+		
+		return false;
+	}
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	bool is_register_clobbered(dasm::inst_it_t<Addr_width> inst_it, xed_reg_enum_t reg)
+	{
+		uint32_t num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
+		auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
+
+		for (uint32_t i = 0; i < num_operands; ++i)
+		{
+			if (auto operand = xed_operand(inst, i); xed_operand_written(operand))
+			{
+				if (auto operand_name = xed_operand_name(operand); xed_operand_is_register(operand_name) &&
+					xed_decoded_inst_get_reg(&inst_it->decoded_inst, operand_name) == reg)
+				{
+					return true;
+				}
+			}
+		}
+		
+		return false;
+	}
+
 	template<addr_width::type Addr_width = addr_width::x64>
 	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
 	{

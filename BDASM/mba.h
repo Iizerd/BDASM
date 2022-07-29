@@ -1,6 +1,12 @@
 #pragma once
 
 /*
+	NAND:
+		AND A,B
+		NOT A
+
+
+
 	ADD:
 		A + B == ~A - ~B
 
@@ -9,6 +15,7 @@
 
 	OR:
 		
+
 	NOT:
 		~A == A ^ ~0
 */

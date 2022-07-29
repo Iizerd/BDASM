@@ -31,9 +31,6 @@
     <ClInclude Include="dasm2.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
-    <ClInclude Include="flags.h">
-      <Filter>headers\obfuscator</Filter>
-    </ClInclude>
     <ClInclude Include="size_casting.h">
       <Filter>headers\utils</Filter>
     </ClInclude>
@@ -75,6 +72,9 @@
     </ClInclude>
     <ClInclude Include="common_code.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
+    <ClInclude Include="flags.h">
+      <Filter>headers\dasm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

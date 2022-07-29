@@ -10,7 +10,7 @@
 //	template<addr_width::type Addr_width = addr_width::x64>
 //	struct rva_descriptor_t
 //	{
-//		std::list<inst_list_t<Addr_width> >::iterator block;
+//		std::list<inst_list_t<Addr_width>>::iterator block;
 //
 //		std::atomic_bool decoded;
 //	};
@@ -56,7 +56,7 @@
 //
 //		std::vector<uint64_t> routine_starts;
 //
-//		std::list<inst_list_t<Addr_width> > blocks;
+//		std::list<inst_list_t<Addr_width>> blocks;
 //
 //		explicit block_discovery_thread_t(thread_context_t<Addr_width>* context)
 //			: m_context(context)

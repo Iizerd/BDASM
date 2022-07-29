@@ -33,42 +33,12 @@ namespace dasm
 		}
 	};
 
-	/*template<addr_width::type Addr_width, auto Accessor, typename Compare_type = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*> >
-	class dynamic_pattern_t
+	template<addr_width::type Addr_width, auto Accessor, typename Compare_val = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>>
+	class multi_pattern
 	{
-		Accessor m_accessor;
-		std::vector<Compare_type> m_compare_list;
-		uint32_t m_index;
-
-	public:
-		constexpr dynamic_pattern_t(Accessor accessor, std::initializer_list<Compare_type> list)
-			: m_accessor(accessor)
-			, m_index(0)
-		{
-			for (auto val : list)
-				m_compare_list.push_back(val);
-		}
-
-		finline reset()
-		{
-			m_index = 0;
-		}
-
-		bool advance(inst_it_t<Addr_width> inst_it, Compare_type compare_value)
-		{
-			if (m_index++ < m_compare_list.size())
-				return (compare_value == m_accessor(&inst_it->decoded_inst));
-			return true;
-		}
-		
+		std::vector<std::vector<Compare_val>> patterns;
+		std::vector<bool> valid_mask;
 	};
-
-
-	class multi_pattern_t
-	{
-
-	};*/
-
 
 	//template<addr_width::type Addr_width = addr_width::x64>
 	//class ipattern_t
@@ -123,12 +93,12 @@ namespace dasm
 	//template<addr_width::type Addr_width = addr_width::x64>
 	//class pattern_tracker_t
 	//{
-	//	std::vector<ipattern_t<Addr_width> > m_pattern_list;
+	//	std::vector<ipattern_t<Addr_width>> m_pattern_list;
 	//	uint32_t m_index;
 	//public:
 	//	std::vector<bool> valid_mask;
 
-	//	constexpr pattern_tracker_t(std::initializer_list<ipattern_t<Addr_width> > pattern_list)
+	//	constexpr pattern_tracker_t(std::initializer_list<ipattern_t<Addr_width>> pattern_list)
 	//	{
 	//		m_pattern_list.insert(m_pattern_list.end(), pattern_list.begin(), pattern_list.end());
 	//		for (uint32_t i = 0; i < m_pattern_list.size(); ++i)

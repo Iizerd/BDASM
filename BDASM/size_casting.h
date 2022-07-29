@@ -36,6 +36,8 @@ constexpr xed_reg_enum_t __reg_size_map[] = {
 	XED_REG_R15B, XED_REG_R15W, XED_REG_R15D, XED_REG_R15,
 
 	XED_REG_INVALID, XED_REG_IP, XED_REG_EIP, XED_REG_RIP,
+	
+	XED_REG_INVALID, XED_REG_FLAGS, XED_REG_EFLAGS, XED_REG_RFLAGS,
 };
 
 constexpr uint32_t __reg_enum_to_internal_id(xed_reg_enum_t reg)
@@ -62,6 +64,7 @@ constexpr uint32_t __reg_enum_to_internal_id(xed_reg_enum_t reg)
 	case XED_REG_R15B: case XED_REG_R15W: case XED_REG_R15D: case XED_REG_R15: return 15;
 
 	case XED_REG_IP: case XED_REG_EIP: case XED_REG_RIP: return 16;
+	case XED_REG_INVALID: case XED_REG_FLAGS: case XED_REG_EFLAGS: case XED_REG_RFLAGS: return 17;
 	default:
 		return XED_REG_INVALID;
 	}

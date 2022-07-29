@@ -305,7 +305,7 @@ namespace dasm
 	using inst64_t = inst_t<addr_width::x64>;
 
 	template<addr_width::type Addr_width>
-	using inst_list_t = std::list<inst_t<Addr_width> >;
+	using inst_list_t = std::list<inst_t<Addr_width>>;
 
 	template<addr_width::type Addr_width>
 	using inst_it_t = inst_list_t<Addr_width>::iterator;

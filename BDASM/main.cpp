@@ -104,7 +104,7 @@ int main(int argc, char** argv)
 	obfuscator.save_file(image_out);
 	system("pause");
 	return 1;
-	
+
 
 
 	//uint8_t memes[] = { 0x48, 0x81, 0xEC, 0xB8, 0x22, 0x00, 0x00 };
@@ -156,7 +156,7 @@ int main(int argc, char** argv)
 		dasm::dasm_t<addr_width::x64, 8> disassembler(&context);
 
 		disassembler.add_routine(binary.optional_header.get_address_of_entry_point());
-		
+
 
 		for (auto& exp : binary.m_exports.entries)
 		{

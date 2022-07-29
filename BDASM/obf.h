@@ -5,6 +5,7 @@
 
 #include "align.h"
 #include "dasm.h"
+#include "flags.h"
 
 namespace obf
 {
@@ -32,8 +33,8 @@ namespace obf
 	{
 		dasm::linker_t& linker;
 		pex::binary_t<Addr_width>& bin;
-		std::list<routine_t<Addr_width> >& obf_routine_list;
-		std::list<dasm::routine_t<Addr_width> >& additional_routines;
+		std::list<routine_t<Addr_width>>& obf_routine_list;
+		std::list<dasm::routine_t<Addr_width>>& additional_routines;
 	};
 
 	template<addr_width::type Addr_width>
@@ -64,7 +65,7 @@ namespace obf
 	template<addr_width::type Addr_width = addr_width::x64, uint32_t Thread_count = 1>
 	class obf_t
 	{
-		std::vector<std::function<pass_status_t(dasm::routine_t<Addr_width>&, obf::context_t<Addr_width>&)> > single_passes;
+		std::vector<std::function<pass_status_t(dasm::routine_t<Addr_width>&, obf::context_t<Addr_width>&)>> single_passes;
 
 		dasm::decoder_context_t<Addr_width>* m_decoder_context;
 
@@ -75,11 +76,11 @@ namespace obf
 
 		pex::binary_t<Addr_width>* bin;
 
-		std::list<routine_t<Addr_width> > obf_routines;
+		std::list<routine_t<Addr_width>> obf_routines;
 
 		// These are routines that are added after the fact
 		//
-		std::list<dasm::routine_t<Addr_width> > additional_routines;
+		std::list<dasm::routine_t<Addr_width>> additional_routines;
 
 		obf_t()
 			: dasm(nullptr)
@@ -240,15 +241,12 @@ namespace obf
 				}
 
 				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
-
 				//if (routine.m_routine.entry_block->rva_start == 0x1530)
 				//	routine.m_routine.print_blocks();
 				//	//int32_t alloc_size = 0x400;
 				//	//auto pass_status = routine.mutation_pass<stack_allocation_t>(context, alloc_size);
 				//	//std::printf("allocated with %X %d\n", alloc_size, pass_status);
 				//	routine.mutation_pass< opaque_from_flags_t>(context);
-
-
 				// Basic sanity check
 				//
 				/*for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
@@ -309,6 +307,8 @@ namespace obf
 
 				dest = align_up_ptr(dest, 0x10);
 
+
+				
 
 				if (routine.original_space >= 15)
 				{

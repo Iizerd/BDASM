@@ -382,7 +382,7 @@ struct encrypted_blocks_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width> > encryption(obf::context_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block)
+	static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width>> encryption(obf::context_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block)
 	{
 		dasm::inst_list_t<Addr_width> prologue, epilogue;
 
