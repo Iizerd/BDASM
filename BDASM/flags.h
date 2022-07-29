@@ -119,6 +119,9 @@ namespace dasm
 					return false;
 
 				ledger.flat &= ~(xed_simple_flag_get_written_flag_set(cur_inst_flags)->flat | xed_simple_flag_get_undefined_flag_set(cur_inst_flags)->flat);
+
+				if (ledger.flat == 0)
+					return true;
 			}
 		}
 
