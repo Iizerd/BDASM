@@ -60,17 +60,6 @@ namespace dasm
 			return min;
 		}
 
-		// The threads themselves should do this so that the table spends the least amount of time locked
-		//
-		//void get_link_bundle(uint32_t count, std::vector<uint32_t>& place)
-		//{
-		//	std::lock_guard g(m_lock);
-		//	auto min = m_table.size();
-		//	m_table.resize(m_table.size() + count);
-		//	auto range = std::ranges::iota_view(static_cast<uint32_t>(min), static_cast<uint32_t>(m_table.size()));
-		//	place.insert(place.end(), range.begin(), range.end());
-		//}
-
 		uint32_t allocate_link()
 		{
 			std::lock_guard g(m_lock);

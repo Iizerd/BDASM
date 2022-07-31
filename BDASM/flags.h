@@ -87,7 +87,7 @@ namespace dasm
 					return true;
 			}
 		}
-
+		
 		return block->invoke_for_next_check_bool(flags_clobbered_before_use_recursion<Addr_width>, start_block, start_inst, ledger);
 	}
 
@@ -98,18 +98,18 @@ namespace dasm
 	// This itself clobberes bit 31 in block_t::visited.
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
-	bool flags_clobbered_before_use(routine_t<Addr_width>& routine, block_it_t<Addr_width> start_block, inst_it_t<Addr_width> start_inst)
+	bool flags_clobbered_before_use(routine_t<Addr_width>& routine, block_it_t<Addr_width> start_block, inst_it_t<Addr_width> start_inst, xed_flag_set_t ledger)
 	{
 		routine.reset_visited_bit(31);
 
-		xed_flag_set_t ledger;
-		auto start_flags = xed_decoded_inst_get_rflags_info(&start_inst->decoded_inst);
-		ledger.flat = (xed_simple_flag_get_written_flag_set(start_flags)->flat | xed_simple_flag_get_undefined_flag_set(start_flags)->flat);
+		//xed_flag_set_t ledger;
+		//auto start_flags = xed_decoded_inst_get_rflags_info(&start_inst->decoded_inst);
+		//ledger.flat = (xed_simple_flag_get_written_flag_set(start_flags)->flat | xed_simple_flag_get_undefined_flag_set(start_flags)->flat);
 
 		// This first loop iterates to the end of the current block, without setting its visited bit so that the recursion can 
 		// visit it and trace to the start instruction.
 		//
-		for (auto cur_inst = std::next(start_inst); cur_inst != start_block->instructions.end(); ++cur_inst)
+		for (auto cur_inst = start_inst; cur_inst != start_block->instructions.end(); ++cur_inst)
 		{
 			auto cur_inst_flags = xed_decoded_inst_get_rflags_info(&cur_inst->decoded_inst);
 

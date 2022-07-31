@@ -52,4 +52,14 @@ namespace addr_width
 		constexpr static xed_reg_enum_t regs[] = { XED_REG_R9, XED_REG_R8, XED_REG_RDX, XED_REG_RCX };
 	};
 
+	//template<type Addr_width> struct gprs;
+	//template<> struct gprs<x86>
+	//{
+	//	constexpr static xed_reg_enum_t regs[] = { XED_REG_EAX, XED_REG_RBX };
+	//};
+	//template<> struct gprs<x64>
+	//{
+	//	constexpr static xed_reg_enum_t regs[] = { XED_REG_RAX, XED_REG_RBX };
+	//};
+
 }

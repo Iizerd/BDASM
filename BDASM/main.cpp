@@ -27,6 +27,7 @@
 #include "original.h"
 #include "encrypted_blocks.h"
 #include "encrypted_routines.h"
+#include "jcc_rewrite.h"
 
 
 
@@ -94,11 +95,17 @@ int main(int argc, char** argv)
 	obfuscator.load_file(image_name);
 
 	obfuscator.register_single_pass<pad_original_t>();
-	obfuscator.register_single_pass<opaque_from_flags_t>();
-	obfuscator.register_single_pass<position_independent_blocks_t>();
+	//obfuscator.register_single_pass<opaque_from_flags_t>();
+	//obfuscator.register_single_pass<opaque_from_rip_t>();
+	jcc_rewrite_t::gadget_link[0] = 0;
+	obfuscator.register_single_pass<jcc_rewrite_t>();
+	//obfuscator.register_single_pass<opaque_from_const_t>();
+	//obfuscator.register_single_pass<position_independent_blocks_t>();
 	//obfuscator.register_single_pass<encrypted_routine_t>();
 
 	obfuscator.run_single_passes();
+
+	printf("staritng placement.\n");
 	obfuscator.encode(obfuscator.place());
 
 	obfuscator.save_file(image_out);

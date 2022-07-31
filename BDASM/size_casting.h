@@ -70,6 +70,11 @@ constexpr uint32_t __reg_enum_to_internal_id(xed_reg_enum_t reg)
 	}
 }
 
+xed_reg_enum_t change_reg_width(xed_reg_enum_t reg, register_width width)
+{
+	return __reg_size_map[__reg_enum_to_internal_id(reg) * 4 + static_cast<uint32_t>(width)];
+}
+
 template<xed_reg_enum_t Register_enum, register_width Register_width>
 struct reg_as_width
 {

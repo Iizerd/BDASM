@@ -76,6 +76,12 @@
     <ClInclude Include="flags.h">
       <Filter>headers\dasm</Filter>
     </ClInclude>
+    <ClInclude Include="ir.h">
+      <Filter>headers\obfuscator\virtualizer\ir</Filter>
+    </ClInclude>
+    <ClInclude Include="jcc_rewrite.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
@@ -104,6 +110,12 @@
     </Filter>
     <Filter Include="headers\obfuscator\passes\mutation">
       <UniqueIdentifier>{8b341389-a348-4f53-a425-4812e390a8b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\obfuscator\virtualizer">
+      <UniqueIdentifier>{c1e8db83-bfed-4591-8c7e-cba64dbe7148}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\obfuscator\virtualizer\ir">
+      <UniqueIdentifier>{9e4fd3df-da25-41a0-81cd-560754733ebf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

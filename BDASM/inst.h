@@ -92,7 +92,7 @@ namespace dasm
 		{
 			uint8_t bytes[XED_MAX_INSTRUCTION_BYTES];
 
-			uint32_t additional_disp;
+			int32_t additional_disp;
 		}encode_data;
 
 		// This is called after the instruction is encoded
@@ -247,11 +247,14 @@ namespace dasm
 			{
 				if (xed_decoded_inst_get_immediate_is_signed(&decoded_inst))
 				{
-					xed_decoded_inst_set_immediate_signed_bits(&decoded_inst, linker->get_link_addr(used_link), 32);
+					if (!xed_patch_imm0(&decoded_inst, dest, xed_simm0(linker->get_link_addr(used_link) + encode_data.additional_disp, 32)))
+					{
+						std::printf("Failed to patch immediate at %X\n", dest - binary->mapped_image + ilen);
+					}
 				}
 				else
 				{
-					xed_decoded_inst_set_immediate_unsigned_bits(&decoded_inst, linker->get_link_addr(used_link), 32);
+					xed_decoded_inst_set_immediate_unsigned_bits(&decoded_inst, linker->get_link_addr(used_link) + encode_data.additional_disp, 32);
 				}
 			}
 			else if (flags & inst_flag::reloc_disp)

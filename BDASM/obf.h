@@ -292,6 +292,20 @@ namespace obf
 
 				rva = align_up(rva, 0x10);
 			}
+
+			for (auto& routine : additional_routines)
+			{
+
+				for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
+				{
+					if (block_it == routine.entry_block)
+						m_linker->set_link_addr(routine.entry_link, rva);
+
+					block_it->place_in_binary(rva, m_linker);
+				}
+
+				rva = align_up(rva, 0x10);
+			}
 			return rva;
 		}
 		void encode(uint32_t section_size)
@@ -310,7 +324,7 @@ namespace obf
 
 				
 
-				if (routine.original_space >= 15)
+				if (0 && routine.original_space >= 15)
 				{
 					int32_t random = rand() % 0xFFFF;
 					uint32_t rva = routine.m_routine.entry_block->rva_start;
@@ -358,6 +372,17 @@ namespace obf
 					);
 				}
 			}
+
+			for (auto& routine : additional_routines)
+			{
+				for (auto& block : routine.blocks)
+				{
+					block.encode_in_binary(bin, m_linker, &dest);
+				}
+
+				dest = align_up_ptr(dest, 0x10);
+			}
+
 		}
 	};
 }
