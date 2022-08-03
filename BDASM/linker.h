@@ -75,6 +75,10 @@ namespace dasm
 
 		finline void set_link_addr(uint32_t link_index, uint64_t address)
 		{
+			/*if (link_index == 0)
+			{
+				printf("Setting 0th index to %p\n", address);
+			}*/
 			m_table[link_index].addr = address;
 		}
 		finline uint64_t get_link_addr(uint32_t link_index)

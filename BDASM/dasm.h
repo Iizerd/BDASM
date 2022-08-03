@@ -246,7 +246,7 @@ namespace dasm
 		explicit block_t(block_it_t<Addr_width> end)
 			: rva_start(0)
 			, rva_end(0)
-			, link(0)
+			, link(linker_t::invalid_link_value)
 			, visited(0)
 			, termination_type(termination_type_t::invalid)
 			, fallthrough_block(end)
@@ -361,7 +361,10 @@ namespace dasm
 		void place_in_binary(uint64_t& start_address, linker_t* linker)
 		{
 			linker->set_link_addr(link, start_address);
-
+			if (link == linker_t::invalid_link_value)
+			{
+				printf("somehow the blocks link is zero %X %X\n", rva_start, rva_end);
+			}
 			for (auto& inst : instructions)
 			{
 				inst.redecode();
@@ -419,9 +422,7 @@ namespace dasm
 			: flags(routine_flag::none)
 			, entry_link(linker_t::invalid_link_value)
 			, entry_block(blocks.end())
-		{
-
-		}
+		{ }
 		void reset_visited()
 		{
 			for (auto& block : blocks)

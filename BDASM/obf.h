@@ -230,10 +230,10 @@ namespace obf
 					for (auto& inst : block.instructions)
 						inst.redecode();
 
-				routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
+				/*routine.m_routine.blocks.sort([](dasm::block_t<Addr_width>& left, dasm::block_t<Addr_width>& right)
 					{
 						return left.rva_start < right.rva_start;
-					});
+					});*/
 
 				for (auto pass : single_passes)
 				{

@@ -573,6 +573,8 @@ struct opaque_from_rip_t
 				}
 			}
 		}
+
+		return obf::pass_status_t::success;
 	}
 };
 

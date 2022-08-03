@@ -163,7 +163,7 @@
     <ClInclude Include="inst.h" />
     <ClInclude Include="dpattern.h" />
     <ClInclude Include="ir.h" />
-    <ClInclude Include="jcc_rewrite.h" />
+    <ClInclude Include="flat_control.h" />
     <ClInclude Include="mba.h" />
     <ClInclude Include="obf.h" />
     <ClInclude Include="opaques.h" />

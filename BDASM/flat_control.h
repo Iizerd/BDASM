@@ -12,23 +12,25 @@
 // 
 //		push rax
 //		push rbx
-//		lea rax not_taken
-//		lea rbx taken
+//		mov rax,not_taken_rva+adjustment
+//		mov rbx,taken+adjustment
 //		movcc rax,rbx
 //		jmp gadget
 //
 
 // Gadget:
-//		;mov rbx,taken_adjustment
-//		;mov!cc not_taken_adjustment
-//		;sub rax,rbx
+//		lea rax
+//		mov not_taken_adjustment
+//		sub rax,rbx
 //		pop rbx
 //		xchg [rsp],rax
 //		ret
 //		
-//	
+//
 
-struct jcc_rewrite_t
+inline bool first_gadgets_setup = false;
+
+struct flatten_control_flow_t
 {
 	// Link for the gadget
 	inline static uint32_t gadget_link[16];
@@ -205,20 +207,25 @@ struct jcc_rewrite_t
 		).common_edit(ctx.linker.allocate_link(), 0, dasm::inst_flag::disp);
 		block.instructions.back().encode_data.additional_disp = -taken_adjustment[cc];
 
-		/*
-		block.instructions.emplace_back(
+		
+		/*block.instructions.emplace_back(
 			XED_ICLASS_SUB,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
-		).common_edit(not_taken_jump_around_link, 0, 0);
-		*/
+		).common_edit(not_taken_jump_around_link, 0, 0);*/
+		
 		block.instructions.emplace_back(
 			XED_ICLASS_ADD,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(not_taken_jump_around_link, 0, 0);
+
+		block.instructions.emplace_back(
+			XED_ICLASS_POPF,
+			addr_width::bits<Addr_width>::value
+		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		block.instructions.emplace_back(
 			XED_ICLASS_POP,
@@ -259,6 +266,11 @@ struct jcc_rewrite_t
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
+		).common_edit(ctx.linker.allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_PUSHF,
+			addr_width::bits<Addr_width>::value
 		).common_edit(ctx.linker.allocate_link(), 0, 0);
 
 		/*result.emplace_back(
@@ -312,7 +324,7 @@ struct jcc_rewrite_t
 			XED_ICLASS_JMP,
 			addr_width::bits<Addr_width>::value,
 			xed_relbr(0, 32)
-		).common_edit(ctx.linker.allocate_link(), gadget_link[cc], dasm::inst_flag::rel_br);
+		).common_edit(ctx.linker.allocate_link(), gadget_link[cc], dasm::inst_flag::rel_br | dasm::inst_flag::block_terminator);
 
 		return result;
 	}
@@ -320,10 +332,11 @@ struct jcc_rewrite_t
 	template<addr_width::type Addr_width = addr_width::x64>
 	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
 	{
-		if (!gadget_link[0])
+		if (!first_gadgets_setup)
 		{
 			for (uint8_t i = 0; i < 16; ++i)
 				refresh_gadget(ctx, i);
+			first_gadgets_setup = true;
 		}
 
 		for (auto& block : routine.blocks)
@@ -363,7 +376,6 @@ struct jcc_rewrite_t
 				break;
 			}
 			case dasm::termination_type_t::fallthrough:
-			{
 				block.instructions.splice(
 					block.instructions.end(),
 					gadget_entry<15>(
@@ -373,9 +385,7 @@ struct jcc_rewrite_t
 						block.fallthrough_block->link
 					)
 				);
-
 				break;
-			}
 			}
 		}
 

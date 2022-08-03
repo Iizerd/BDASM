@@ -553,27 +553,18 @@ struct encrypted_routine_t
 		routine.entry_block->instructions.splice(routine.entry_block->instructions.begin(), prologue);
 
 		auto& data_block = routine.blocks.emplace_front(routine.blocks.end());
+		data_block.link = ctx.linker.allocate_link();
 		data_block.instructions.emplace_back(
 			XED_ICLASS_NOP,
 			32
 		).common_edit(spinlock_link, 0, 0);
-		data_block.instructions.back().encode_callback = std::bind(spinlock_encode_callback<Addr_width>,
-			std::placeholders::_1,
-			std::placeholders::_2,
-			std::placeholders::_3,
-			std::placeholders::_4
-		);
+		data_block.instructions.back().encode_callback = spinlock_encode_callback<Addr_width>;
 
 		data_block.instructions.emplace_back(
 			XED_ICLASS_NOP4,
 			32
 		).common_edit(counter_link, 0, 0);
-		data_block.instructions.back().encode_callback = std::bind(counter_encode_callback<Addr_width>,
-			std::placeholders::_1,
-			std::placeholders::_2,
-			std::placeholders::_3,
-			std::placeholders::_4
-		);
+		data_block.instructions.back().encode_callback = counter_encode_callback<Addr_width>;
 
 		return obf::pass_status_t::success;
 	}

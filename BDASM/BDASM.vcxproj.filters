@@ -79,7 +79,7 @@
     <ClInclude Include="ir.h">
       <Filter>headers\obfuscator\virtualizer\ir</Filter>
     </ClInclude>
-    <ClInclude Include="jcc_rewrite.h">
+    <ClInclude Include="flat_control.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
   </ItemGroup>

@@ -27,7 +27,7 @@
 #include "original.h"
 #include "encrypted_blocks.h"
 #include "encrypted_routines.h"
-#include "jcc_rewrite.h"
+#include "flat_control.h"
 
 
 
@@ -44,7 +44,10 @@
 //#define image_out "C:\\$Work\\BDASM\\x64\\Debug\\TestExe2.exe"
 //#else
 //#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
-#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+
+//#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+
+#define image_name "C:\\$Work\\CrackmeTest\\x64\\Release\\CrackmeTest.exe"
 
 //#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
 #define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe4.exe"
@@ -54,7 +57,7 @@
 
 int main(int argc, char** argv)
 {
-	srand(time(nullptr));
+	srand(1); // time(nullptr));
 	xed_tables_init();
 
 	//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
@@ -95,10 +98,9 @@ int main(int argc, char** argv)
 	obfuscator.load_file(image_name);
 
 	obfuscator.register_single_pass<pad_original_t>();
-	//obfuscator.register_single_pass<opaque_from_flags_t>();
 	//obfuscator.register_single_pass<opaque_from_rip_t>();
-	jcc_rewrite_t::gadget_link[0] = 0;
-	obfuscator.register_single_pass<jcc_rewrite_t>();
+	obfuscator.register_single_pass<opaque_from_flags_t>();
+	obfuscator.register_single_pass<flatten_control_flow_t>();
 	//obfuscator.register_single_pass<opaque_from_const_t>();
 	//obfuscator.register_single_pass<position_independent_blocks_t>();
 	//obfuscator.register_single_pass<encrypted_routine_t>();
