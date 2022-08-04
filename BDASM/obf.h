@@ -28,6 +28,9 @@ namespace obf
 	template<addr_width::type Addr_width = addr_width::x64>
 	class routine_t;
 
+	template<addr_width::type Addr_width = addr_width::x64, uint32_t Thread_count = 1>
+	class obf_t;
+
 	template<addr_width::type Addr_width = addr_width::x64>
 	struct context_t
 	{
@@ -54,7 +57,7 @@ namespace obf
 		{}
 
 		template<typename Pass_type, typename... Params>
-		pass_status_t mutation_pass(context_t<Addr_width>& ctx, Params... params)
+		pass_status_t mutation_pass(obf_t<Addr_width>& ctx, Params... params)
 		{
 			return Pass_type::pass(m_routine, ctx, params...);
 		}
@@ -62,7 +65,7 @@ namespace obf
 
 	//https://www.youtube.com/watch?v=pXwbj_ZPKwg&ab_channel=VvporTV
 	//
-	template<addr_width::type Addr_width = addr_width::x64, uint32_t Thread_count = 1>
+	template<addr_width::type Addr_width, uint32_t Thread_count>
 	class obf_t
 	{
 		std::vector<std::function<pass_status_t(dasm::routine_t<Addr_width>&, obf::context_t<Addr_width>&)>> single_passes;
@@ -78,7 +81,7 @@ namespace obf
 
 		std::list<routine_t<Addr_width>> obf_routines;
 
-		// These are routines that are added after the fact
+		// These are routines that are added after the fact and we dont want to apply obfuscation passes to.
 		//
 		std::list<dasm::routine_t<Addr_width>> additional_routines;
 
@@ -306,7 +309,8 @@ namespace obf
 
 				rva = align_up(rva, 0x10);
 			}
-			return rva;
+
+			return rva - base;
 		}
 		void encode(uint32_t section_size)
 		{

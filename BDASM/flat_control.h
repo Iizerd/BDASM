@@ -3,6 +3,7 @@
 
 #include "obf.h"
 #include "flags.h"
+#include "condition_code.h"
 
 // Rewrite jccs to use cmov and other more confusing logic
 // This also makes all blocks position independent
@@ -33,10 +34,10 @@ inline bool first_gadgets_setup = false;
 struct flatten_control_flow_t
 {
 	// Link for the gadget
-	inline static uint32_t gadget_link[16];
-	inline static uint32_t use_count[16];
-	inline static int32_t taken_adjustment[16];
-	inline static int32_t not_taken_adjustment[16];
+	inline static uint32_t gadget_link[XED_CC_COMPAT_END];
+	inline static uint32_t use_count[XED_CC_COMPAT_END];
+	inline static int32_t taken_adjustment[XED_CC_COMPAT_END];
+	inline static int32_t not_taken_adjustment[XED_CC_COMPAT_END];
 
 	// Cant handle because there is no condition movcxz
 	static bool jcxz(xed_iclass_enum_t iclass)
@@ -145,7 +146,7 @@ struct flatten_control_flow_t
 	// This sets gadget_link and left/right adjustment
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
-	static void refresh_gadget(obf::context_t<Addr_width>& ctx, uint8_t cc)
+	static void refresh_gadget(obf::context_t<Addr_width>& ctx, xed_condition_code_t cc)
 	{
 		auto& routine = ctx.additional_routines.emplace_back();
 		routine.entry_link = ctx.linker.allocate_link();
@@ -183,7 +184,7 @@ struct flatten_control_flow_t
 		uint32_t not_taken_jump_around_link = ctx.linker.allocate_link();
 
 		block.instructions.emplace_back(
-			cc_to_jcc(invert_cc(cc)),
+			xed_condition_code_to_jcc(xed_invert_condition_code(cc)),
 			addr_width::bits<Addr_width>::value,
 			xed_relbr(0, 8)
 		).common_edit(ctx.linker.allocate_link(), not_taken_jump_around_link, dasm::inst_flag::rel_br);
@@ -247,7 +248,7 @@ struct flatten_control_flow_t
 	}
 
 	template<uint32_t Max_use_count = 5, addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_list_t<Addr_width> gadget_entry(obf::context_t<Addr_width>& ctx, uint8_t cc, uint32_t taken_link, uint32_t not_taken_link)
+	static dasm::inst_list_t<Addr_width> gadget_entry(obf::context_t<Addr_width>& ctx, xed_condition_code_t cc, uint32_t taken_link, uint32_t not_taken_link)
 	{
 		if (use_count[cc] > Max_use_count)
 			refresh_gadget(ctx, cc);
@@ -314,7 +315,7 @@ struct flatten_control_flow_t
 		result.back().encode_data.additional_disp = taken_adjustment[cc];
 
 		result.emplace_back(
-			cc_to_movcc(cc),
+			xed_condition_code_to_cmovcc(cc),
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
@@ -334,8 +335,8 @@ struct flatten_control_flow_t
 	{
 		if (!first_gadgets_setup)
 		{
-			for (uint8_t i = 0; i < 16; ++i)
-				refresh_gadget(ctx, i);
+			for (uint8_t i = 0; i < XED_CC_COMPAT_END; ++i)
+				refresh_gadget(ctx, static_cast<xed_condition_code_t>(i));
 			first_gadgets_setup = true;
 		}
 
@@ -348,7 +349,7 @@ struct flatten_control_flow_t
 					block.instructions.end(),
 					gadget_entry<15>(
 						ctx,
-						rand() % 16,
+						static_cast<xed_condition_code_t>(rand() % XED_CC_COMPAT_END),
 						block.taken_block->link,
 						block.taken_block->link
 					)
@@ -357,8 +358,8 @@ struct flatten_control_flow_t
 			case dasm::termination_type_t::conditional_br:
 			{
 				auto jcc = std::prev(block.instructions.end());
-				auto cc = jcc_to_cc(xed_decoded_inst_get_iclass(&jcc->decoded_inst));
-				if (cc < 16)
+				auto cc = xed_iclass_to_condition_code(xed_decoded_inst_get_iclass(&jcc->decoded_inst));
+				if (cc < XED_CC_COMPAT_END)
 				{
 					block.instructions.splice(
 						jcc,
@@ -380,7 +381,7 @@ struct flatten_control_flow_t
 					block.instructions.end(),
 					gadget_entry<15>(
 						ctx,
-						rand() % 16,
+						static_cast<xed_condition_code_t>(rand() % XED_CC_COMPAT_END),
 						block.fallthrough_block->link,
 						block.fallthrough_block->link
 					)

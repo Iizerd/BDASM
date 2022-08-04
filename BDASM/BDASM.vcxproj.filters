@@ -82,6 +82,9 @@
     <ClInclude Include="flat_control.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
+    <ClInclude Include="condition_code.h">
+      <Filter>headers\xed</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

@@ -152,6 +152,7 @@
     <ClInclude Include="..\sdk.h" />
     <ClInclude Include="addr_width.h" />
     <ClInclude Include="common_code.h" />
+    <ClInclude Include="condition_code.h" />
     <ClInclude Include="dasm.h" />
     <ClInclude Include="align.h" />
     <ClInclude Include="dasm2.h" />

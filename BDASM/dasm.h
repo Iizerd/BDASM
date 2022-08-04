@@ -227,6 +227,8 @@ namespace dasm
 		//
 		block_it_t<Addr_width> taken_block;
 
+		std::vector<block_it_t<Addr_width>> jump_table_blocks;
+
 		// Once we finish decoding everything, we run a pass over every finished routine
 		// and set this equal to the symbol(rva) of the first instruction inside of the
 		// block. We then assign an arbitrary symbol to the instruction. This makes it
