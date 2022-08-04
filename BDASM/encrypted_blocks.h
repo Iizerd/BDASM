@@ -41,7 +41,7 @@ struct encrypted_blocks_t
 	// Takes a link that represents a byte in memory to use as the spinlock
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_list_t<Addr_width> acquire_spinlock(obf::context_t<Addr_width>& ctx, uint32_t spinlock_link)
+	static dasm::inst_list_t<Addr_width> acquire_spinlock(obf::obf_t<Addr_width>& ctx, uint32_t spinlock_link)
 	{
 		//	 pushfq
 		//	 push rax
@@ -52,7 +52,7 @@ struct encrypted_blocks_t
 		//   jz continue_wait
 		//
 
-		uint32_t continue_wait = ctx.linker.allocate_link();
+		uint32_t continue_wait = ctx.linker->allocate_link();
 
 		dasm::inst_list_t<Addr_width> result;
 
@@ -60,13 +60,13 @@ struct encrypted_blocks_t
 		result.emplace_back(
 			XED_ICLASS_PUSHF,
 			addr_width::bits<Addr_width>::value
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_MOV,
@@ -84,27 +84,27 @@ struct encrypted_blocks_t
 				8
 			),
 			xed_reg(XED_REG_AL)
-		).common_edit(ctx.linker.allocate_link(), spinlock_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), spinlock_link, dasm::inst_flag::disp);
 
 		result.emplace_back(
 			XED_ICLASS_TEST,
 			8,
 			xed_reg(XED_REG_AL),
 			xed_reg(XED_REG_AL)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_JZ,
 			8,
 			xed_relbr(0, 32)
-		).common_edit(ctx.linker.allocate_link(), continue_wait, dasm::inst_flag::rel_br);
+		).common_edit(ctx.linker->allocate_link(), continue_wait, dasm::inst_flag::rel_br);
 
 
 		return result;
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_list_t<Addr_width> release_spinlock(obf::context_t<Addr_width>& ctx, uint32_t spinlock_link)
+	static dasm::inst_list_t<Addr_width> release_spinlock(obf::obf_t<Addr_width>& ctx, uint32_t spinlock_link)
 	{
 		// mov al,0x90
 		// lock xchg [rip+spinlock_offset],al
@@ -119,7 +119,7 @@ struct encrypted_blocks_t
 			8,
 			xed_reg(XED_REG_AL),
 			xed_imm0(0x90, 8)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_XCHG,
@@ -130,18 +130,18 @@ struct encrypted_blocks_t
 				8
 			),
 			xed_reg(XED_REG_AL)
-		).common_edit(ctx.linker.allocate_link(), spinlock_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), spinlock_link, dasm::inst_flag::disp);
 
 		result.emplace_back(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_POPF,
 			addr_width::bits<Addr_width>::value
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		return result;
 	}
@@ -174,7 +174,7 @@ struct encrypted_blocks_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static void gen_encryption_pair(obf::context_t<Addr_width>& ctx, dasm::inst_t<Addr_width>& inst, dasm::inst_list_t<Addr_width>& prologue, dasm::inst_list_t<Addr_width>& epilogue, bool post_encode)
+	static void gen_encryption_pair(obf::obf_t<Addr_width>& ctx, dasm::inst_t<Addr_width>& inst, dasm::inst_list_t<Addr_width>& prologue, dasm::inst_list_t<Addr_width>& epilogue, bool post_encode)
 	{
 		// For xoring, prologue and epilogue are the same
 		//
@@ -194,7 +194,7 @@ struct encrypted_blocks_t
 				width_bits
 			),
 			xed_imm0(val, width_bits)
-		).common_edit(ctx.linker.allocate_link(), inst.my_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), inst.my_link, dasm::inst_flag::disp);
 
 		epilogue.emplace_back(
 			XED_ICLASS_XOR,
@@ -205,7 +205,7 @@ struct encrypted_blocks_t
 				width_bits
 			),
 			xed_imm0(val, width_bits)
-		).common_edit(ctx.linker.allocate_link(), inst.my_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), inst.my_link, dasm::inst_flag::disp);
 
 		if (post_encode)
 		{
@@ -245,7 +245,7 @@ struct encrypted_blocks_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_list_t<Addr_width> gen_encryption_loop(obf::context_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block, uint8_t xor_key, bool pre)
+	static dasm::inst_list_t<Addr_width> gen_encryption_loop(obf::obf_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block, uint8_t xor_key, bool pre)
 	{
 		//	pushfq
 		//	push rax
@@ -291,27 +291,27 @@ struct encrypted_blocks_t
 		}
 
 
-		auto continue_loop = ctx.linker.allocate_link();
+		auto continue_loop = ctx.linker->allocate_link();
 
 		if (!pre)
 		{
 			result.emplace_back(
 				XED_ICLASS_PUSHF,
 				addr_width::bits<Addr_width>::value
-			).common_edit(ctx.linker.allocate_link(), 0, 0);
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 			result.emplace_back(
 				XED_ICLASS_PUSH,
 				addr_width::bits<Addr_width>::value,
 				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-			).common_edit(ctx.linker.allocate_link(), 0, 0);
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
 		}
 
 		result.emplace_back(
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_LEA,
@@ -322,7 +322,7 @@ struct encrypted_blocks_t
 				xed_disp(0, 32),
 				addr_width::bits<Addr_width>::value
 			)
-		).common_edit(ctx.linker.allocate_link(), start_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), start_link, dasm::inst_flag::disp);
 
 		result.emplace_back(
 			XED_ICLASS_LEA,
@@ -333,7 +333,7 @@ struct encrypted_blocks_t
 				xed_disp(0, 32),
 				addr_width::bits<Addr_width>::value
 			)
-		).common_edit(ctx.linker.allocate_link(), end_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), end_link, dasm::inst_flag::disp);
 		result.back().encode_data.additional_disp = end_add;
 
 		result.emplace_back(
@@ -348,26 +348,26 @@ struct encrypted_blocks_t
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_imm0(1, 8)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_CMP,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_JNZ,
 			addr_width::bits<Addr_width>::value,
 			xed_relbr(0, 8)
-		).common_edit(ctx.linker.allocate_link(), continue_loop, dasm::inst_flag::rel_br);
+		).common_edit(ctx.linker->allocate_link(), continue_loop, dasm::inst_flag::rel_br);
 
 		result.emplace_back(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		if (pre)
 		{
@@ -375,14 +375,14 @@ struct encrypted_blocks_t
 				XED_ICLASS_POP,
 				addr_width::bits<Addr_width>::value,
 				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-			).common_edit(ctx.linker.allocate_link(), 0, 0);
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
 		}
 
 		return result;
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width>> encryption(obf::context_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block)
+	static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width>> encryption(obf::obf_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block)
 	{
 		dasm::inst_list_t<Addr_width> prologue, epilogue;
 
@@ -404,19 +404,19 @@ struct encrypted_blocks_t
 				XED_ICLASS_PUSH,
 				addr_width::bits<Addr_width>::value,
 				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-			).common_edit(ctx.linker.allocate_link(), 0, 0);
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 			epilogue.emplace_front(
 				XED_ICLASS_PUSHF,
 				addr_width::bits<Addr_width>::value
-			).common_edit(ctx.linker.allocate_link(), 0, 0);
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 
 			prologue.emplace_back(
 				XED_ICLASS_POP,
 				addr_width::bits<Addr_width>::value,
 				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-			).common_edit(ctx.linker.allocate_link(), 0, 0);
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		}
 		else
@@ -429,7 +429,7 @@ struct encrypted_blocks_t
 		prologue.emplace_back(
 			XED_ICLASS_POPF,
 			addr_width::bits<Addr_width>::value
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		return { prologue, epilogue };
 	}
@@ -440,7 +440,7 @@ struct encrypted_blocks_t
 	//
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx, bool spinlock = true)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx, bool spinlock = true)
 	{
 		/*auto [prologue, epilogue] = encryption();*/
 
@@ -474,7 +474,7 @@ struct encrypted_blocks_t
 				continue;
 
 
-			uint32_t spinlock_link = ctx.linker.allocate_link();
+			uint32_t spinlock_link = ctx.linker->allocate_link();
 
 			// Gen the prologue and epilogues here, prepend and append them
 			//

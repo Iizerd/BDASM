@@ -10,7 +10,7 @@
 struct position_independent_blocks_t
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
 		for (auto& block : routine.blocks)
 		{
@@ -35,7 +35,7 @@ struct position_independent_blocks_t
 					XED_ICLASS_JMP,
 					32,
 					xed_relbr(0, 32)
-				).common_edit(ctx.linker.allocate_link(), block.fallthrough_block->link, dasm::inst_flag::rel_br | dasm::inst_flag::block_terminator);
+				).common_edit(ctx.linker->allocate_link(), block.fallthrough_block->link, dasm::inst_flag::rel_br | dasm::inst_flag::block_terminator);
 				block.instructions.back().original_rva = 0;
 
 				break;

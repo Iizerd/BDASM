@@ -55,9 +55,6 @@
     <ClInclude Include="substitution.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
-    <ClInclude Include="stack_allocation.h">
-      <Filter>headers\obfuscator\passes\mutation</Filter>
-    </ClInclude>
     <ClInclude Include="opaques.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
@@ -84,6 +81,9 @@
     </ClInclude>
     <ClInclude Include="condition_code.h">
       <Filter>headers\xed</Filter>
+    </ClInclude>
+    <ClInclude Include="stack_allocation.h">
+      <Filter>headers\obfuscator\passes\utility</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -120,6 +120,9 @@
     <Filter Include="headers\obfuscator\virtualizer\ir">
       <UniqueIdentifier>{9e4fd3df-da25-41a0-81cd-560754733ebf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="headers\obfuscator\passes\utility">
+      <UniqueIdentifier>{e616c714-937e-4ff4-8164-b1cb15628f08}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -128,7 +131,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="pi_blocks.h">
-      <Filter>headers\obfuscator\passes\mutation</Filter>
+      <Filter>headers\obfuscator\passes\utility</Filter>
     </None>
   </ItemGroup>
 </Project>

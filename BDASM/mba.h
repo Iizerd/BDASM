@@ -67,7 +67,7 @@ struct mba_t
 	// red_space_store: store variables in unallocated stack memory
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx, uint32_t percent_chance, uint32_t min_count, bool red_space_store = false)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx, uint32_t percent_chance, uint32_t min_count, bool red_space_store = false)
 	{
 
 	}

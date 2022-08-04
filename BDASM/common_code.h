@@ -39,9 +39,9 @@ struct common_stack_manip_t
 	//		mov [rsp],rax
 	//		
 	template<addr_width::type Addr_width = addr_width::x64>
-	static uint32_t insert_stack_manipulator(obf::context_t<Addr_width>& ctx)
+	static uint32_t insert_stack_manipulator(obf::obf_t<Addr_width>& ctx)
 	{
-		auto link = ctx.linker.allocate_link();
+		auto link = ctx.linker->allocate_link();
 
 		dasm::routine_t<Addr_width>& routine = ctx.additional_routines.emplace_back();
 		routine.entry_link = link;
@@ -59,7 +59,7 @@ struct common_stack_manip_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(obf::obf_t<Addr_width>& ctx)
 	{
 
 	}
@@ -69,7 +69,7 @@ struct common_prologue_t
 {
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(obf::obf_t<Addr_width>& ctx)
 	{
 		
 	}
@@ -78,7 +78,7 @@ struct common_prologue_t
 struct common_epilogue_t
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(obf::obf_t<Addr_width>& ctx)
 	{
 
 	}
@@ -87,7 +87,7 @@ struct common_epilogue_t
 struct common_code_t
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(obf::obf_t<Addr_width>& ctx)
 	{
 
 	}

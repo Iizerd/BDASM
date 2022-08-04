@@ -25,20 +25,20 @@ namespace obf
 	};
 
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	class routine_t;
+	/*template<addr_width::type Addr_width = addr_width::x64>
+	class routine_t;*/
 
-	template<addr_width::type Addr_width = addr_width::x64, uint32_t Thread_count = 1>
+	template<addr_width::type Addr_width = addr_width::x64>
 	class obf_t;
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	struct context_t
-	{
-		dasm::linker_t& linker;
-		pex::binary_t<Addr_width>& bin;
-		std::list<routine_t<Addr_width>>& obf_routine_list;
-		std::list<dasm::routine_t<Addr_width>>& additional_routines;
-	};
+	//template<addr_width::type Addr_width = addr_width::x64>
+	//struct context_t
+	//{
+	//	dasm::linker_t& linker;
+	//	pex::binary_t<Addr_width>& bin;
+	//	std::list<routine_t<Addr_width>>& obf_routines;
+	//	std::list<dasm::routine_t<Addr_width>>& additional_routines;
+	//};
 
 	template<addr_width::type Addr_width>
 	class routine_t
@@ -65,17 +65,17 @@ namespace obf
 
 	//https://www.youtube.com/watch?v=pXwbj_ZPKwg&ab_channel=VvporTV
 	//
-	template<addr_width::type Addr_width, uint32_t Thread_count>
+	template<addr_width::type Addr_width>
 	class obf_t
 	{
-		std::vector<std::function<pass_status_t(dasm::routine_t<Addr_width>&, obf::context_t<Addr_width>&)>> single_passes;
+		std::vector<std::function<pass_status_t(dasm::routine_t<Addr_width>&, obf_t<Addr_width>&)>> single_passes;
 
 		dasm::decoder_context_t<Addr_width>* m_decoder_context;
 
-		dasm::linker_t* m_linker;
 	public:
+		dasm::linker_t* linker;
 
-		dasm::dasm_t<Addr_width, Thread_count>* dasm;
+		dasm::dasm_t<Addr_width, 1>* dasm;
 
 		pex::binary_t<Addr_width>* bin;
 
@@ -88,7 +88,7 @@ namespace obf
 		obf_t()
 			: dasm(nullptr)
 			, m_decoder_context(nullptr)
-			, m_linker(nullptr)
+			, linker(nullptr)
 			, bin(new pex::binary_t<Addr_width>)
 		{}
 
@@ -98,8 +98,8 @@ namespace obf
 				delete dasm;
 			if (m_decoder_context)
 				delete m_decoder_context;
-			if (m_linker)
-				delete m_linker;
+			if (linker)
+				delete linker;
 
 			delete bin;
 		}
@@ -155,13 +155,13 @@ namespace obf
 			if (!bin->map_image(file_buffer, file_length))
 				return false;
 
-			m_linker = new dasm::linker_t(bin->optional_header.get_size_of_image(), 0x10000);
+			linker = new dasm::linker_t(bin->optional_header.get_size_of_image(), 0x10000);
 
 			m_decoder_context = new dasm::decoder_context_t(bin);
 			m_decoder_context->settings.recurse_calls = true;
-			m_decoder_context->linker = m_linker;
+			m_decoder_context->linker = linker;
 
-			dasm = new dasm::dasm_t<Addr_width, Thread_count>(m_decoder_context);
+			dasm = new dasm::dasm_t<Addr_width, 1>(m_decoder_context);
 
 			// First we add all runtime func as possible entries
 			//
@@ -212,9 +212,9 @@ namespace obf
 
 
 		template<typename Pass_type, typename... Params>
-		pass_status_t group_pass(context_t<Addr_width>& ctx, Params... params)
+		pass_status_t group_pass(Params... params)
 		{
-			return Pass_type::pass(ctx, params...);
+			return Pass_type::pass(*this, params...);
 		}
 
 		template<typename Pass_type, typename... Params>
@@ -225,7 +225,7 @@ namespace obf
 
 		void run_single_passes()
 		{
-			context_t<Addr_width> context = { *m_linker, *bin, obf_routines, additional_routines };
+			//context_t<Addr_width> context = { *linker, *bin, obf_routines, additional_routines };
 
 			for (auto& routine : obf_routines)
 			{
@@ -240,7 +240,7 @@ namespace obf
 
 				for (auto pass : single_passes)
 				{
-					pass(routine.m_routine, context);
+					pass(routine.m_routine, *this);
 				}
 
 				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
@@ -288,9 +288,9 @@ namespace obf
 				for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
 				{
 					if (block_it == routine.m_routine.entry_block)
-						m_linker->set_link_addr(routine.m_routine.entry_link, rva);
+						linker->set_link_addr(routine.m_routine.entry_link, rva);
 
-					block_it->place_in_binary(rva, m_linker);
+					block_it->place_in_binary(rva, linker);
 				}
 
 				rva = align_up(rva, 0x10);
@@ -302,9 +302,9 @@ namespace obf
 				for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 				{
 					if (block_it == routine.entry_block)
-						m_linker->set_link_addr(routine.entry_link, rva);
+						linker->set_link_addr(routine.entry_link, rva);
 
-					block_it->place_in_binary(rva, m_linker);
+					block_it->place_in_binary(rva, linker);
 				}
 
 				rva = align_up(rva, 0x10);
@@ -320,7 +320,7 @@ namespace obf
 			{
 				for (auto& block : routine.m_routine.blocks)
 				{
-					block.encode_in_binary(bin, m_linker, &dest);
+					block.encode_in_binary(bin, linker, &dest);
 				}
 
 				dest = align_up_ptr(dest, 0x10);
@@ -350,7 +350,7 @@ namespace obf
 						XED_ICLASS_ADD,
 						addr_width::bits<Addr_width>::value,
 						xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
-						xed_simm0(m_linker->get_link_addr(routine.m_routine.entry_block->link) - random, 32)
+						xed_simm0(linker->get_link_addr(routine.m_routine.entry_block->link) - random, 32)
 					);
 					encode_inst_in_place(
 						bin->mapped_image + rva + off,
@@ -366,7 +366,7 @@ namespace obf
 
 					// Put a jump at the location of the original function, in case we didnt disassemble something
 					//
-					int32_t disp = m_linker->get_link_addr(routine.m_routine.entry_block->link) - routine.m_routine.entry_block->rva_start - 5;
+					int32_t disp = linker->get_link_addr(routine.m_routine.entry_block->link) - routine.m_routine.entry_block->rva_start - 5;
 					encode_inst_in_place(
 						bin->mapped_image + routine.m_routine.entry_block->rva_start,
 						addr_width::machine_state<Addr_width>::value,
@@ -381,7 +381,7 @@ namespace obf
 			{
 				for (auto& block : routine.blocks)
 				{
-					block.encode_in_binary(bin, m_linker, &dest);
+					block.encode_in_binary(bin, linker, &dest);
 				}
 
 				dest = align_up_ptr(dest, 0x10);
@@ -396,7 +396,7 @@ namespace obf
 //{
 //	dasm::routine_t<addr_width::x64> routine;
 //	obf::routine_t<addr_width::x64> obfr(routine);
-//	obf::context_t<addr_width::x64> ctx;
+//	obf::obf_t<addr_width::x64> ctx;
 //	ctx.bin = nullptr;
 //	ctx.linker = nullptr;
 //	obfr.mutation_pass<obf::mba_t<>>(ctx);

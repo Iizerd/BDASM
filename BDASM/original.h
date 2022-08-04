@@ -11,11 +11,11 @@
 struct pad_original_t
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
 		for (auto& block : routine.blocks)
 		{
-			memset(ctx.bin.mapped_image + block.rva_start, 0xCC, block.rva_end - block.rva_start);
+			memset(ctx.bin->mapped_image + block.rva_start, 0xCC, block.rva_end - block.rva_start);
 		}
 
 		return obf::pass_status_t::success;

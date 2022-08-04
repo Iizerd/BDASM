@@ -27,8 +27,8 @@ struct opaque_from_flags_t
 	struct my_context
 	{
 		dasm::routine_t<Addr_width>& routine;
-		obf::context_t<Addr_width>& ctx;
-		my_context(dasm::routine_t<Addr_width>& r, obf::context_t<Addr_width>& context)
+		obf::obf_t<Addr_width>& ctx;
+		my_context(dasm::routine_t<Addr_width>& r, obf::obf_t<Addr_width>& context)
 			: routine(r)
 			, ctx(context)
 		{}
@@ -96,8 +96,8 @@ struct opaque_from_flags_t
 	template<addr_width::type Addr_width = addr_width::x64>
 	static uint32_t find_random_link(my_context<Addr_width>& ctx)
 	{
-		auto routine_it = ctx.ctx.obf_routine_list.begin();
-		std::advance(routine_it, rand() % ctx.ctx.obf_routine_list.size());
+		auto routine_it = ctx.ctx.obf_routines.begin();
+		std::advance(routine_it, rand() % ctx.ctx.obf_routines.size());
 
 		auto block_it_t = routine_it->m_routine.blocks.begin();
 		std::advance(block_it_t, rand() % routine_it->m_routine.blocks.size());
@@ -135,7 +135,7 @@ struct opaque_from_flags_t
 					xed_relbr(0, 32)
 				)
 			);
-			jcc->my_link = ctx.ctx.linker.allocate_link();
+			jcc->my_link = ctx.ctx.linker->allocate_link();
 			jcc->used_link = find_random_link(ctx);
 			jcc->original_rva = 0;
 			jcc->flags |= dasm::inst_flag::rel_br;
@@ -228,7 +228,7 @@ struct opaque_from_flags_t
 
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
 		routine.reset_visited();
 
@@ -359,7 +359,7 @@ struct opaque_from_const_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
 		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
@@ -406,7 +406,7 @@ struct opaque_from_const_t
 						8,
 						xed_reg(reg_as_8),
 						xed_reg(reg_as_8)
-					)->common_edit(ctx.linker.allocate_link(), 0, 0);
+					)->common_edit(ctx.linker->allocate_link(), 0, 0);
 
 					if (is_zero)
 					{
@@ -414,7 +414,7 @@ struct opaque_from_const_t
 							XED_ICLASS_JNZ,
 							32,
 							xed_relbr(0xABBA, 32)
-						)->common_edit(ctx.linker.allocate_link(), random_block_link(routine), dasm::inst_flag::rel_br);
+						)->common_edit(ctx.linker->allocate_link(), random_block_link(routine), dasm::inst_flag::rel_br);
 					}
 					else
 					{
@@ -422,7 +422,7 @@ struct opaque_from_const_t
 							XED_ICLASS_JZ,
 							32,
 							xed_relbr(0xABBA, 32)
-						)->common_edit(ctx.linker.allocate_link(), random_block_link(routine), dasm::inst_flag::rel_br);
+						)->common_edit(ctx.linker->allocate_link(), random_block_link(routine), dasm::inst_flag::rel_br);
 					}
 
 					goto go_to_next_block;
@@ -461,10 +461,10 @@ struct opaque_from_const_t
 struct opaque_from_rip_t
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_it_t<Addr_width> find_random_inst(obf::context_t<Addr_width>& ctx)
+	static dasm::inst_it_t<Addr_width> find_random_inst(obf::obf_t<Addr_width>& ctx)
 	{
-		auto routine_it = ctx.obf_routine_list.begin();
-		std::advance(routine_it, rand() % ctx.obf_routine_list.size());
+		auto routine_it = ctx.obf_routines.begin();
+		std::advance(routine_it, rand() % ctx.obf_routines.size());
 
 		auto block_it_t = routine_it->m_routine.blocks.begin();
 		std::advance(block_it_t, rand() % routine_it->m_routine.blocks.size());
@@ -476,10 +476,10 @@ struct opaque_from_rip_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static uint32_t find_random_link(obf::context_t<Addr_width>& ctx)
+	static uint32_t find_random_link(obf::obf_t<Addr_width>& ctx)
 	{
-		auto routine_it = ctx.obf_routine_list.begin();
-		std::advance(routine_it, rand() % ctx.obf_routine_list.size());
+		auto routine_it = ctx.obf_routines.begin();
+		std::advance(routine_it, rand() % ctx.obf_routines.size());
 
 		auto block_it_t = routine_it->m_routine.blocks.begin();
 		std::advance(block_it_t, rand() % routine_it->m_routine.blocks.size());
@@ -491,7 +491,7 @@ struct opaque_from_rip_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_list_t<Addr_width> gen(obf::context_t<Addr_width>& ctx)
+	static dasm::inst_list_t<Addr_width> gen(obf::obf_t<Addr_width>& ctx)
 	{
 		uint32_t target_link = 0;
 
@@ -511,7 +511,7 @@ struct opaque_from_rip_t
 			XED_ICLASS_PUSH,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_MOV,
@@ -522,32 +522,32 @@ struct opaque_from_rip_t
 				xed_disp(0, 32),
 				8
 			)
-		).common_edit(ctx.linker.allocate_link(), target_link, dasm::inst_flag::disp);
+		).common_edit(ctx.linker->allocate_link(), target_link, dasm::inst_flag::disp);
 
 		result.emplace_back(
 			XED_ICLASS_TEST,
 			8,
 			xed_reg(XED_REG_AL),
 			xed_reg(XED_REG_AL)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_JZ,
 			32,
 			xed_relbr(0, 32)
-		).common_edit(ctx.linker.allocate_link(), find_random_link(ctx), dasm::inst_flag::rel_br);
+		).common_edit(ctx.linker->allocate_link(), find_random_link(ctx), dasm::inst_flag::rel_br);
 
 		result.emplace_back(
 			XED_ICLASS_POP,
 			addr_width::bits<Addr_width>::value,
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
-		).common_edit(ctx.linker.allocate_link(), 0, 0);
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		return result;
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
 		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
@@ -581,7 +581,7 @@ struct opaque_from_rip_t
 struct opaque_code_copy_t
 {
 	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::context_t<Addr_width>& ctx)
+	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
 
 	}
