@@ -325,9 +325,6 @@ namespace obf
 
 				dest = align_up_ptr(dest, 0x10);
 
-
-				
-
 				if (0 && routine.original_space >= 15)
 				{
 					int32_t random = rand() % 0xFFFF;

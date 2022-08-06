@@ -2,6 +2,11 @@
 
 #include "obf.h"
 #include "encoder.h"
+#include "backtrace.h"
+
+// I can actually handle the special stack deallocators... i just need to trace back to where the reg moved into rsp is used
+// see if its a lea reg,[rsp+stack_allocation] then adjust accordingly.
+//
 
 // write func to perform complete stack analysis with blocks that have references to the other blocks blah blah blah
 // use iterators for the references
@@ -107,13 +112,21 @@ struct stack_allocation_t
 	{
 		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
+			bool found_standard_deallocator = false;
 			for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
 			{
 				auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
 				if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
 					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
+					if (ctx.sp_allocation)
+						return false;
 					ctx.sp_allocation = xed_decoded_inst_get_signed_immediate(&inst_it->decoded_inst);
+				}
+				if (iform == XED_IFORM_ADD_GPRv_IMMz || iform == XED_IFORM_ADD_GPRv_IMMb &&
+					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+				{
+					found_standard_deallocator = true;
 				}
 				else if ((iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
 					max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
@@ -122,7 +135,7 @@ struct stack_allocation_t
 					ctx.bp_based = true;
 					ctx.lea_to_bp = false;
 					ctx.bp_allocation = ctx.sp_allocation;
-					printf("------MOV BP. %X\n", inst_it->original_rva);
+					//printf("------MOV BP. %X\n", inst_it->original_rva);
 				}
 				else if ((iform == XED_IFORM_LEA_GPRv_AGEN) && 
 					max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
@@ -136,7 +149,7 @@ struct stack_allocation_t
 					ctx.bp_based = true;
 					ctx.lea_to_bp = true;
 					ctx.bp_allocation = (-xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0)) + ctx.sp_allocation;
-					printf("-----LEA BP. %X\n", inst_it->original_rva);
+					//printf("-----LEA BP. %X\n", inst_it->original_rva);
 				}
 				else if (auto icat = xed_decoded_inst_get_category(&inst_it->decoded_inst);
 					icat == XED_CATEGORY_CALL)
@@ -147,6 +160,9 @@ struct stack_allocation_t
 
 			if (block_it->termination_type == dasm::termination_type_t::undetermined_unconditional_br)
 				ctx.custom_alloc_possible = false;
+
+			if (block_it->termination_type == dasm::termination_type_t::returns && found_standard_deallocator == false)
+				return false;
 		}
 		return true;
 	}
@@ -181,7 +197,7 @@ struct stack_allocation_t
 				max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
 				does_reg_equal_sp(xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0), block, inst_it))
 			{
-				printf("found lea to do allocation on %X\n", inst_it->original_rva);
+				//printf("found lea to do allocation on %X\n", inst_it->original_rva);
 				auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
 				xed_decoded_inst_set_memory_displacement_bits(&inst_it->decoded_inst, disp - ctx.additional_alloc, 32);
 				inst_it->redecode();
@@ -271,10 +287,14 @@ struct stack_allocation_t
 	template<addr_width::type Addr_width = addr_width::x64>
 	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx, int32_t& allocation_size)
 	{
+		/*if (routine.entry_block->rva_start >= 0x1B71)
+			return obf::pass_status_t::failure;*/
+
 		routine.reset_visited();
 		my_context_t<Addr_width> my_ctx = { ctx, 1, allocation_size };
 
-		run_stack_analysis(my_ctx, routine);
+		if (!run_stack_analysis(my_ctx, routine))
+			return obf::pass_status_t::failure;
 
 		// If there wasnt any stack allocation originally, we insert one if possible
 		//
@@ -305,6 +325,9 @@ struct stack_allocation_t
 				return obf::pass_status_t::failure;
 		}
 
+		//if (my_ctx.bp_based)
+		//	return obf::pass_status_t::failure;
+		
 		recursive_disp_fixup(routine.entry_block, my_ctx, false);
 		return obf::pass_status_t::success;
 	}

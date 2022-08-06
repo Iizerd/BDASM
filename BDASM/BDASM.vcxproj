@@ -151,6 +151,7 @@
   <ItemGroup>
     <ClInclude Include="..\sdk.h" />
     <ClInclude Include="addr_width.h" />
+    <ClInclude Include="backtrace.h" />
     <ClInclude Include="common_code.h" />
     <ClInclude Include="condition_code.h" />
     <ClInclude Include="dasm.h" />

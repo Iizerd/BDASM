@@ -803,7 +803,7 @@ namespace pex
 			uint32_t max_addr = 0;
 			for (auto& sec : section_headers)
 			{
-				if (uint32_t sec_end = sec.get_pointer_to_raw_data() + sec.get_size_of_raw_data(); printf("File offset: %X\n", sec_end), sec_end > max_addr)
+				if (uint32_t sec_end = sec.get_pointer_to_raw_data() + sec.get_size_of_raw_data(); sec_end > max_addr)
 					max_addr = sec_end;
 			}
 			return max_addr;
@@ -857,8 +857,6 @@ namespace pex
 
 			uint32_t file_addr = align_up(get_max_file_addr(), optional_header.get_file_alignment());
 			uint32_t file_size = align_up(section_size, optional_header.get_file_alignment());
-
-			printf("section at %X %X %X %X %X\n", section_size, file_addr, file_size, virt_addr, virt_size);
 
 			uint8_t* new_mapped_image = new uint8_t[optional_header.get_size_of_image() + align_up(virt_size, optional_header.get_section_alignment())];
 			std::memcpy(new_mapped_image, mapped_image, optional_header.get_size_of_image());

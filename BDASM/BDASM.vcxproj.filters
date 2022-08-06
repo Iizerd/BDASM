@@ -85,6 +85,9 @@
     <ClInclude Include="stack_allocation.h">
       <Filter>headers\obfuscator\passes\utility</Filter>
     </ClInclude>
+    <ClInclude Include="backtrace.h">
+      <Filter>headers\utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">
