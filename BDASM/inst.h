@@ -27,6 +27,13 @@ namespace dasm
 		//
 		constexpr type rva_imm32 = (1 << 2);
 
+		// Patch a 32 bit immediate with a disp calculated like so be careful this does not calculate
+		// based on rip.
+		// rva - ilen + disp
+		// disp = dest_link - (my_link - ilen)
+		//
+		constexpr type disp_imm32 = (1 << 3);
+
 		// This is for instructions that have relocs inside of them do these even exist?
 		// Seems that encoding mov rax,[64b] is valid instruction so i assume so?
 		// used_link is for the rva they pointed to in the original binary

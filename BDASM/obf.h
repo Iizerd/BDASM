@@ -243,15 +243,6 @@ namespace obf
 					pass(routine.m_routine, *this);
 				}
 
-				//	//printf("\n\nROUTINE AT %X %u\n", routine.m_routine.entry_block->rva_start, routine.m_routine.blocks.size());
-				//if (routine.m_routine.entry_block->rva_start == 0x1530)
-				//	routine.m_routine.print_blocks();
-				//	//int32_t alloc_size = 0x400;
-				//	//auto pass_status = routine.mutation_pass<stack_allocation_t>(context, alloc_size);
-				//	//std::printf("allocated with %X %d\n", alloc_size, pass_status);
-				//	routine.mutation_pass< opaque_from_flags_t>(context);
-				// Basic sanity check
-				//
 				/*for (auto block_it = routine.m_routine.blocks.begin(); block_it != routine.m_routine.blocks.end(); ++block_it)
 				{
 					for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
