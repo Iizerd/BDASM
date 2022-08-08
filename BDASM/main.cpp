@@ -57,7 +57,7 @@
 
 int main(int argc, char** argv)
 {
-	srand(1); // time(nullptr));
+	srand(time(nullptr));
 	xed_tables_init();
 
 	//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];

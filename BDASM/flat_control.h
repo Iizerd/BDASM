@@ -1,5 +1,6 @@
 #pragma once
 
+#include <intrin.h>
 
 #include "obf.h"
 #include "flags.h"
@@ -194,9 +195,23 @@ struct flatten_control_flow_t
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
-	static void refresh_ret_gadget(obf::obf_t<Addr_width>& ctx)
+	static uint32_t call_gadget_enc_rva_encoder(dasm::inst_t<Addr_width>* inst, pex::binary_t<Addr_width>* bin, dasm::linker_t* linker, uint8_t* dest,uint32_t sub_val)
 	{
+		uint32_t ilen = 0;
+		xed_error_enum_t err = xed_encode(&inst->decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
+		if (XED_ERROR_NONE != err)
+			return 0;
 
+		auto imm = _byteswap_ulong(static_cast<unsigned long>(linker->get_link_addr(inst->used_link)));
+
+		imm -= sub_val;
+
+		if (!xed_patch_imm0(&inst->decoded_inst, dest, xed_imm0(_byteswap_ulong(imm), 32)))
+		{
+			std::printf("Failed to patch immediate at %X\n", dest - bin->mapped_image + ilen);
+		}
+
+		return ilen;
 	}
 
 	template<addr_width::type Addr_width = addr_width::x64>
@@ -210,6 +225,8 @@ struct flatten_control_flow_t
 		//			lea rax,[rip_to_image_base]		; 
 		//			sub [rsp+8h],rax				; rip - base = rva
 		//			mov eax,rva_of_target_func		; 
+		//			add eax,const
+		//			bswap eax
 		//			sub rax,[rsp+8h]				; target - source
 		//			push rax						; push disp
 		//			lea rax,[rip_to_image_base]
@@ -286,12 +303,35 @@ struct flatten_control_flow_t
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
+		auto rand_add = rand();
 		result.emplace_back(
 			XED_ICLASS_MOV,
-			addr_width::bits<Addr_width>::value,
-			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			32,
+			xed_reg(XED_REG_EAX),
 			xed_imm0(0, 32)
-		).common_edit(ctx.linker->allocate_link(), call_link, dasm::inst_flag::rva_imm32);
+		).common_edit(ctx.linker->allocate_link(), call_link, 0);
+		result.back().custom_encoder = std::bind(call_gadget_enc_rva_encoder<Addr_width>,
+			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, rand_add);
+		//).common_edit(ctx.linker->allocate_link(), call_link, dasm::inst_flag::rva_imm32);
+
+		result.emplace_back(
+			XED_ICLASS_BSWAP,
+			32,
+			xed_reg(XED_REG_EAX)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			32,
+			xed_reg(XED_REG_EAX),
+			xed_imm0(rand_add, 32)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_BSWAP,
+			32,
+			xed_reg(XED_REG_EAX)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
 			XED_ICLASS_SUB,

@@ -102,9 +102,14 @@ namespace dasm
 			int32_t additional_disp;
 		}encode_data;
 
-		// This is called after the instruction is encoded
+		// Custom encoder called instead of the default one. decoded_inst is in encoder_inst format
 		//
-		std::function<bool(inst_t<Addr_width>*, uint8_t*, linker_t*, pex::binary_t<Addr_width>*)> encode_callback;
+		std::function<uint32_t(inst_t<Addr_width>*, pex::binary_t<Addr_width>*, linker_t*, uint8_t*)> custom_encoder;
+
+		// This is called after the instruction is encoded
+		// Unused in favor of custom encoder now
+		//
+		//std::function<bool(inst_t<Addr_width>*, uint8_t*, linker_t*, pex::binary_t<Addr_width>*)> encode_callback;
 
 
 		explicit inst_t()
@@ -113,7 +118,7 @@ namespace dasm
 			, my_link(linker_t::invalid_link_value)
 			, used_link(linker_t::invalid_link_value)
 			, is_encoder_request(false)
-			, encode_callback(nullptr)
+			, custom_encoder(nullptr)
 		{
 			encode_data.additional_disp = 0;
 		}
@@ -125,7 +130,7 @@ namespace dasm
 			, my_link(linker_t::invalid_link_value)
 			, used_link(linker_t::invalid_link_value)
 			, is_encoder_request(false)
-			, encode_callback(nullptr)
+			, custom_encoder(nullptr)
 		{
 			encode_data.additional_disp = 0;
 
@@ -140,7 +145,7 @@ namespace dasm
 			, used_link(to_copy.used_link)
 			, is_encoder_request(to_copy.is_encoder_request)
 			, decoded_inst(to_copy.decoded_inst)
-			, encode_callback(to_copy.encode_callback)
+			, custom_encoder(to_copy.custom_encoder)
 		{ 
 			encode_data.additional_disp = to_copy.encode_data.additional_disp;
 			std::memcpy(&additional_data, &to_copy.additional_data, sizeof inst_additional_data_t);
@@ -225,6 +230,9 @@ namespace dasm
 			if (!is_encoder_request)
 				to_encoder_request();
 
+			if (custom_encoder)
+				return custom_encoder(this, binary, linker, dest);
+
 			uint32_t ilen = 0;
 			xed_error_enum_t err = xed_encode(&decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
 			if (XED_ERROR_NONE != err)
@@ -261,7 +269,10 @@ namespace dasm
 				}
 				else
 				{
-					xed_decoded_inst_set_immediate_unsigned_bits(&decoded_inst, linker->get_link_addr(used_link) + encode_data.additional_disp, 32);
+					if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(linker->get_link_addr(used_link) + encode_data.additional_disp, 32)))
+					{
+						std::printf("Failed to patch immediate at %X\n", dest - binary->mapped_image + ilen);
+					}
 				}
 			}
 			else if (flags & inst_flag::reloc_disp)
@@ -283,9 +294,6 @@ namespace dasm
 				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
 			}
 			// TODO: make these^ manipulate the reloc vector inside of the binary.
-
-			if (encode_callback)
-				encode_callback(this, dest, linker, binary);
 
 			return ilen;
 		}
