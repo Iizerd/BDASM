@@ -197,18 +197,23 @@ struct flatten_control_flow_t
 	template<addr_width::type Addr_width = addr_width::x64>
 	static uint32_t call_gadget_enc_rva_encoder(dasm::inst_t<Addr_width>* inst, pex::binary_t<Addr_width>* bin, dasm::linker_t* linker, uint8_t* dest,uint32_t sub_val)
 	{
-		uint32_t ilen = 0;
-		xed_error_enum_t err = xed_encode(&inst->decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
-		if (XED_ERROR_NONE != err)
-			return 0;
+		uint32_t expected_length = inst->length();
 
 		auto imm = _byteswap_ulong(static_cast<unsigned long>(linker->get_link_addr(inst->used_link)));
 
 		imm -= sub_val;
 
-		if (!xed_patch_imm0(&inst->decoded_inst, dest, xed_imm0(_byteswap_ulong(imm), 32)))
+		xed_decoded_inst_set_immediate_unsigned_bits(&inst->decoded_inst, _byteswap_ulong(imm), 32);
+
+		uint32_t ilen = 0;
+		xed_error_enum_t err = xed_encode(&inst->decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
+		if (XED_ERROR_NONE != err)
+			return 0;
+
+		if (ilen != expected_length)
 		{
-			std::printf("Failed to patch immediate at %X\n", dest - bin->mapped_image + ilen);
+			printf("Encoded inst length did not match what was expected.\n");
+			return 0;
 		}
 
 		return ilen;

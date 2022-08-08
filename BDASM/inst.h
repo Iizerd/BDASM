@@ -233,6 +233,59 @@ namespace dasm
 			if (custom_encoder)
 				return custom_encoder(this, binary, linker, dest);
 
+			uint32_t expected_length = length();
+
+			if (flags & inst_flag::rel_br)
+			{
+				int64_t ip = dest - binary->mapped_image + expected_length;
+				int64_t br_disp = (int64_t)linker->get_link_addr(used_link) - ip + encode_data.additional_disp;
+
+				xed_decoded_inst_set_branch_displacement_bits(&decoded_inst, br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst));
+			}
+			else if (flags & inst_flag::disp)
+			{
+				int64_t ip = dest - binary->mapped_image + expected_length;
+				int64_t mem_disp = (int64_t)linker->get_link_addr(used_link) - ip + encode_data.additional_disp;
+
+				xed_decoded_inst_set_memory_displacement_bits(&decoded_inst, mem_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0));
+			}
+			else if (flags & inst_flag::rva_imm32)
+			{
+				if (xed_decoded_inst_get_immediate_is_signed(&decoded_inst))
+				{
+					xed_decoded_inst_set_immediate_signed_bits(&decoded_inst, linker->get_link_addr(used_link) + encode_data.additional_disp, 32);
+				}
+				else
+				{
+					xed_decoded_inst_set_immediate_unsigned_bits(&decoded_inst, linker->get_link_addr(used_link) + encode_data.additional_disp, 32);
+				}
+			}
+			else if (flags & inst_flag::reloc_disp)
+			{
+				/*typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
+				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
+				{
+					std::printf("Failed to patch reloc displacement at %X\n", dest - binary->mapped_image);
+				}
+				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);*/
+
+				printf("reloc not supported.\n");
+				return 0;
+			}
+			else if (flags & inst_flag::reloc_imm)
+			{
+				/*typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
+				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
+				{
+					std::printf("Failed to patch reloc imm at %X\n", dest - binary->mapped_image);
+				}
+				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);*/
+
+				printf("reloc not supported.\n");
+				return 0;
+			}
+			// TODO: make these^ manipulate the reloc vector inside of the binary.
+
 			uint32_t ilen = 0;
 			xed_error_enum_t err = xed_encode(&decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
 			if (XED_ERROR_NONE != err)
@@ -240,60 +293,11 @@ namespace dasm
 				return 0;
 			}
 
-			if (flags & inst_flag::rel_br)
+			if (ilen != expected_length)
 			{
-				int64_t ip = dest - binary->mapped_image + ilen;
-				int64_t br_disp = (int64_t)linker->get_link_addr(used_link) - ip + encode_data.additional_disp; //(int64_t)binary->data_table->get_symbol(used_link).address - ip;
-				if (!xed_patch_relbr(&decoded_inst, dest, xed_relbr(br_disp, xed_decoded_inst_get_branch_displacement_width_bits(&decoded_inst))))
-				{
-					std::printf("Failed to patch relbr at %X\n", ip);
-				}
+				printf("Encoded inst length did not match what was expected.\n");
+				return 0;
 			}
-			else if (flags & inst_flag::disp)
-			{
-				int64_t ip = dest - binary->mapped_image + ilen;
-				int64_t br_disp = (int64_t)linker->get_link_addr(used_link) - ip + encode_data.additional_disp;
-				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(br_disp, xed_decoded_inst_get_memory_displacement_width_bits(&decoded_inst, 0))))
-				{
-					std::printf("Failed to patch displacement at %X\n", ip);
-				}
-			}
-			else if (flags & inst_flag::rva_imm32)
-			{
-				if (xed_decoded_inst_get_immediate_is_signed(&decoded_inst))
-				{
-					if (!xed_patch_imm0(&decoded_inst, dest, xed_simm0(linker->get_link_addr(used_link) + encode_data.additional_disp, 32)))
-					{
-						std::printf("Failed to patch immediate at %X\n", dest - binary->mapped_image + ilen);
-					}
-				}
-				else
-				{
-					if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(linker->get_link_addr(used_link) + encode_data.additional_disp, 32)))
-					{
-						std::printf("Failed to patch immediate at %X\n", dest - binary->mapped_image + ilen);
-					}
-				}
-			}
-			else if (flags & inst_flag::reloc_disp)
-			{
-				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
-				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
-				{
-					std::printf("Failed to patch reloc displacement at %X\n", dest - binary->mapped_image);
-				}
-				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
-			}
-			else if (flags & inst_flag::reloc_imm)
-			{
-				typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
-				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
-				{
-					std::printf("Failed to patch reloc imm at %X\n", dest - binary->mapped_image);
-				}
-				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);
-			}
-			// TODO: make these^ manipulate the reloc vector inside of the binary.
 
 			return ilen;
 		}
