@@ -60,6 +60,24 @@ int main(int argc, char** argv)
 	srand(time(nullptr));
 	xed_tables_init();
 
+	auto rand_val = ((0x24121 << 4) | (1 << 0));
+
+	auto addr = 0xC00023;
+	auto temp = addr;
+	do
+	{
+		addr += rand_val;
+	} while (addr & 0xF);
+
+	do
+	{
+		addr -= (rand_val - 1);
+	} while (temp < addr);
+
+	addr += (rand_val - 1);
+
+	printf("Results are %X %X\n", addr, rand_val, temp);
+
 	//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 
 	//dasm::inst_t<addr_width::x64> inst(

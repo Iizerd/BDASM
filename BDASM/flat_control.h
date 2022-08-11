@@ -36,16 +36,193 @@ inline bool first_gadgets_setup = false;
 struct flatten_control_flow_t
 {
 	// Link for the gadget
+	//
 	inline static uint32_t gadget_link[XED_CC_COMPAT_END];
+	inline static bool aligns_up[XED_CC_COMPAT_END];
 	inline static uint32_t use_count[XED_CC_COMPAT_END];
 	inline static int32_t taken_adjustment[XED_CC_COMPAT_END];
 	inline static int32_t not_taken_adjustment[XED_CC_COMPAT_END];
+
+
+	// Given an unaligned address and a known alignment, align it up
+	//		
+	//		push rax
+	//	add_loop:
+	//		add rax,rand_odd_number
+	//		test al,0xf
+	//		jnz add_loop
+	//		
+	//	sub_loop
+	//		sub rax,rand_odd_numer-1
+	//		cmp [rsp],rax
+	//		jl sub_loop
+	//		add rax,rand_odd_numer-1
+	//		add rsp,8
+	//		
+	//
+	template<addr_width::type Addr_width = addr_width::x64>
+	static dasm::inst_list_t<Addr_width> address_aligner_up(obf::obf_t<Addr_width>& ctx, xed_reg_enum_t addr_reg)
+	{
+		dasm::inst_list_t<Addr_width> result;
+
+		/*auto rand_odd_num = rand() + 3;
+		if ((rand_odd_num & 1) == 0)
+			++rand_odd_num;*/
+
+		auto rand_num = ((rand() << 4) | (1 << 0));
+		auto rand_num_1 = (rand_num - 1) / (rand() % 100 > 50 ? 2 : 4);
+		result.emplace_back(
+			XED_ICLASS_PUSH,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		auto add_loop_link = ctx.linker->allocate_link();
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_imm0(rand_num, 32)
+		).common_edit(add_loop_link, 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_TEST,
+			8,
+			xed_reg(XED_REG_AL),
+			xed_imm0(0x3, 8)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_JNZ,
+			32,
+			xed_relbr(0, 32)
+		).common_edit(ctx.linker->allocate_link(), add_loop_link, dasm::inst_flag::rel_br);
+
+		auto sub_loop_link = ctx.linker->allocate_link();
+
+		result.emplace_back(
+			XED_ICLASS_SUB,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_imm0(rand_num_1, 32)
+		).common_edit(sub_loop_link, 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_CMP,
+			addr_width::bits<Addr_width>::value,
+			xed_mem_b(max_reg_width<XED_REG_RSP, Addr_width>::value, addr_width::bits<Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_JL,
+			32,
+			xed_relbr(0, 32)
+		).common_edit(ctx.linker->allocate_link(), sub_loop_link, dasm::inst_flag::rel_br);
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_imm0(rand_num_1, 32)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RSP, Addr_width>::value),
+			xed_imm0(addr_width::bytes<Addr_width>::value, 8)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		return result;
+	}
+
+	template<addr_width::type Addr_width = addr_width::x64>
+	static dasm::inst_list_t<Addr_width> address_aligner_down(obf::obf_t<Addr_width>& ctx, xed_reg_enum_t addr_reg)
+	{
+		dasm::inst_list_t<Addr_width> result;
+
+		/*auto rand_odd_num = rand() + 3;
+		if ((rand_odd_num & 1) == 0)
+			++rand_odd_num;*/
+
+		auto rand_num = ((rand() << 4) | (1 << 0));
+		auto rand_num_1 = (rand_num - 1) / (rand() % 100 > 50 ? 2 : 4);
+		result.emplace_back(
+			XED_ICLASS_PUSH,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		auto add_loop_link = ctx.linker->allocate_link();
+
+		result.emplace_back(
+			XED_ICLASS_SUB,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_imm0(rand_num, 32)
+		).common_edit(add_loop_link, 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_TEST,
+			8,
+			xed_reg(XED_REG_AL),
+			xed_imm0(0x3, 8)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_JNZ,
+			32,
+			xed_relbr(0, 32)
+		).common_edit(ctx.linker->allocate_link(), add_loop_link, dasm::inst_flag::rel_br);
+
+		auto sub_loop_link = ctx.linker->allocate_link();
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_imm0(rand_num_1, 32)
+		).common_edit(sub_loop_link, 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_CMP,
+			addr_width::bits<Addr_width>::value,
+			xed_mem_b(max_reg_width<XED_REG_RSP, Addr_width>::value, addr_width::bits<Addr_width>::value),
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_JNLE,
+			32,
+			xed_relbr(0, 32)
+		).common_edit(ctx.linker->allocate_link(), sub_loop_link, dasm::inst_flag::rel_br);
+
+		result.emplace_back(
+			XED_ICLASS_SUB,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+			xed_imm0(rand_num_1, 32)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			addr_width::bits<Addr_width>::value,
+			xed_reg(max_reg_width<XED_REG_RSP, Addr_width>::value),
+			xed_imm0(addr_width::bytes<Addr_width>::value, 8)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		return result;
+	}
 
 	// This sets gadget_link and left/right adjustment
 	//
 	template<addr_width::type Addr_width = addr_width::x64>
 	static void refresh_jcc_gadget(obf::obf_t<Addr_width>& ctx, xed_condition_code_t cc)
 	{
+		aligns_up[cc] = (rand() % 100 > 50);
+
 		uint32_t not_taken_jump_around_link = ctx.linker->allocate_link();
 
 		auto& routine = ctx.additional_routines.emplace_back();
@@ -110,6 +287,11 @@ struct flatten_control_flow_t
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
+		if (aligns_up[cc])
+			taken_block.instructions.splice(taken_block.instructions.end(), address_aligner_up(ctx, max_reg_width<XED_REG_RBX, Addr_width>::value));
+		else
+			taken_block.instructions.splice(taken_block.instructions.end(), address_aligner_down(ctx, max_reg_width<XED_REG_RBX, Addr_width>::value));
+
 		taken_block.instructions.emplace_back(
 			XED_ICLASS_POPF,
 			addr_width::bits<Addr_width>::value
@@ -168,7 +350,10 @@ struct flatten_control_flow_t
 			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
 			xed_simm0(0, 32)
 		).common_edit(ctx.linker->allocate_link(), not_taken_link, dasm::inst_flag::rva_imm32);
-		result.back().encode_data.additional_disp = not_taken_adjustment[cc];
+		if (aligns_up[cc])
+			result.back().encode_data.additional_disp = not_taken_adjustment[cc] - ((rand() % 3) + 1);
+		else
+			result.back().encode_data.additional_disp = not_taken_adjustment[cc] + ((rand() % 3) + 1);
 
 		result.emplace_back(
 			XED_ICLASS_MOV,
@@ -176,7 +361,10 @@ struct flatten_control_flow_t
 			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value),
 			xed_simm0(0, 32)
 		).common_edit(ctx.linker->allocate_link(), taken_link, dasm::inst_flag::rva_imm32);
-		result.back().encode_data.additional_disp = taken_adjustment[cc];
+		if (aligns_up[cc])
+			result.back().encode_data.additional_disp = taken_adjustment[cc] - ((rand() % 3) + 1);
+		else
+			result.back().encode_data.additional_disp = taken_adjustment[cc] + ((rand() % 3) + 1);
 
 		result.emplace_back(
 			xed_condition_code_to_cmovcc(cc),
@@ -223,13 +411,14 @@ struct flatten_control_flow_t
 	static dasm::inst_list_t<Addr_width> call_gadget(obf::obf_t<Addr_width>& ctx, uint32_t call_link)
 	{	
 		//			push rax
-		//			lea rax,[rip_ return_addr]
+		//			lea rax,[rip_to_return_addr]
 		//			xchg [rsp],rax
 		//			call 0							; push rip on the stack
 		//	rip-->  push rax
 		//			lea rax,[rip_to_image_base]		; 
 		//			sub [rsp+8h],rax				; rip - base = rva
-		//			mov eax,rva_of_target_func		; 
+		//			mov eax,rva_of_target_func
+		//			bswap eax
 		//			add eax,const
 		//			bswap eax
 		//			sub rax,[rsp+8h]				; target - source
@@ -411,6 +600,8 @@ struct flatten_control_flow_t
 	template<addr_width::type Addr_width = addr_width::x64>
 	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
 	{
+		ctx.set_block_alignment(0x4);
+		ctx.set_func_alignment(0x10);
 		if (!first_gadgets_setup)
 		{
 			for (uint8_t i = 0; i < XED_CC_COMPAT_END; ++i)

@@ -72,6 +72,9 @@ namespace obf
 
 		dasm::decoder_context_t<Addr_width>* m_decoder_context;
 
+		uint32_t func_alignment;
+
+		uint32_t block_alignment;
 	public:
 		dasm::linker_t* linker;
 
@@ -80,6 +83,7 @@ namespace obf
 		pex::binary_t<Addr_width>* bin;
 
 		std::list<routine_t<Addr_width>> obf_routines;
+
 
 		// These are routines that are added after the fact and we dont want to apply obfuscation passes to.
 		//
@@ -90,6 +94,8 @@ namespace obf
 			, m_decoder_context(nullptr)
 			, linker(nullptr)
 			, bin(new pex::binary_t<Addr_width>)
+			, func_alignment(0)
+			, block_alignment(0)
 		{}
 
 		~obf_t()
@@ -102,6 +108,27 @@ namespace obf
 				delete linker;
 
 			delete bin;
+		}
+
+
+		bool set_func_alignment(uint32_t new_alignment)
+		{
+			if (func_alignment == 0)
+			{
+				func_alignment = new_alignment;
+				return true;
+			}
+			return false;
+		}
+
+		bool set_block_alignment(uint32_t new_alignment)
+		{
+			if (block_alignment == 0)
+			{
+				block_alignment = new_alignment;
+				return true;
+			}
+			return false;
 		}
 
 		bool routine_analysis(dasm::routine_t<Addr_width>& routine, uint32_t& start_size)
@@ -282,9 +309,11 @@ namespace obf
 						linker->set_link_addr(routine.m_routine.entry_link, rva);
 
 					block_it->place_in_binary(rva, linker);
+
+					rva = align_up(rva, block_alignment);
 				}
 
-				rva = align_up(rva, 0x10);
+				rva = align_up(rva, func_alignment);
 			}
 
 			for (auto& routine : additional_routines)
@@ -296,9 +325,11 @@ namespace obf
 						linker->set_link_addr(routine.entry_link, rva);
 
 					block_it->place_in_binary(rva, linker);
+
+					rva = align_up(rva, block_alignment);
 				}
 
-				rva = align_up(rva, 0x10);
+				rva = align_up(rva, func_alignment);
 			}
 
 			return rva - base;
@@ -312,9 +343,11 @@ namespace obf
 				for (auto& block : routine.m_routine.blocks)
 				{
 					block.encode_in_binary(bin, linker, &dest);
+
+					dest = align_up_ptr(dest, block_alignment);
 				}
 
-				dest = align_up_ptr(dest, 0x10);
+				dest = align_up_ptr(dest, func_alignment);
 
 				if (0 && routine.original_space >= 15)
 				{
@@ -370,9 +403,13 @@ namespace obf
 				for (auto& block : routine.blocks)
 				{
 					block.encode_in_binary(bin, linker, &dest);
+
+					dest = align_up_ptr(dest, block_alignment);
 				}
 
-				dest = align_up_ptr(dest, 0x10);
+				dest = align_up_ptr(dest, block_alignment);
+
+				dest = align_up_ptr(dest, func_alignment);
 			}
 
 		}
