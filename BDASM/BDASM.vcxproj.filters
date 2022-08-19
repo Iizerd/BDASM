@@ -88,6 +88,9 @@
     <ClInclude Include="backtrace.h">
       <Filter>headers\utils</Filter>
     </ClInclude>
+    <ClInclude Include="constant_encryption.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

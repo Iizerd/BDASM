@@ -69,7 +69,7 @@ struct flatten_control_flow_t
 		if ((rand_odd_num & 1) == 0)
 			++rand_odd_num;*/
 
-		auto rand_num = ((rand() << 4) | (1 << 0));
+		auto rand_num = ((rand() << 2) | (1 << 0));
 		auto rand_num_1 = (rand_num - 1) / (rand() % 100 > 50 ? 2 : 4);
 		result.emplace_back(
 			XED_ICLASS_PUSH,
@@ -147,7 +147,7 @@ struct flatten_control_flow_t
 		if ((rand_odd_num & 1) == 0)
 			++rand_odd_num;*/
 
-		auto rand_num = ((rand() << 4) | (1 << 0));
+		auto rand_num = ((rand() << 2) | (1 << 0));
 		auto rand_num_1 = (rand_num - 1) / (rand() % 100 > 50 ? 2 : 4);
 		result.emplace_back(
 			XED_ICLASS_PUSH,
@@ -620,7 +620,6 @@ struct flatten_control_flow_t
 					auto link = inst_it->used_link;
 					block.instructions.erase(inst_it);
 					block.instructions.splice(next, call_gadget(ctx, link));
-
 
 					inst_it = next;
 				}

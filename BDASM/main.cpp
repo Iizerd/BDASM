@@ -55,6 +55,7 @@
 
 //#define image_name "C:\\$Fanta\\sballizerdware\\x64\\Release\\FantaShellcode.exe"
 
+
 int main(int argc, char** argv)
 {
 	srand(time(nullptr));
@@ -386,3 +387,29 @@ int main(int argc, char** argv)
 	//dasm.routines.back().print_blocks();
 }
 
+
+
+
+
+
+
+
+//// for writeup
+//
+//
+//template<addr_width::type aw>
+//uint32_t get_len_of_mov_reg_imm()
+//{
+//	uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
+//	return encode_inst_in_place(
+//		buffer,
+//		addr_width::machine_state<aw>::value,	// Machine state template
+//		XED_ICLASS_MOV,							// Instruction Class
+//		addr_width::bits<aw>::value,			// Effective operand width template
+//		max_reg_width<XED_REG_RAX, aw>::value,	// Equates to max size of a given register based on address width
+//		xed_imm0(								// Creates an immediate value of size 32 or 64 based on ''
+//			0xABBA,
+//			addr_width::bits<aw>::value,
+//			)
+//	);
+//}

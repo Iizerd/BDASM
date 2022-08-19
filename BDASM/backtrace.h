@@ -50,5 +50,7 @@ bool trace_for_reg_alias(dasm::block_t<Addr_width>& block, dasm::inst_it_t<Addr_
 			}
 		}
 	}
+
+	system("pause");
 	return false;
 }
