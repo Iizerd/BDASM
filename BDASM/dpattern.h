@@ -9,12 +9,12 @@
 
 namespace dasm
 {
-	template<addr_width::type Addr_width, auto Accessor, std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>... Compare_list>
+	template<addr_width::type aw, auto Accessor, std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>... Compare_list>
 	struct static_pattern_t
 	{
 		// Searches a list for a pattern.
 		//
-		inline static const bool match(inst_list_t<Addr_width>& list, inst_it_t<Addr_width> start)
+		inline static const bool match(inst_list_t<aw>& list, inst_it_t<aw> start)
 		{
 			return (
 				(
@@ -27,20 +27,20 @@ namespace dasm
 
 		// Does not check to make sure we dont iterate past the end of the list
 		//
-		inline static const bool unsafe_match(inst_it_t<Addr_width> start)
+		inline static const bool unsafe_match(inst_it_t<aw> start)
 		{
 			return ((Compare_list == Accessor(&(start++)->decoded_inst)) && ...);
 		}
 	};
 
-	template<addr_width::type Addr_width, auto Accessor, typename Compare_val = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>>
+	template<addr_width::type aw, auto Accessor, typename Compare_val = std::invoke_result_t<decltype(Accessor), const xed_decoded_inst_t*>>
 	class multi_pattern
 	{
 		std::vector<std::vector<Compare_val>> patterns;
 		std::vector<bool> valid_mask;
 	};
 
-	//template<addr_width::type Addr_width = addr_width::x64>
+	//template<addr_width::type aw = addr_width::x64>
 	//class ipattern_t
 	//{
 	//public:
@@ -60,7 +60,7 @@ namespace dasm
 	//		pattern.clear();
 	//		pattern.insert(pattern.end(), pat.end(), pat.begin());
 	//	}
-	//	bool match(inst_list_t<Addr_width>& list, inst_it_t<Addr_width> start)
+	//	bool match(inst_list_t<aw>& list, inst_it_t<aw> start)
 	//	{
 	//		for (uint32_t i = 0; i < pattern.size() && start != list.end(); ++i, ++start)
 	//		{
@@ -69,7 +69,7 @@ namespace dasm
 	//		}
 	//		return true;
 	//	}
-	//	const bool unsafe_match(inst_it_t<Addr_width> start)
+	//	const bool unsafe_match(inst_it_t<aw> start)
 	//	{
 	//		for (uint32_t i = 0; i < pattern.size(); ++i, ++start)
 	//		{
@@ -78,7 +78,7 @@ namespace dasm
 	//		}
 	//		return true;
 	//	}
-	//	bool check(inst_it_t<Addr_width> it, uint32_t pat_idx)
+	//	bool check(inst_it_t<aw> it, uint32_t pat_idx)
 	//	{
 	//		if (pat_idx < pattern.size())
 	//			return (pattern[pat_idx] == xed_decoded_inst_get_iclass(&it->decoded_inst));
@@ -90,15 +90,15 @@ namespace dasm
 	//// The idea will be to use this to detect prologues so I can weed out exports that
 	//// are data vs exports that are functions
 	////
-	//template<addr_width::type Addr_width = addr_width::x64>
+	//template<addr_width::type aw = addr_width::x64>
 	//class pattern_tracker_t
 	//{
-	//	std::vector<ipattern_t<Addr_width>> m_pattern_list;
+	//	std::vector<ipattern_t<aw>> m_pattern_list;
 	//	uint32_t m_index;
 	//public:
 	//	std::vector<bool> valid_mask;
 
-	//	constexpr pattern_tracker_t(std::initializer_list<ipattern_t<Addr_width>> pattern_list)
+	//	constexpr pattern_tracker_t(std::initializer_list<ipattern_t<aw>> pattern_list)
 	//	{
 	//		m_pattern_list.insert(m_pattern_list.end(), pattern_list.begin(), pattern_list.end());
 	//		for (uint32_t i = 0; i < m_pattern_list.size(); ++i)
@@ -111,7 +111,7 @@ namespace dasm
 	//			valid_mask[i] = true;
 	//		m_index = 0;
 	//	}
-	//	void advance(inst_it_t<Addr_width> it)
+	//	void advance(inst_it_t<aw> it)
 	//	{
 	//		for (uint32_t i = 0; i < m_pattern_list.size(); ++i)
 	//		{

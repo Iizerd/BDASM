@@ -242,12 +242,12 @@ namespace pex
 	_M(_Sd, _Sn, SizeOfHeapCommit, size_of_heap_commit)                       \
 	_M(_Sd, _Sn, LoaderFlags, loader_flags)                                   \
 	_M(_Sd, _Sn, NumberOfRvaAndSizes, number_of_rva_and_sizes)
-#define optional_header_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type
-	template <addr_width::type Addr_width = addr_width::x64>
-	class optional_header_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<Addr_width>>, base_it_t<image_optional_header64_t, optional_header_it_t<Addr_width>> >::type
+#define optional_header_conditional_type(aw) std::conditional<aw == addr_width::x86, image_optional_header32_t, image_optional_header64_t>::type
+	template <addr_width::type aw = addr_width::x64>
+	class optional_header_it_t : public std::conditional<aw == addr_width::x86, base_it_t<image_optional_header32_t, optional_header_it_t<aw>>, base_it_t<image_optional_header64_t, optional_header_it_t<aw>> >::type
 	{
 
-		using _Header_type = optional_header_conditional_type(Addr_width);
+		using _Header_type = optional_header_conditional_type(aw);
 		optional_header_it_t()
 			: base_it_t<_Header_type, optional_header_it_t>(nullptr) {}
 
@@ -270,12 +270,12 @@ namespace pex
 	_M(_Sd, _Sn, u1.Function, function)                \
 	_M(_Sd, _Sn, u1.Ordinal, raw_ordinal)              \
 	_M(_Sd, _Sn, u1.AddressOfData, address_of_data)
-#define thunk_data_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
-	template <addr_width::type Addr_width = addr_width::x64>
-	class image_thunk_data_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<Addr_width>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<Addr_width>> >::type
+#define thunk_data_conditional_type(aw) std::conditional<aw == addr_width::x86, image_thunk_data32_t, image_thunk_data64_t>::type
+	template <addr_width::type aw = addr_width::x64>
+	class image_thunk_data_it_t : public std::conditional<aw == addr_width::x86, base_it_t<image_thunk_data32_t, image_thunk_data_it_t<aw>>, base_it_t<image_thunk_data64_t, image_thunk_data_it_t<aw>> >::type
 	{
-		using _Thunk_data_type = thunk_data_conditional_type(Addr_width);
-		using _Thunk_ordinal_type = std::conditional<Addr_width == addr_width::x86, DWORD, ULONGLONG>::type;
+		using _Thunk_data_type = thunk_data_conditional_type(aw);
+		using _Thunk_ordinal_type = std::conditional<aw == addr_width::x86, DWORD, ULONGLONG>::type;
 		image_thunk_data_it_t()
 			: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(nullptr) {}
 
@@ -284,7 +284,7 @@ namespace pex
 			: base_it_t<_Thunk_data_type, image_thunk_data_it_t>(thunk_data) {}
 		bool is_ordinal() const
 		{
-			if constexpr (Addr_width == addr_width::x86)
+			if constexpr (aw == addr_width::x86)
 				return (get_raw_ordinal() & IMAGE_ORDINAL_FLAG32);
 			return (get_raw_ordinal() & IMAGE_ORDINAL_FLAG64);
 		}
@@ -294,7 +294,7 @@ namespace pex
 		}
 		uint16_t get_masked_ordinal()
 		{
-			if constexpr (Addr_width == addr_width::x86)
+			if constexpr (aw == addr_width::x86)
 				return IMAGE_ORDINAL32(get_raw_ordinal());
 			return IMAGE_ORDINAL64(get_raw_ordinal());
 		}
@@ -313,11 +313,11 @@ namespace pex
 	_M(_Sd, _Sn, Reserved0, reserved0)                             \
 	_M(_Sd, _Sn, Alignment, alignment)                             \
 	_M(_Sd, _Sn, Reserved1, reserved1)
-#define tls_conditional_type(Addr_width) std::conditional<Addr_width == addr_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
-	template <addr_width::type Addr_width = addr_width::x64>
-	class image_tls_dir_it_t : public std::conditional<Addr_width == addr_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<Addr_width>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<Addr_width>>>::type
+#define tls_conditional_type(aw) std::conditional<aw == addr_width::x86, image_tls_dir32_t, image_tls_dir64_t>::type
+	template <addr_width::type aw = addr_width::x64>
+	class image_tls_dir_it_t : public std::conditional<aw == addr_width::x86, base_it_t<image_tls_dir32_t, image_tls_dir_it_t<aw>>, base_it_t<image_tls_dir64_t, image_tls_dir_it_t<aw>>>::type
 	{
-		using _Tls_dir_type = tls_conditional_type(Addr_width);
+		using _Tls_dir_type = tls_conditional_type(aw);
 		image_tls_dir_it_t()
 			: base_it_t<_Tls_dir_type, image_tls_dir_it_t>(nullptr) {}
 
@@ -569,7 +569,7 @@ namespace pex
 
 	class import_t
 	{
-		// using _Entry_type = std::conditional<Addr_width == addr_width::x86, DWORD, ULONGLONG>::type;
+		// using _Entry_type = std::conditional<aw == addr_width::x86, DWORD, ULONGLONG>::type;
 
 	public:
 		const std::string import_name;
@@ -603,7 +603,7 @@ namespace pex
 			is_ordinal(to_copy.is_ordinal),
 			thunk_symbol(to_copy.thunk_symbol) {}
 	};
-	template <addr_width::type Addr_width = addr_width::x64>
+	template <addr_width::type aw = addr_width::x64>
 	class import_module_t : public data_directory_ir_t
 	{
 	public:
@@ -612,7 +612,7 @@ namespace pex
 
 		explicit import_module_t(std::string const& name)
 			: module_name(name) {}
-		import_module_t(import_module_t<Addr_width> const& to_copy)
+		import_module_t(import_module_t<aw> const& to_copy)
 			: module_name(to_copy.module_name)
 		{
 			for (import_t const& entry : to_copy.entries)
@@ -711,7 +711,7 @@ namespace pex
 		}
 	};
 
-	template <addr_width::type Addr_width = addr_width::x64>
+	template <addr_width::type aw = addr_width::x64>
 	class binary_t
 	{
 	public:
@@ -725,13 +725,13 @@ namespace pex
 		//
 		dos_header_it_t dos_header;
 		file_header_it_t file_header;
-		optional_header_it_t<Addr_width> optional_header;
+		optional_header_it_t<aw> optional_header;
 
 		// These are the sections header interfaces from the original binary.
 		//
 		std::vector<image_section_header_it_t> section_headers;
 
-		std::vector<import_module_t<Addr_width>> m_imports;
+		std::vector<import_module_t<aw>> m_imports;
 		exports_t m_exports;
 
 		bool relocs_changed;
@@ -1091,8 +1091,8 @@ namespace pex
 
 			optional_header.set(new_header_addr + sizeof uint32_t + sizeof image_file_header_t);
 
-			if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && Addr_width != addr_width::x86) ||
-				(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && Addr_width != addr_width::x64))
+			if ((optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR32_MAGIC && aw != addr_width::x86) ||
+				(optional_header.get_magic() == IMAGE_NT_OPTIONAL_HDR64_MAGIC && aw != addr_width::x64))
 				return false;
 
 			data_table = new bin_data_table_t(optional_header.get_size_of_image(), 3000);
@@ -1187,7 +1187,7 @@ namespace pex
 
 					//std::printf("Module Name: %s\n", m_imports.back().module_name.data());
 
-					for (auto thunk_data_it = get_it<image_thunk_data_it_t<Addr_width>>(import_descriptor_it.get_original_first_thunk());
+					for (auto thunk_data_it = get_it<image_thunk_data_it_t<aw>>(import_descriptor_it.get_original_first_thunk());
 						!thunk_data_it.is_null(); ++thunk_data_it)
 					{
 						uint32_t symbol_index = data_table->unsafe_get_symbol_index_for_rva(

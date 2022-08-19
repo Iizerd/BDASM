@@ -53,7 +53,7 @@ namespace dasm
 		constexpr type routine_terminator = (1 << 9);
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	class inst_t
 	{
 	public:
@@ -104,12 +104,12 @@ namespace dasm
 
 		// Custom encoder called instead of the default one. decoded_inst is in encoder_inst format
 		//
-		std::function<uint32_t(inst_t<Addr_width>*, pex::binary_t<Addr_width>*, linker_t*, uint8_t*)> custom_encoder;
+		std::function<uint32_t(inst_t<aw>*, pex::binary_t<aw>*, linker_t*, uint8_t*)> custom_encoder;
 
 		// This is called after the instruction is encoded
 		// Unused in favor of custom encoder now
 		//
-		//std::function<bool(inst_t<Addr_width>*, uint8_t*, linker_t*, pex::binary_t<Addr_width>*)> encode_callback;
+		//std::function<bool(inst_t<aw>*, uint8_t*, linker_t*, pex::binary_t<aw>*)> encode_callback;
 
 
 		explicit inst_t()
@@ -136,7 +136,7 @@ namespace dasm
 
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 			
-			decode(buffer, encode_inst_in_place(buffer, addr_width::machine_state<Addr_width>::value, iclass, effective_operand_width, operands...));
+			decode(buffer, encode_inst_in_place(buffer, addr_width::machine_state<aw>::value, iclass, effective_operand_width, operands...));
 		}
 
 		explicit inst_t(inst_t const& to_copy)
@@ -155,7 +155,7 @@ namespace dasm
 
 		void zero_and_set_mode()
 		{
-			xed_decoded_inst_zero_set_mode(&decoded_inst, &addr_width::machine_state<Addr_width>::value);
+			xed_decoded_inst_zero_set_mode(&decoded_inst, &addr_width::machine_state<aw>::value);
 			is_encoder_request = false;
 		}
 
@@ -225,7 +225,7 @@ namespace dasm
 			}
 			return out_size;
 		}
-		uint32_t encode_to_binary(pex::binary_t<Addr_width>* binary, linker_t* linker, uint8_t* dest/*, bin_data_table_t* data_table*/)
+		uint32_t encode_to_binary(pex::binary_t<aw>* binary, linker_t* linker, uint8_t* dest/*, bin_data_table_t* data_table*/)
 		{
 			if (!is_encoder_request)
 				to_encoder_request();
@@ -262,8 +262,8 @@ namespace dasm
 			}
 			else if (flags & inst_flag::reloc_disp)
 			{
-				/*typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
-				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<Addr_width>::value)))
+				/*typename addr_width::storage<aw>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<aw>::type>(linker->get_link_addr(used_link));
+				if (!xed_patch_disp(&decoded_inst, dest, xed_disp(abs_addr, addr_width::bits<aw>::value)))
 				{
 					std::printf("Failed to patch reloc displacement at %X\n", dest - binary->mapped_image);
 				}
@@ -274,8 +274,8 @@ namespace dasm
 			}
 			else if (flags & inst_flag::reloc_imm)
 			{
-				/*typename addr_width::storage<Addr_width>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<Addr_width>::type>(linker->get_link_addr(used_link));
-				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<Addr_width>::value)))
+				/*typename addr_width::storage<aw>::type abs_addr = binary->optional_header.get_image_base() + static_cast<addr_width::storage<aw>::type>(linker->get_link_addr(used_link));
+				if (!xed_patch_imm0(&decoded_inst, dest, xed_imm0(abs_addr, addr_width::bits<aw>::value)))
 				{
 					std::printf("Failed to patch reloc imm at %X\n", dest - binary->mapped_image);
 				}
@@ -311,7 +311,7 @@ namespace dasm
 		//
 		finline uint8_t calc_reloc_offset() const
 		{
-			return length() - addr_width::bytes<Addr_width>::value;
+			return length() - addr_width::bytes<aw>::value;
 		}
 
 		finline void common_edit(uint32_t mlink, uint32_t ulink, inst_flag::type flg)
@@ -326,11 +326,11 @@ namespace dasm
 	using inst32_t = inst_t<addr_width::x86>;
 	using inst64_t = inst_t<addr_width::x64>;
 
-	template<addr_width::type Addr_width>
-	using inst_list_t = std::list<inst_t<Addr_width>>;
+	template<addr_width::type aw>
+	using inst_list_t = std::list<inst_t<aw>>;
 
-	template<addr_width::type Addr_width>
-	using inst_it_t = inst_list_t<Addr_width>::iterator;
+	template<addr_width::type aw>
+	using inst_it_t = inst_list_t<aw>::iterator;
 
 	using inst_list32_t = inst_list_t<addr_width::x86>;
 	using inst_list64_t = inst_list_t<addr_width::x64>;
@@ -338,8 +338,8 @@ namespace dasm
 	using inst_it32_t = inst_list32_t::iterator;
 	using inst_it64_t = inst_list64_t::iterator;
 
-	template<addr_width::type Addr_width>
-	uint32_t calc_inst_list_size(inst_list_t<Addr_width>const& list)
+	template<addr_width::type aw>
+	uint32_t calc_inst_list_size(inst_list_t<aw>const& list)
 	{
 		uint32_t size = 0;
 		for (auto const& inst : list)
@@ -347,8 +347,8 @@ namespace dasm
 		return size;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	uint8_t* dumb_encoder(inst_list_t<Addr_width>& list, uint32_t& size)
+	template<addr_width::type aw = addr_width::x64>
+	uint8_t* dumb_encoder(inst_list_t<aw>& list, uint32_t& size)
 	{
 		size = calc_inst_list_size(list);
 

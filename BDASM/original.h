@@ -10,8 +10,8 @@
 //
 struct pad_original_t
 {
-	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx)
 	{
 		for (auto& block : routine.blocks)
 		{

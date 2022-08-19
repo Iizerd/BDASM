@@ -81,10 +81,10 @@ struct reg_as_width
 	inline constexpr static xed_reg_enum_t value = __reg_size_map[__reg_enum_to_internal_id(Register_enum) * 4 + static_cast<uint32_t>(Register_width)];
 };
 
-template<xed_reg_enum_t Register_enum, addr_width::type Addr_width>
+template<xed_reg_enum_t Register_enum, addr_width::type aw>
 struct max_reg_width
 {
-	inline constexpr static xed_reg_enum_t value = __reg_size_map[__reg_enum_to_internal_id(Register_enum) * 4 + static_cast<uint32_t>(Addr_width) + 2];
+	inline constexpr static xed_reg_enum_t value = __reg_size_map[__reg_enum_to_internal_id(Register_enum) * 4 + static_cast<uint32_t>(aw) + 2];
 };
 
 

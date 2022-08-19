@@ -12,8 +12,8 @@ namespace dasm
 	// 
 	// This clears 31th bit of visited for all blocks. Make sure you dont use.
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	bool flags_clobbered(routine_t<Addr_width>& routine, block_it_t<Addr_width> block, inst_it_t<Addr_width> start)
+	template<addr_width::type aw = addr_width::x64>
+	bool flags_clobbered(routine_t<aw>& routine, block_it_t<aw> block, inst_it_t<aw> start)
 	{
 		routine.reset_visited_bit(31);
 
@@ -38,22 +38,22 @@ namespace dasm
 
 	// This does the same as above but with an arbitrary flagset
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	bool flags_clobbered(routine_t<Addr_width>& routine, block_t<Addr_width>& block, inst_it_t<Addr_width> start, xed_flag_set_t flagset)
+	template<addr_width::type aw = addr_width::x64>
+	bool flags_clobbered(routine_t<aw>& routine, block_t<aw>& block, inst_it_t<aw> start, xed_flag_set_t flagset)
 	{
 		
 	}
 
 	// Trace forward until the flags we are concerned about are completely overwritten.
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	std::pair<block_it_t<Addr_width>, inst_it_t<Addr_width>> trace_to_overwrite()
+	template<addr_width::type aw = addr_width::x64>
+	std::pair<block_it_t<aw>, inst_it_t<aw>> trace_to_overwrite()
 	{
 
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	bool flags_clobbered_before_use_recursion(block_it_t<Addr_width> block, block_it_t<Addr_width> start_block, inst_it_t<Addr_width> start_inst, xed_flag_set_t ledger)
+	template<addr_width::type aw = addr_width::x64>
+	bool flags_clobbered_before_use_recursion(block_it_t<aw> block, block_it_t<aw> start_block, inst_it_t<aw> start_inst, xed_flag_set_t ledger)
 	{
 		if (block->visited & (1 << 31))
 			return true;
@@ -88,7 +88,7 @@ namespace dasm
 			}
 		}
 		
-		return block->invoke_for_next_check_bool(flags_clobbered_before_use_recursion<Addr_width>, start_block, start_inst, ledger);
+		return block->invoke_for_next_check_bool(flags_clobbered_before_use_recursion<aw>, start_block, start_inst, ledger);
 	}
 
 
@@ -97,8 +97,8 @@ namespace dasm
 	// 
 	// This itself clobberes bit 31 in block_t::visited.
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	bool flags_clobbered_before_use(routine_t<Addr_width>& routine, block_it_t<Addr_width> start_block, inst_it_t<Addr_width> start_inst, xed_flag_set_t ledger)
+	template<addr_width::type aw = addr_width::x64>
+	bool flags_clobbered_before_use(routine_t<aw>& routine, block_it_t<aw> start_block, inst_it_t<aw> start_inst, xed_flag_set_t ledger)
 	{
 		routine.reset_visited_bit(31);
 
@@ -125,7 +125,7 @@ namespace dasm
 			}
 		}
 
-		return start_block->invoke_for_next_check_bool(flags_clobbered_before_use_recursion<Addr_width>, start_block, start_inst, ledger);
+		return start_block->invoke_for_next_check_bool(flags_clobbered_before_use_recursion<aw>, start_block, start_inst, ledger);
 	}
 
 }

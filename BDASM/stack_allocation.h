@@ -13,10 +13,10 @@
 //
 struct stack_allocation_t
 {
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	struct my_context_t
 	{
-		obf::obf_t<Addr_width>& ctx;
+		obf::obf_t<aw>& ctx;
 
 		// The visited value to check for when visiting a block
 		//
@@ -46,7 +46,7 @@ struct stack_allocation_t
 
 		bool custom_alloc_possible;
 
-		my_context_t(obf::obf_t<Addr_width>& context, uint32_t vis, int32_t alloc_size)
+		my_context_t(obf::obf_t<aw>& context, uint32_t vis, int32_t alloc_size)
 			: ctx(context)
 			, visited(vis)
 			, additional_alloc(alloc_size)
@@ -61,10 +61,10 @@ struct stack_allocation_t
 	// Sometimes msvc decides to randomly move rsp into rax or some other reg, this will tracebackwards from a lea 
 	// searching for a 'mov rax,rsp' to see if that is the case
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	static bool does_reg_equal_sp(xed_reg_enum_t reg, dasm::block_it_t<Addr_width> block, dasm::inst_it_t<Addr_width> inst)
+	template<addr_width::type aw = addr_width::x64>
+	static bool does_reg_equal_sp(xed_reg_enum_t reg, dasm::block_it_t<aw> block, dasm::inst_it_t<aw> inst)
 	{
-		if (reg == max_reg_width<XED_REG_RSP, Addr_width>::value)
+		if (reg == max_reg_width<XED_REG_RSP, aw>::value)
 			return true;
 
 		// Otherwise, we trace backwards in the current block looking for a place where 'reg' might be set to sp
@@ -74,7 +74,7 @@ struct stack_allocation_t
 			if (auto iform = xed_decoded_inst_get_iform_enum(&rev->decoded_inst); 
 				(iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
 				reg == xed_decoded_inst_get_reg(&rev->decoded_inst, XED_OPERAND_REG0) &&
-				max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&rev->decoded_inst, XED_OPERAND_REG1))
+				max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&rev->decoded_inst, XED_OPERAND_REG1))
 			{
 				return true;
 			}
@@ -107,8 +107,8 @@ struct stack_allocation_t
 	// returns true if the function is a candidate for a custom allocation
 	// No calls or undetermined jumps
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	static bool run_stack_analysis(my_context_t<Addr_width>& ctx, dasm::routine_t<Addr_width>& routine)
+	template<addr_width::type aw = addr_width::x64>
+	static bool run_stack_analysis(my_context_t<aw>& ctx, dasm::routine_t<aw>& routine)
 	{
 		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
@@ -117,20 +117,20 @@ struct stack_allocation_t
 			{
 				auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
 				if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
-					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+					max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
 					if (ctx.sp_allocation)
 						return false;
 					ctx.sp_allocation = xed_decoded_inst_get_signed_immediate(&inst_it->decoded_inst);
 				}
 				if (iform == XED_IFORM_ADD_GPRv_IMMz || iform == XED_IFORM_ADD_GPRv_IMMb &&
-					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+					max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
 					found_standard_deallocator = true;
 				}
 				else if ((iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
-					max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
-					max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG1))
+					max_reg_width<XED_REG_RBP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
+					max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG1))
 				{
 					ctx.bp_based = true;
 					ctx.lea_to_bp = false;
@@ -138,7 +138,7 @@ struct stack_allocation_t
 					//printf("------MOV BP. %X\n", inst_it->original_rva);
 				}
 				else if ((iform == XED_IFORM_LEA_GPRv_AGEN) && 
-					max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
+					max_reg_width<XED_REG_RBP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
 					does_reg_equal_sp(xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0), block_it, inst_it))
 				{
 					// If bp gets moved around a lot then we cant reliably track it with this
@@ -167,8 +167,8 @@ struct stack_allocation_t
 		return true;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static void recursive_disp_fixup(dasm::block_it_t<Addr_width> block, my_context_t<Addr_width>& ctx, bool in_allocation)
+	template<addr_width::type aw = addr_width::x64>
+	static void recursive_disp_fixup(dasm::block_it_t<aw> block, my_context_t<aw>& ctx, bool in_allocation)
 	{
 		// Dont continue because we have already touched this block
 		//
@@ -179,14 +179,14 @@ struct stack_allocation_t
 		{
 			auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
 			if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
-				max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+				max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 			{
 				//printf("Found allocator. %X\n", ctx.sp_allocation + ctx.additional_alloc);
 				xed_decoded_inst_set_immediate_signed_bits(&inst_it->decoded_inst, ctx.sp_allocation + ctx.additional_alloc, 32);
 				in_allocation = true;
 			}
 			else if (iform == XED_IFORM_ADD_GPRv_IMMz || XED_IFORM_ADD_GPRv_IMMb &&
-				max_reg_width<XED_REG_RSP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
+				max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 			{
 				//printf("Found deallocator. %X\n", ctx.sp_allocation + ctx.additional_alloc);
 
@@ -194,7 +194,7 @@ struct stack_allocation_t
 				in_allocation = false;
 			}
 			else if (ctx.bp_based && iform == XED_IFORM_LEA_GPRv_AGEN && 
-				max_reg_width<XED_REG_RBP, Addr_width>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
+				max_reg_width<XED_REG_RBP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0) &&
 				does_reg_equal_sp(xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0), block, inst_it))
 			{
 				//printf("found lea to do allocation on %X\n", inst_it->original_rva);
@@ -214,7 +214,7 @@ struct stack_allocation_t
 					if (operand_name == XED_OPERAND_MEM0 || operand_name == XED_OPERAND_AGEN)
 					{
 						//printf("found one to patch. %X\n", inst_it->original_rva);
-						if (max_reg_width<XED_REG_RSP, Addr_width>::value ==
+						if (max_reg_width<XED_REG_RSP, aw>::value ==
 							xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0))
 						{
 							auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
@@ -228,7 +228,7 @@ struct stack_allocation_t
 							inst_it->redecode();
 						}
 						else if (ctx.bp_based &&
-							max_reg_width<XED_REG_RBP, Addr_width>::value ==
+							max_reg_width<XED_REG_RBP, aw>::value ==
 							xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0))
 						{
 							auto disp = xed_decoded_inst_get_memory_displacement(&inst_it->decoded_inst, 0);
@@ -251,11 +251,11 @@ struct stack_allocation_t
 		}
 
 		++block->visited;
-		block->invoke_for_next(recursive_disp_fixup<Addr_width>, ctx, in_allocation);
+		block->invoke_for_next(recursive_disp_fixup<aw>, ctx, in_allocation);
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static void insert_deallocators(dasm::block_it_t<Addr_width> block, my_context_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static void insert_deallocators(dasm::block_it_t<aw> block, my_context_t<aw>& ctx)
 	{
 		if (block->visited == ctx.visited)
 			return;
@@ -268,8 +268,8 @@ struct stack_allocation_t
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
 			block->instructions.emplace(std::prev(block->instructions.end()),
 				XED_ICLASS_ADD,
-				addr_width::bits<Addr_width>::value,
-				xed_reg(max_reg_width<XED_REG_RSP, Addr_width>::value),
+				addr_width::bits<aw>::value,
+				xed_reg(max_reg_width<XED_REG_RSP, aw>::value),
 				xed_simm0(
 					ctx.additional_alloc,
 					32
@@ -278,20 +278,20 @@ struct stack_allocation_t
 		}
 
 		++block->visited;
-		block->invoke_for_next(insert_deallocators<Addr_width>, ctx);
+		block->invoke_for_next(insert_deallocators<aw>, ctx);
 	}
 
 
 	// Puts the rsp offset where our data starts into allocation_size
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx, int32_t& allocation_size)
+	template<addr_width::type aw = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx, int32_t& allocation_size)
 	{
 		/*if (routine.entry_block->rva_start >= 0x1B71)
 			return obf::pass_status_t::failure;*/
 
 		routine.reset_visited();
-		my_context_t<Addr_width> my_ctx = { ctx, 1, allocation_size };
+		my_context_t<aw> my_ctx = { ctx, 1, allocation_size };
 
 		if (!run_stack_analysis(my_ctx, routine))
 			return obf::pass_status_t::failure;
@@ -310,8 +310,8 @@ struct stack_allocation_t
 
 				routine.entry_block->instructions.emplace_front(
 					XED_ICLASS_SUB,
-					addr_width::bits<Addr_width>::value,
-					xed_reg(max_reg_width<XED_REG_RSP, Addr_width>::value),
+					addr_width::bits<aw>::value,
+					xed_reg(max_reg_width<XED_REG_RSP, aw>::value),
 					xed_simm0(
 						allocation_size,
 						32

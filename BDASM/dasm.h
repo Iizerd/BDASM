@@ -51,7 +51,7 @@ namespace dasm
 
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	struct decoder_context_t
 	{
 		struct
@@ -62,7 +62,7 @@ namespace dasm
 
 		}settings;
 
-		pex::binary_t<Addr_width>* binary_interface;
+		pex::binary_t<aw>* binary_interface;
 
 		linker_t* linker;
 
@@ -76,7 +76,7 @@ namespace dasm
 		const uint64_t raw_data_size;
 		std::function<void(uint64_t)> report_routine_rva;
 
-		explicit decoder_context_t(pex::binary_t<Addr_width>* binary, std::function<void(uint64_t)> rva_reporter = nullptr)
+		explicit decoder_context_t(pex::binary_t<aw>* binary, std::function<void(uint64_t)> rva_reporter = nullptr)
 			: binary_interface(binary)
 			, report_routine_rva(rva_reporter)
 			, raw_data_start(binary->mapped_image)
@@ -121,7 +121,7 @@ namespace dasm
 
 	// Single thread lookup table used when decoding functions
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	class decode_lookup_table
 	{
 		const uint64_t m_table_size;
@@ -195,15 +195,15 @@ namespace dasm
 		unknown_logic,
 	};
 
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	class block_t;
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	using block_it_t = std::list<block_t<Addr_width>>::iterator;
+	template<addr_width::type aw = addr_width::x64>
+	using block_it_t = std::list<block_t<aw>>::iterator;
 
 	// A basic block exactly like LLVM's
 	//
-	template<addr_width::type Addr_width>
+	template<addr_width::type aw>
 	class block_t
 	{
 	public:
@@ -215,19 +215,19 @@ namespace dasm
 
 		// 
 		//
-		inst_list_t<Addr_width> instructions;
+		inst_list_t<aw> instructions;
 
 		// if != routine_t::blocks.end() then this block does not end in a terminating
 		// instruction and must be encoded before its fallthrough block OR with a jump
 		// at the end
 		//
-		block_it_t<Addr_width> fallthrough_block;
+		block_it_t<aw> fallthrough_block;
 
 		// If there is a jcc or uncond branch, this is the block it jumps to
 		//
-		block_it_t<Addr_width> taken_block;
+		block_it_t<aw> taken_block;
 
-		std::vector<block_it_t<Addr_width>> jump_table_blocks;
+		std::vector<block_it_t<aw>> jump_table_blocks;
 
 		// Once we finish decoding everything, we run a pass over every finished routine
 		// and set this equal to the symbol(rva) of the first instruction inside of the
@@ -245,7 +245,7 @@ namespace dasm
 		termination_type_t termination_type;
 
 
-		explicit block_t(block_it_t<Addr_width> end)
+		explicit block_t(block_it_t<aw> end)
 			: rva_start(0)
 			, rva_end(0)
 			, link(linker_t::invalid_link_value)
@@ -375,7 +375,7 @@ namespace dasm
 			}
 		}
 
-		void encode_in_binary(pex::binary_t<Addr_width>* bin, linker_t* linker, uint8_t** dest)
+		void encode_in_binary(pex::binary_t<aw>* bin, linker_t* linker, uint8_t** dest)
 		{
 			for (auto& inst : instructions)
 			{
@@ -403,12 +403,12 @@ namespace dasm
 	}
 	// TODO: Write control flow following iterators
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	class routine_t
 	{
 	public:
 
-		std::list<block_t<Addr_width>> blocks;
+		std::list<block_t<aw>> blocks;
 
 		routine_flag::type flags;
 
@@ -418,7 +418,7 @@ namespace dasm
 
 		// Iterator of the entry block
 		//
-		block_it_t<Addr_width> entry_block;
+		block_it_t<aw> entry_block;
 
 		routine_t()
 			: flags(routine_flag::none)
@@ -539,16 +539,16 @@ namespace dasm
 		}
 	};
 
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	class thread_t
 	{
-		std::vector<block_it_t<Addr_width>> stack;
+		std::vector<block_it_t<aw>> stack;
 
 		// Only valid while disassembling, points to the list of blocks in the routine
 		//
-		routine_t<Addr_width>* current_routine;
+		routine_t<aw>* current_routine;
 
-		block_it_t<Addr_width> current_block;
+		block_it_t<aw> current_block;
 
 		//// If this function starts in an seh block(RUNTIME_FUNCTION), it is described here
 		//// However functions, as we see in dxgkrnl.sys, can be scattered about and have
@@ -572,9 +572,9 @@ namespace dasm
 		std::mutex m_queued_routines_lock;
 		std::vector<uint64_t> m_queued_routines;
 
-		decoder_context_t<Addr_width>* m_decoder_context;
+		decoder_context_t<aw>* m_decoder_context;
 
-		decode_lookup_table<Addr_width> m_lookup_table;
+		decode_lookup_table<aw> m_lookup_table;
 
 		std::vector<uint32_t> m_link_store;
 	public:
@@ -582,14 +582,14 @@ namespace dasm
 
 		// The list of completed routines to be merged at the end
 		//
-		std::list<routine_t<Addr_width>> completed_routines;
+		std::list<routine_t<aw>> completed_routines;
 
 		// The number of times we stopped decoding a block => function because of an unhandled
 		// instruction. Want to get this number as low as possible :)
 		//
 		uint32_t invalid_routine_count;
 
-		explicit thread_t(decoder_context_t<Addr_width>* context)
+		explicit thread_t(decoder_context_t<aw>* context)
 			: m_decoder_context(context)
 			, m_signal_start(false)
 			, m_signal_shutdown(false)
@@ -662,7 +662,7 @@ namespace dasm
 				auto mask = (m_decoder_context->global_lookup_table[i] & (glt::is_relbr_target | glt::is_routine | glt::is_call_target));
 				if (mask == (glt::is_relbr_target | glt::is_routine))
 				{
-					completed_routines.erase(std::remove_if(completed_routines.begin(), completed_routines.end(), [i](routine_t<Addr_width> const& routine) -> bool
+					completed_routines.erase(std::remove_if(completed_routines.begin(), completed_routines.end(), [i](routine_t<aw> const& routine) -> bool
 						{
 							return (routine.entry_link == static_cast<uint32_t>(i));
 						}),
@@ -707,7 +707,7 @@ namespace dasm
 			std::printf(format, args...);
 		}
 
-		block_it_t<Addr_width> enter(uint64_t rva)
+		block_it_t<aw> enter(uint64_t rva)
 		{
 			stack.push_back(current_block);
 			current_routine->blocks.emplace_front(current_routine->blocks.end()).rva_start = rva;
@@ -722,21 +722,21 @@ namespace dasm
 			current_block = last;
 		}
 
-		block_it_t<Addr_width> error()
+		block_it_t<aw> error()
 		{
 			leave();
 			return current_routine->blocks.end();
 		}
 
 		template<typename... Args>
-		block_it_t<Addr_width> error(const char* format, Args... args)
+		block_it_t<aw> error(const char* format, Args... args)
 		{
 			log_error(format, args...);
 			leave();
 			return current_routine->blocks.end();
 		}
 
-		block_it_t<Addr_width> success()
+		block_it_t<aw> success()
 		{
 			auto me = current_block;
 			leave();
@@ -744,7 +744,7 @@ namespace dasm
 		}
 		// For when we find a relative that jumps into an existing block, we need to split that block across
 		// the label and add fallthrough.
-		block_it_t<Addr_width> split_block(uint64_t rva)
+		block_it_t<aw> split_block(uint64_t rva)
 		{
 			for (auto block_it = current_routine->blocks.begin(); block_it != current_routine->blocks.end(); ++block_it)
 			{
@@ -791,7 +791,7 @@ namespace dasm
 			block_trace();
 			return current_routine->blocks.end();
 		}
-		block_it_t<Addr_width> decode_block(uint64_t rva)
+		block_it_t<aw> decode_block(uint64_t rva)
 		{
 			auto entry_block = enter(rva);
 
@@ -824,13 +824,13 @@ namespace dasm
 					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
 					{
 						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
-						if (max_reg_width<XED_REG_RIP, Addr_width>::value == base_reg)
+						if (max_reg_width<XED_REG_RIP, aw>::value == base_reg)
 						{
 							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);
 							inst.flags |= inst_flag::disp;
 						}
 						else if (XED_REG_INVALID == base_reg &&
-							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
+							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<aw>::value)
 						{
 							if (has_reloc)
 							{
@@ -842,7 +842,7 @@ namespace dasm
 						}
 					}
 					else if (has_reloc && XED_OPERAND_IMM0 == operand_name &&
-						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
+						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<aw>::value)
 					{
 						inst.used_link = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 							m_decoder_context->binary_interface->optional_header.get_image_base();
@@ -1090,24 +1090,24 @@ namespace dasm
 		}
 	};
 
-	template<addr_width::type Addr_width = addr_width::x64, uint8_t Thread_count = 1>
+	template<addr_width::type aw = addr_width::x64, uint8_t Thread_count = 1>
 	class dasm_t
 	{
-		decoder_context_t<Addr_width>* m_context;
+		decoder_context_t<aw>* m_context;
 
 		uint8_t m_next_thread;
 
-		std::vector<thread_t<Addr_width>> m_threads;
+		std::vector<thread_t<aw>> m_threads;
 
 		glt::Atomic_type* m_global_lookup_table;
 
 	public:
 
-		std::list<routine_t<Addr_width>> completed_routines;
+		std::list<routine_t<aw>> completed_routines;
 
 		uint32_t invalid_routine_count;
 
-		explicit dasm_t(decoder_context_t<Addr_width>* context)
+		explicit dasm_t(decoder_context_t<aw>* context)
 			: m_next_thread(0)
 			, m_context(context)
 		{
@@ -1165,7 +1165,7 @@ namespace dasm
 
 		void wait_for_completion()
 		{
-			while (thread_t<Addr_width>::queued_routine_count)
+			while (thread_t<aw>::queued_routine_count)
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
 			for (auto& thread : m_threads)

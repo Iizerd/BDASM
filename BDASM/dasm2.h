@@ -7,27 +7,27 @@
 //
 //namespace dasm
 //{
-//	template<addr_width::type Addr_width = addr_width::x64>
+//	template<addr_width::type aw = addr_width::x64>
 //	struct rva_descriptor_t
 //	{
-//		std::list<inst_list_t<Addr_width>>::iterator block;
+//		std::list<inst_list_t<aw>>::iterator block;
 //
 //		std::atomic_bool decoded;
 //	};
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
+//	template<addr_width::type aw = addr_width::x64>
 //	struct thread_context_t
 //	{
-//		pex::binary_t<Addr_width>* bin;
+//		pex::binary_t<aw>* bin;
 //
 //		const uint8_t* rva_base;
 //		const uint64_t rva_max;
 //
-//		rva_descriptor_t<Addr_width>* lookup_table;
+//		rva_descriptor_t<aw>* lookup_table;
 //
 //		std::function<void(uint64_t)> report_func_rva;
 //
-//		thread_context_t(pex::binary_t<Addr_width>* binary)
+//		thread_context_t(pex::binary_t<aw>* binary)
 //			: rva_base(binary->mapped_image)
 //			, rva_max(static_cast<uint64_t>(binary->optional_header.get_size_of_image()))
 //			, bin(binary)
@@ -39,10 +39,10 @@
 //		}
 //	};
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
+//	template<addr_width::type aw = addr_width::x64>
 //	struct block_discovery_thread_t
 //	{
-//		thread_context_t<Addr_width>* m_context;
+//		thread_context_t<aw>* m_context;
 //
 //		std::thread* m_thread;
 //
@@ -56,9 +56,9 @@
 //
 //		std::vector<uint64_t> routine_starts;
 //
-//		std::list<inst_list_t<Addr_width>> blocks;
+//		std::list<inst_list_t<aw>> blocks;
 //
-//		explicit block_discovery_thread_t(thread_context_t<Addr_width>* context)
+//		explicit block_discovery_thread_t(thread_context_t<aw>* context)
 //			: m_context(context)
 //			, m_signal_start(false)
 //			, m_signal_shutdown(false)
@@ -159,7 +159,7 @@
 //					if (XED_OPERAND_MEM0 == operand_name || XED_OPERAND_AGEN == operand_name)
 //					{
 //						auto base_reg = xed_decoded_inst_get_base_reg(&inst.decoded_inst, 0);
-//						if (max_reg_width<XED_REG_RIP, Addr_width>::value == base_reg)
+//						if (max_reg_width<XED_REG_RIP, aw>::value == base_reg)
 //						{
 //							inst.used_link = rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0);/* m_decoder_context->binary_interface->data_table->unsafe_get_symbol_index_for_rva(
 //								rva + ilen + xed_decoded_inst_get_memory_displacement(&inst.decoded_inst, 0)
@@ -167,7 +167,7 @@
 //							inst.flags |= inst_flag::disp;
 //						}
 //						else if (XED_REG_INVALID == base_reg &&
-//							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<Addr_width>::value)
+//							xed_decoded_inst_get_memory_displacement_width_bits(&inst.decoded_inst, 0) == addr_width::bits<aw>::value)
 //						{
 //							if (has_reloc)
 //							{
@@ -183,7 +183,7 @@
 //						}
 //					}
 //					else if (has_reloc && XED_OPERAND_IMM0 == operand_name &&
-//						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<Addr_width>::value)
+//						xed_decoded_inst_get_immediate_width_bits(&inst.decoded_inst) == addr_width::bits<aw>::value)
 //					{
 //						inst.used_link = xed_decoded_inst_get_unsigned_immediate(&inst.decoded_inst) -
 //							m_decoder_context->binary_interface->optional_header.get_image_base();
@@ -280,7 +280,7 @@
 //						{
 //							// Here i will try to detect odd function calls that use a jump instead. 
 //							//
-//							if constexpr (Addr_width == addr_width::x64)
+//							if constexpr (aw == addr_width::x64)
 //							{
 //								if (dest_rva < e_range_start || dest_rva >= e_range_end)
 //								{
@@ -428,7 +428,7 @@
 //
 //			// Since this is only available for x64...
 //			//
-//			if constexpr (Addr_width == addr_width::x64)
+//			if constexpr (aw == addr_width::x64)
 //			{
 //				if (m_decoder_context->binary_interface->data_table->unsafe_get_symbol_for_rva(rva).has_func_data())
 //				{
@@ -461,10 +461,10 @@
 //	//
 //	// Step2: Use a list of determined function entry points to use up blocks and create functions.
 //	//
-//	template<addr_width::type Addr_width = addr_width::x64>
+//	template<addr_width::type aw = addr_width::x64>
 //	class dasm2_t
 //	{
-//		pex::binary_t<Addr_width> m_binary;
+//		pex::binary_t<aw> m_binary;
 //	};
 //
 //

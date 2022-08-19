@@ -22,15 +22,15 @@
 //
 //struct encrypted_blocks_t
 //{
-//	template<addr_width::type Addr_width = addr_width::x64, typename Xor_val_type>
-//	static bool post_encode_xor_callback(dasm::inst_t<Addr_width>* inst, uint8_t* target, dasm::linker_t* linker, pex::binary_t<Addr_width>* bin, Xor_val_type xor_val)
+//	template<addr_width::type aw = addr_width::x64, typename Xor_val_type>
+//	static bool post_encode_xor_callback(dasm::inst_t<aw>* inst, uint8_t* target, dasm::linker_t* linker, pex::binary_t<aw>* bin, Xor_val_type xor_val)
 //	{
 //		*reinterpret_cast<Xor_val_type*>(target) ^= xor_val;
 //		return true;
 //	}
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static bool post_encode_xor_loop_callback(dasm::inst_t<Addr_width>* inst, uint8_t* target, dasm::linker_t* linker, pex::binary_t<Addr_width>* bin, uint8_t xor_val)
+//	template<addr_width::type aw = addr_width::x64>
+//	static bool post_encode_xor_loop_callback(dasm::inst_t<aw>* inst, uint8_t* target, dasm::linker_t* linker, pex::binary_t<aw>* bin, uint8_t xor_val)
 //	{
 //		auto len = inst->length();
 //		for (uint32_t i = 0; i < len; ++i)
@@ -40,8 +40,8 @@
 //
 //	// Takes a link that represents a byte in memory to use as the spinlock
 //	//
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static dasm::inst_list_t<Addr_width> acquire_spinlock(obf::obf_t<Addr_width>& ctx, uint32_t spinlock_link)
+//	template<addr_width::type aw = addr_width::x64>
+//	static dasm::inst_list_t<aw> acquire_spinlock(obf::obf_t<aw>& ctx, uint32_t spinlock_link)
 //	{
 //		//	 pushfq
 //		//	 push rax
@@ -54,18 +54,18 @@
 //
 //		uint32_t continue_wait = ctx.linker->allocate_link();
 //
-//		dasm::inst_list_t<Addr_width> result;
+//		dasm::inst_list_t<aw> result;
 //
 //
 //		result.emplace_back(
 //			XED_ICLASS_PUSHF,
-//			addr_width::bits<Addr_width>::value
+//			addr_width::bits<aw>::value
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		result.emplace_back(
 //			XED_ICLASS_PUSH,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		result.emplace_back(
@@ -79,7 +79,7 @@
 //			XED_ICLASS_XCHG,
 //			8,
 //			xed_mem_bd(
-//				max_reg_width<XED_REG_RIP, Addr_width>::value,
+//				max_reg_width<XED_REG_RIP, aw>::value,
 //				xed_disp(0, 32),
 //				8
 //			),
@@ -103,8 +103,8 @@
 //		return result;
 //	}
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static dasm::inst_list_t<Addr_width> release_spinlock(obf::obf_t<Addr_width>& ctx, uint32_t spinlock_link)
+//	template<addr_width::type aw = addr_width::x64>
+//	static dasm::inst_list_t<aw> release_spinlock(obf::obf_t<aw>& ctx, uint32_t spinlock_link)
 //	{
 //		// mov al,0x90
 //		// lock xchg [rip+spinlock_offset],al
@@ -112,7 +112,7 @@
 //		// popfq
 //		//
 //
-//		dasm::inst_list_t<Addr_width> result;
+//		dasm::inst_list_t<aw> result;
 //
 //		result.emplace_back(
 //			XED_ICLASS_MOV,
@@ -125,7 +125,7 @@
 //			XED_ICLASS_XCHG,
 //			8,
 //			xed_mem_bd(
-//				max_reg_width<XED_REG_RIP, Addr_width>::value,
+//				max_reg_width<XED_REG_RIP, aw>::value,
 //				xed_disp(0, 32),
 //				8
 //			),
@@ -134,20 +134,20 @@
 //
 //		result.emplace_back(
 //			XED_ICLASS_POP,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		result.emplace_back(
 //			XED_ICLASS_POPF,
-//			addr_width::bits<Addr_width>::value
+//			addr_width::bits<aw>::value
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		return result;
 //	}
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static void shuffle_list(dasm::inst_list_t<Addr_width>& list)
+//	template<addr_width::type aw = addr_width::x64>
+//	static void shuffle_list(dasm::inst_list_t<aw>& list)
 //	{
 //		for (uint32_t i = 0; i < 8; ++i)
 //		{
@@ -173,8 +173,8 @@
 //			return 1;
 //	}
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static void gen_encryption_pair(obf::obf_t<Addr_width>& ctx, dasm::inst_t<Addr_width>& inst, dasm::inst_list_t<Addr_width>& prologue, dasm::inst_list_t<Addr_width>& epilogue, bool post_encode)
+//	template<addr_width::type aw = addr_width::x64>
+//	static void gen_encryption_pair(obf::obf_t<aw>& ctx, dasm::inst_t<aw>& inst, dasm::inst_list_t<aw>& prologue, dasm::inst_list_t<aw>& epilogue, bool post_encode)
 //	{
 //		// For xoring, prologue and epilogue are the same
 //		//
@@ -189,7 +189,7 @@
 //			XED_ICLASS_XOR,
 //			width_bits,
 //			xed_mem_bd(
-//				max_reg_width<XED_REG_RIP, Addr_width>::value,
+//				max_reg_width<XED_REG_RIP, aw>::value,
 //				xed_disp(0, 32),
 //				width_bits
 //			),
@@ -200,7 +200,7 @@
 //			XED_ICLASS_XOR,
 //			width_bits,
 //			xed_mem_bd(
-//				max_reg_width<XED_REG_RIP, Addr_width>::value,
+//				max_reg_width<XED_REG_RIP, aw>::value,
 //				xed_disp(0, 32),
 //				width_bits
 //			),
@@ -212,7 +212,7 @@
 //			switch (width)
 //			{
 //			case 1:
-//				inst.encode_callback = std::bind(post_encode_xor_callback<Addr_width, uint8_t>,
+//				inst.encode_callback = std::bind(post_encode_xor_callback<aw, uint8_t>,
 //					std::placeholders::_1,
 //					std::placeholders::_2,
 //					std::placeholders::_3,
@@ -221,7 +221,7 @@
 //				);
 //				break;
 //			case 2:
-//				inst.encode_callback = std::bind(post_encode_xor_callback<Addr_width, uint16_t>,
+//				inst.encode_callback = std::bind(post_encode_xor_callback<aw, uint16_t>,
 //					std::placeholders::_1,
 //					std::placeholders::_2,
 //					std::placeholders::_3,
@@ -230,7 +230,7 @@
 //				);
 //				break;
 //			case 4:
-//				inst.encode_callback = std::bind(post_encode_xor_callback<Addr_width, uint32_t>,
+//				inst.encode_callback = std::bind(post_encode_xor_callback<aw, uint32_t>,
 //					std::placeholders::_1,
 //					std::placeholders::_2,
 //					std::placeholders::_3,
@@ -244,8 +244,8 @@
 //		}
 //	}
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static dasm::inst_list_t<Addr_width> gen_encryption_loop(obf::obf_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block, uint8_t xor_key, bool pre)
+//	template<addr_width::type aw = addr_width::x64>
+//	static dasm::inst_list_t<aw> gen_encryption_loop(obf::obf_t<aw>& ctx, dasm::block_t<aw>& block, uint8_t xor_key, bool pre)
 //	{
 //		//	pushfq
 //		//	push rax
@@ -263,7 +263,7 @@
 //		//  no popfq because its handled by the spinlock or appended after
 //		//
 //
-//		dasm::inst_list_t<Addr_width> result;
+//		dasm::inst_list_t<aw> result;
 //
 //		uint32_t start_link = block.instructions.front().my_link;
 //		uint32_t end_link = start_link;
@@ -281,7 +281,7 @@
 //			end_link = inst.my_link;
 //			end_add = inst.length();
 //
-//			inst.encode_callback = std::bind(post_encode_xor_loop_callback<Addr_width>,
+//			inst.encode_callback = std::bind(post_encode_xor_loop_callback<aw>,
 //				std::placeholders::_1,
 //				std::placeholders::_2,
 //				std::placeholders::_3,
@@ -297,94 +297,94 @@
 //		{
 //			result.emplace_back(
 //				XED_ICLASS_PUSHF,
-//				addr_width::bits<Addr_width>::value
+//				addr_width::bits<aw>::value
 //			).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //			result.emplace_back(
 //				XED_ICLASS_PUSH,
-//				addr_width::bits<Addr_width>::value,
-//				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+//				addr_width::bits<aw>::value,
+//				xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 //			).common_edit(ctx.linker->allocate_link(), 0, 0);
 //		}
 //
 //		result.emplace_back(
 //			XED_ICLASS_PUSH,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RBX, aw>::value)
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		result.emplace_back(
 //			XED_ICLASS_LEA,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RAX, aw>::value),
 //			xed_mem_bd(
-//				max_reg_width<XED_REG_RIP, Addr_width>::value,
+//				max_reg_width<XED_REG_RIP, aw>::value,
 //				xed_disp(0, 32),
-//				addr_width::bits<Addr_width>::value
+//				addr_width::bits<aw>::value
 //			)
 //		).common_edit(ctx.linker->allocate_link(), start_link, dasm::inst_flag::disp);
 //
 //		result.emplace_back(
 //			XED_ICLASS_LEA,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value),
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RBX, aw>::value),
 //			xed_mem_bd(
-//				max_reg_width<XED_REG_RIP, Addr_width>::value,
+//				max_reg_width<XED_REG_RIP, aw>::value,
 //				xed_disp(0, 32),
-//				addr_width::bits<Addr_width>::value
+//				addr_width::bits<aw>::value
 //			)
 //		).common_edit(ctx.linker->allocate_link(), end_link, dasm::inst_flag::disp);
 //		result.back().encode_data.additional_disp = end_add;
 //
 //		result.emplace_back(
 //			XED_ICLASS_XOR,
-//			addr_width::bits<Addr_width>::value,
-//			xed_mem_b(max_reg_width<XED_REG_RAX, Addr_width>::value, 8),
+//			addr_width::bits<aw>::value,
+//			xed_mem_b(max_reg_width<XED_REG_RAX, aw>::value, 8),
 //			xed_imm0(xor_key, 8)
 //		).common_edit(continue_loop, 0, 0);
 //
 //		result.emplace_back(
 //			XED_ICLASS_ADD,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RAX, aw>::value),
 //			xed_imm0(1, 8)
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		result.emplace_back(
 //			XED_ICLASS_CMP,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value),
-//			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RAX, aw>::value),
+//			xed_reg(max_reg_width<XED_REG_RBX, aw>::value)
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		result.emplace_back(
 //			XED_ICLASS_JNZ,
-//			addr_width::bits<Addr_width>::value,
+//			addr_width::bits<aw>::value,
 //			xed_relbr(0, 8)
 //		).common_edit(ctx.linker->allocate_link(), continue_loop, dasm::inst_flag::rel_br);
 //
 //		result.emplace_back(
 //			XED_ICLASS_POP,
-//			addr_width::bits<Addr_width>::value,
-//			xed_reg(max_reg_width<XED_REG_RBX, Addr_width>::value)
+//			addr_width::bits<aw>::value,
+//			xed_reg(max_reg_width<XED_REG_RBX, aw>::value)
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		if (pre)
 //		{
 //			result.emplace_back(
 //				XED_ICLASS_POP,
-//				addr_width::bits<Addr_width>::value,
-//				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+//				addr_width::bits<aw>::value,
+//				xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 //			).common_edit(ctx.linker->allocate_link(), 0, 0);
 //		}
 //
 //		return result;
 //	}
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static std::pair<dasm::inst_list_t<Addr_width>, dasm::inst_list_t<Addr_width>> encryption(obf::obf_t<Addr_width>& ctx, dasm::block_t<Addr_width>& block)
+//	template<addr_width::type aw = addr_width::x64>
+//	static std::pair<dasm::inst_list_t<aw>, dasm::inst_list_t<aw>> encryption(obf::obf_t<aw>& ctx, dasm::block_t<aw>& block)
 //	{
-//		dasm::inst_list_t<Addr_width> prologue, epilogue;
+//		dasm::inst_list_t<aw> prologue, epilogue;
 //
 //		if (block.instructions.size() < 10)
 //		{
@@ -402,20 +402,20 @@
 //
 //			epilogue.emplace_front(
 //				XED_ICLASS_PUSH,
-//				addr_width::bits<Addr_width>::value,
-//				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+//				addr_width::bits<aw>::value,
+//				xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 //			).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //			epilogue.emplace_front(
 //				XED_ICLASS_PUSHF,
-//				addr_width::bits<Addr_width>::value
+//				addr_width::bits<aw>::value
 //			).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //
 //			prologue.emplace_back(
 //				XED_ICLASS_POP,
-//				addr_width::bits<Addr_width>::value,
-//				xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+//				addr_width::bits<aw>::value,
+//				xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 //			).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		}
@@ -428,7 +428,7 @@
 //
 //		prologue.emplace_back(
 //			XED_ICLASS_POPF,
-//			addr_width::bits<Addr_width>::value
+//			addr_width::bits<aw>::value
 //		).common_edit(ctx.linker->allocate_link(), 0, 0);
 //
 //		return { prologue, epilogue };
@@ -439,8 +439,8 @@
 //	//  - Add different types of crypting
 //	//
 //
-//	template<addr_width::type Addr_width = addr_width::x64>
-//	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx, bool spinlock = true)
+//	template<addr_width::type aw = addr_width::x64>
+//	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx, bool spinlock = true)
 //	{
 //		/*auto [prologue, epilogue] = encryption();*/
 //

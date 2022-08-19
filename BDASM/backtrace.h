@@ -15,8 +15,8 @@
 //		mov rax,rcx
 //		mov [rax+10h],rbx
 //
-template<addr_width::type Addr_width = addr_width::x64>
-bool trace_for_reg_alias(dasm::block_t<Addr_width>& block, dasm::inst_it_t<Addr_width> start, xed_reg_enum_t reg1, xed_reg_enum_t reg2)
+template<addr_width::type aw = addr_width::x64>
+bool trace_for_reg_alias(dasm::block_t<aw>& block, dasm::inst_it_t<aw> start, xed_reg_enum_t reg1, xed_reg_enum_t reg2)
 {
 	for (auto rev = std::make_reverse_iterator(start); rev != block.instructions.rend(); ++rev)
 	{

@@ -23,19 +23,19 @@ struct opaque_from_flags_t
 	constexpr static uint32_t visited_1 = (1 << 0);
 	constexpr static uint32_t visited_2 = (1 << 1);
 
-	template<addr_width::type Addr_width = addr_width::x64>
+	template<addr_width::type aw = addr_width::x64>
 	struct my_context
 	{
-		dasm::routine_t<Addr_width>& routine;
-		obf::obf_t<Addr_width>& ctx;
-		my_context(dasm::routine_t<Addr_width>& r, obf::obf_t<Addr_width>& context)
+		dasm::routine_t<aw>& routine;
+		obf::obf_t<aw>& ctx;
+		my_context(dasm::routine_t<aw>& r, obf::obf_t<aw>& context)
 			: routine(r)
 			, ctx(context)
 		{}
 	};
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static bool multiple_references(my_context<Addr_width>& ctx, dasm::block_it_t<Addr_width> check_block)
+	template<addr_width::type aw = addr_width::x64>
+	static bool multiple_references(my_context<aw>& ctx, dasm::block_it_t<aw> check_block)
 	{
 		if (check_block == ctx.routine.blocks.end())
 			return false;
@@ -84,8 +84,8 @@ struct opaque_from_flags_t
 		return false;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static void reset_visited_2(dasm::routine_t<Addr_width>& routine)
+	template<addr_width::type aw = addr_width::x64>
+	static void reset_visited_2(dasm::routine_t<aw>& routine)
 	{
 		for (auto& block : routine.blocks)
 		{
@@ -93,8 +93,8 @@ struct opaque_from_flags_t
 		}
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static uint32_t find_random_link(my_context<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static uint32_t find_random_link(my_context<aw>& ctx)
 	{
 		auto routine_it = ctx.ctx.obf_routines.begin();
 		std::advance(routine_it, rand() % ctx.ctx.obf_routines.size());
@@ -109,13 +109,13 @@ struct opaque_from_flags_t
 	}
 
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static void recursive_trace_and_place(dasm::block_it_t<Addr_width> block, my_context<Addr_width>& ctx, xed_iclass_enum_t iclass, const xed_flag_set_t* flag_set, bool taken)
+	template<addr_width::type aw = addr_width::x64>
+	static void recursive_trace_and_place(dasm::block_it_t<aw> block, my_context<aw>& ctx, xed_iclass_enum_t iclass, const xed_flag_set_t* flag_set, bool taken)
 	{
 		if (block->visited & visited_2)
 			return;
 
-		auto place_jcc = [&](dasm::inst_it_t<Addr_width> inst_it)
+		auto place_jcc = [&](dasm::inst_it_t<aw> inst_it)
 		{
 			//printf("opaqued.\n");
 
@@ -129,7 +129,7 @@ struct opaque_from_flags_t
 				buffer,
 				encode_inst_in_place(
 					buffer,
-					addr_width::machine_state<Addr_width>::value,
+					addr_width::machine_state<aw>::value,
 					iclass,
 					32,
 					xed_relbr(0, 32)
@@ -156,7 +156,7 @@ struct opaque_from_flags_t
 
 		/*	block->visited |= visited_2;
 			if (!multiple_references(ctx, block->fallthrough_block) && !multiple_references(ctx, block->taken_block))
-				block->invoke_for_next(recursive_trace_and_place<Addr_width>, ctx, iclass, flag_set, taken);
+				block->invoke_for_next(recursive_trace_and_place<aw>, ctx, iclass, flag_set, taken);
 */
 
 
@@ -196,8 +196,8 @@ struct opaque_from_flags_t
 		}
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static void recursive_application(dasm::block_it_t<Addr_width> block, my_context<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static void recursive_application(dasm::block_it_t<aw> block, my_context<aw>& ctx)
 	{
 		if (block->visited & visited_1)
 			return;
@@ -223,16 +223,16 @@ struct opaque_from_flags_t
 
 
 		block->visited |= visited_1;
-		block->invoke_for_next(recursive_application<Addr_width>, ctx);
+		block->invoke_for_next(recursive_application<aw>, ctx);
 	}
 
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx)
 	{
 		routine.reset_visited();
 
-		my_context<Addr_width> my_context = { routine, ctx };
+		my_context<aw> my_context = { routine, ctx };
 
 		recursive_application(routine.entry_block, my_context);
 
@@ -253,8 +253,8 @@ struct opaque_from_flags_t
 //  
 struct opaque_from_const_t
 {
-	template<addr_width::type Addr_width = addr_width::x64>
-	static uint32_t random_block_link(dasm::routine_t<Addr_width>& routine)
+	template<addr_width::type aw = addr_width::x64>
+	static uint32_t random_block_link(dasm::routine_t<aw>& routine)
 	{
 		auto block_it = routine.blocks.begin();
 		std::advance(block_it, rand() % routine.blocks.size());
@@ -263,8 +263,8 @@ struct opaque_from_const_t
 
 	// Returns true if a certain value can be assured of a register
 	//
-	template<addr_width::type Addr_width = addr_width::x64>
-	static bool assures_value(dasm::inst_it_t<Addr_width> inst_it, bool& is_zero, xed_reg_enum_t& reg)
+	template<addr_width::type aw = addr_width::x64>
+	static bool assures_value(dasm::inst_it_t<aw> inst_it, bool& is_zero, xed_reg_enum_t& reg)
 	{
 		uint32_t num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
 		auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
@@ -275,9 +275,9 @@ struct opaque_from_const_t
 			{
 				is_zero = false;
 				reg = xed_decoded_inst_get_base_reg(&inst_it->decoded_inst, 0);
-				if (reg != max_reg_width<XED_REG_RIP, Addr_width>::value && 
+				if (reg != max_reg_width<XED_REG_RIP, aw>::value && 
 					reg != XED_REG_INVALID &&
-					reg != max_reg_width<XED_REG_RSP, Addr_width>::value
+					reg != max_reg_width<XED_REG_RSP, aw>::value
 					)
 				return true;
 			}
@@ -295,7 +295,7 @@ struct opaque_from_const_t
 			while (true)
 			{
 				reg = xed_decoded_inst_get_reg(&inst_it->decoded_inst, static_cast<xed_operand_enum_t>(operand_reg));
-				if (reg != max_reg_width<XED_REG_RFLAGS, Addr_width>::value)
+				if (reg != max_reg_width<XED_REG_RFLAGS, aw>::value)
 					break;
 				++operand_reg;
 			}
@@ -317,7 +317,7 @@ struct opaque_from_const_t
 					xed_operand_is_register(operand_name))
 				{
 					auto cur_reg = xed_decoded_inst_get_reg(&inst_it->decoded_inst, operand_name);
-					if (cur_reg != max_reg_width<XED_REG_RFLAGS, Addr_width>::value)
+					if (cur_reg != max_reg_width<XED_REG_RFLAGS, aw>::value)
 					{
 						if (left_reg == XED_REG_INVALID)
 							left_reg = cur_reg;
@@ -334,8 +334,8 @@ struct opaque_from_const_t
 		return false;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static bool is_register_clobbered(dasm::inst_it_t<Addr_width> inst_it, xed_reg_enum_t reg)
+	template<addr_width::type aw = addr_width::x64>
+	static bool is_register_clobbered(dasm::inst_it_t<aw> inst_it, xed_reg_enum_t reg)
 	{
 		if (XED_CATEGORY_CALL == xed_decoded_inst_get_category(&inst_it->decoded_inst))
 			return true;
@@ -358,8 +358,8 @@ struct opaque_from_const_t
 		return false;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx)
 	{
 		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
@@ -460,8 +460,8 @@ struct opaque_from_const_t
 //
 struct opaque_from_rip_t
 {
-	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_it_t<Addr_width> find_random_inst(obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static dasm::inst_it_t<aw> find_random_inst(obf::obf_t<aw>& ctx)
 	{
 		auto routine_it = ctx.obf_routines.begin();
 		std::advance(routine_it, rand() % ctx.obf_routines.size());
@@ -475,8 +475,8 @@ struct opaque_from_rip_t
 		return inst_it;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static uint32_t find_random_link(obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static uint32_t find_random_link(obf::obf_t<aw>& ctx)
 	{
 		auto routine_it = ctx.obf_routines.begin();
 		std::advance(routine_it, rand() % ctx.obf_routines.size());
@@ -490,8 +490,8 @@ struct opaque_from_rip_t
 		return inst_it->my_link;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static dasm::inst_list_t<Addr_width> gen(obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static dasm::inst_list_t<aw> gen(obf::obf_t<aw>& ctx)
 	{
 		uint32_t target_link = 0;
 
@@ -505,12 +505,12 @@ struct opaque_from_rip_t
 			target_link = inst->my_link;
 		}*/
 
-		dasm::inst_list_t<Addr_width> result;
+		dasm::inst_list_t<aw> result;
 
 		result.emplace_back(
 			XED_ICLASS_PUSH,
-			addr_width::bits<Addr_width>::value,
-			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+			addr_width::bits<aw>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		result.emplace_back(
@@ -518,7 +518,7 @@ struct opaque_from_rip_t
 			8,
 			xed_reg(XED_REG_AL),
 			xed_mem_bd(
-				max_reg_width<XED_REG_RIP, Addr_width>::value,
+				max_reg_width<XED_REG_RIP, aw>::value,
 				xed_disp(0, 32),
 				8
 			)
@@ -539,15 +539,15 @@ struct opaque_from_rip_t
 
 		result.emplace_back(
 			XED_ICLASS_POP,
-			addr_width::bits<Addr_width>::value,
-			xed_reg(max_reg_width<XED_REG_RAX, Addr_width>::value)
+			addr_width::bits<aw>::value,
+			xed_reg(max_reg_width<XED_REG_RAX, aw>::value)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 		return result;
 	}
 
-	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx)
 	{
 		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
@@ -580,8 +580,8 @@ struct opaque_from_rip_t
 
 struct opaque_code_copy_t
 {
-	template<addr_width::type Addr_width = addr_width::x64>
-	static obf::pass_status_t pass(dasm::routine_t<Addr_width>& routine, obf::obf_t<Addr_width>& ctx)
+	template<addr_width::type aw = addr_width::x64>
+	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx)
 	{
 
 	}
