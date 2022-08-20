@@ -70,6 +70,13 @@ constexpr uint32_t __reg_enum_to_internal_id(xed_reg_enum_t reg)
 	}
 }
 
+namespace addr_width
+{
+	template<type aw> struct reg_width;
+	template<> struct reg_width<x86> { inline constexpr static register_width value = register_width::dword; };
+	template<> struct reg_width<x64> { inline constexpr static register_width value = register_width::qword; };
+}
+
 xed_reg_enum_t change_reg_width(xed_reg_enum_t reg, register_width width)
 {
 	return __reg_size_map[__reg_enum_to_internal_id(reg) * 4 + static_cast<uint32_t>(width)];

@@ -135,18 +135,18 @@ namespace dasm
 			encode_data.additional_disp = 0;
 
 			uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
-			
+
 			decode(buffer, encode_inst_in_place(buffer, addr_width::machine_state<aw>::value, iclass, effective_operand_width, operands...));
 		}
 
 		explicit inst_t(inst_t const& to_copy)
-			: flags(to_copy.flags) 
+			: flags(to_copy.flags)
 			, my_link(to_copy.my_link)
 			, used_link(to_copy.used_link)
 			, is_encoder_request(to_copy.is_encoder_request)
 			, decoded_inst(to_copy.decoded_inst)
 			, custom_encoder(to_copy.custom_encoder)
-		{ 
+		{
 			encode_data.additional_disp = to_copy.encode_data.additional_disp;
 			std::memcpy(&additional_data, &to_copy.additional_data, sizeof inst_additional_data_t);
 			for (uint32_t i = 0; i < XED_MAX_INSTRUCTION_BYTES; ++i)
@@ -225,16 +225,8 @@ namespace dasm
 			}
 			return out_size;
 		}
-		uint32_t encode_to_binary(pex::binary_t<aw>* binary, linker_t* linker, uint8_t* dest/*, bin_data_table_t* data_table*/)
+		finline bool resolve_deltas(pex::binary_t<aw>* binary, linker_t* linker, uint8_t* dest, uint32_t expected_length)
 		{
-			if (!is_encoder_request)
-				to_encoder_request();
-
-			if (custom_encoder)
-				return custom_encoder(this, binary, linker, dest);
-
-			uint32_t expected_length = length();
-
 			if (flags & inst_flag::rel_br)
 			{
 				int64_t ip = dest - binary->mapped_image + expected_length;
@@ -270,7 +262,7 @@ namespace dasm
 				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);*/
 
 				printf("reloc not supported.\n");
-				return 0;
+				return false;
 			}
 			else if (flags & inst_flag::reloc_imm)
 			{
@@ -282,9 +274,24 @@ namespace dasm
 				binary->remap_reloc(additional_data.reloc.original_rva, dest - binary->mapped_image + additional_data.reloc.offset_in_inst, additional_data.reloc.type);*/
 
 				printf("reloc not supported.\n");
-				return 0;
+				return false;
 			}
 			// TODO: make these^ manipulate the reloc vector inside of the binary.
+
+			return true;
+		}
+		uint32_t encode_to_binary(pex::binary_t<aw>* binary, linker_t* linker, uint8_t* dest)
+		{
+			if (!is_encoder_request)
+				to_encoder_request();
+
+			if (custom_encoder)
+				return custom_encoder(this, binary, linker, dest);
+
+			uint32_t expected_length = length();
+
+			if (!resolve_deltas(binary, linker, dest, expected_length))
+				return 0;
 
 			uint32_t ilen = 0;
 			xed_error_enum_t err = xed_encode(&decoded_inst, dest, XED_MAX_INSTRUCTION_BYTES, &ilen);
@@ -305,6 +312,26 @@ namespace dasm
 		finline uint32_t length() const
 		{
 			return xed_decoded_inst_get_length(&decoded_inst);
+		}
+
+		finline uint32_t noperands() const
+		{
+			return xed_decoded_inst_noperands(&decoded_inst);
+		}
+
+		finline const xed_inst_t* inst() const
+		{
+			return xed_decoded_inst_inst(&decoded_inst);
+		}
+
+		finline xed_iclass_enum_t iclass() const
+		{
+			return xed_decoded_inst_get_iclass(&decoded_inst);
+		}
+
+		finline xed_iform_enum_t iform() const
+		{
+			return xed_decoded_inst_get_iform_enum(&decoded_inst);
 		}
 
 		// I think this will always hold true...

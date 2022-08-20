@@ -71,7 +71,7 @@ struct stack_allocation_t
 		//
 		for (auto rev = std::make_reverse_iterator(inst); rev != block->instructions.rend(); ++rev)
 		{
-			if (auto iform = xed_decoded_inst_get_iform_enum(&rev->decoded_inst); 
+			if (auto iform = rev->iform();
 				(iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
 				reg == xed_decoded_inst_get_reg(&rev->decoded_inst, XED_OPERAND_REG0) &&
 				max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&rev->decoded_inst, XED_OPERAND_REG1))
@@ -83,8 +83,8 @@ struct stack_allocation_t
 			// if it is and we havnt found that sp was moved into it yet, then it couldnt possibly equal sp at
 			// the place we need it to.
 			//
-			auto inst = xed_decoded_inst_inst(&rev->decoded_inst);
-			auto num_operands = xed_decoded_inst_noperands(&rev->decoded_inst);
+			auto inst = rev->inst();
+			auto num_operands = rev->noperands();
 
 			for (uint32_t i = 0; i < num_operands; ++i)
 			{
@@ -115,7 +115,7 @@ struct stack_allocation_t
 			bool found_standard_deallocator = false;
 			for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end(); ++inst_it)
 			{
-				auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
+				auto iform = inst_it->iform();
 				if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
 					max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 				{
@@ -177,7 +177,7 @@ struct stack_allocation_t
 
 		for (auto inst_it = block->instructions.begin(); inst_it != block->instructions.end(); ++inst_it)
 		{
-			auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
+			auto iform = inst_it->iform();
 			if (iform == XED_IFORM_SUB_GPRv_IMMz || iform == XED_IFORM_SUB_GPRv_IMMb &&
 				max_reg_width<XED_REG_RSP, aw>::value == xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0))
 			{
@@ -204,8 +204,8 @@ struct stack_allocation_t
 			}
 			else if (in_allocation)
 			{
-				auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
-				auto num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
+				auto inst = inst_it->inst();
+				auto num_operands = inst_it->noperands();
 
 				for (uint32_t i = 0; i < num_operands; ++i)
 				{

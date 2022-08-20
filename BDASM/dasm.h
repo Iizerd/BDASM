@@ -449,7 +449,7 @@ namespace dasm
 					}
 					else if (cat == XED_CATEGORY_UNCOND_BR)
 					{
-						switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+						switch (inst.iform())
 						{
 						case XED_IFORM_JMP_RELBRb:
 						case XED_IFORM_JMP_RELBRd:
@@ -467,7 +467,7 @@ namespace dasm
 			{
 				std::printf("Block: %X [%X:%X]\n", block.link, block.rva_start, block.rva_end);
 				for (auto& inst : block.instructions)
-					std::printf("\t%08X, %08X\t%s \n", inst.my_link, inst.used_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+					std::printf("\t%08X, %08X\t%s \n", inst.my_link, inst.used_link, xed_iclass_enum_t2str(inst.iclass()));
 
 				switch (block.termination_type)
 				{
@@ -505,7 +505,7 @@ namespace dasm
 			{
 				std::printf("Block: %X [%X:%X]\n", block.link, block.rva_start, block.rva_end);
 				for (auto& inst : block.instructions)
-					std::printf("\t[%08X]: %08X, %08X\t%s \n", linker->get_link_addr(inst.my_link), inst.my_link, inst.used_link, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(&inst.decoded_inst)));
+					std::printf("\t[%08X]: %08X, %08X\t%s \n", linker->get_link_addr(inst.my_link), inst.my_link, inst.used_link, xed_iclass_enum_t2str(inst.iclass()));
 
 				switch (block.termination_type)
 				{
@@ -816,8 +816,8 @@ namespace dasm
 
 				// Parse operands for rip relative addressing and relocs
 				//
-				uint32_t num_operands = xed_decoded_inst_noperands(&inst.decoded_inst);
-				auto decoded_inst_inst = xed_decoded_inst_inst(&inst.decoded_inst);
+				uint32_t num_operands = inst.noperands();
+				auto decoded_inst_inst = inst.inst();
 				for (uint32_t i = 0; i < num_operands; ++i)
 				{
 					auto operand_name = xed_operand_name(xed_inst_operand(decoded_inst_inst, i));
@@ -915,7 +915,7 @@ namespace dasm
 				}
 				else if (cat == XED_CATEGORY_UNCOND_BR)
 				{
-					switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+					switch (inst.iform())
 					{
 					case XED_IFORM_JMP_GPRv:
 						// Jump table.
@@ -977,7 +977,7 @@ namespace dasm
 				}
 				else if (cat == XED_CATEGORY_CALL && m_decoder_context->settings.recurse_calls)
 				{
-					switch (xed_decoded_inst_get_iform_enum(&inst.decoded_inst))
+					switch (inst.iform())
 					{
 					case XED_IFORM_CALL_NEAR_GPRv:
 						// Call table?!
@@ -1028,7 +1028,7 @@ namespace dasm
 					inst.flags |= (inst_flag::block_terminator | inst_flag::routine_terminator);
 					goto ExitInstDecodeLoop;
 				}
-				else if (XED_ICLASS_INT3 == xed_decoded_inst_get_iclass(&inst.decoded_inst)/* && current_block.instructions.size() > 1*/)
+				else if (XED_ICLASS_INT3 == inst.iclass()/* && current_block.instructions.size() > 1*/)
 				{
 					current_block->termination_type = termination_type_t::unknown_logic;
 					goto ExitInstDecodeLoop;

@@ -49,7 +49,7 @@ struct mba_t
 		{
 			for (auto inst_it = block_it_t->instructions.begin(); inst_it != block_it_t->instructions.end(); ++inst_it)
 			{
-				switch (xed_decoded_inst_get_iclass(&inst_it->decoded_inst))
+				switch (inst_it->iclass())
 				{
 				case XED_ICLASS_ADD: [[fallthrough]];
 				case XED_ICLASS_SUB: [[fallthrough]];

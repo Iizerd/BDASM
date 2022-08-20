@@ -613,7 +613,7 @@ struct flatten_control_flow_t
 		{
 			for (auto inst_it = block.instructions.begin(); inst_it != block.instructions.end();)
 			{
-				auto iform = xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst);
+				auto iform = inst_it->iform();
 				if (iform == XED_IFORM_CALL_NEAR_RELBRd || iform == XED_IFORM_CALL_NEAR_RELBRz)
 				{
 					auto next = std::next(inst_it);
@@ -643,7 +643,7 @@ struct flatten_control_flow_t
 			case dasm::termination_type_t::conditional_br:
 			{
 				auto jcc = std::prev(block.instructions.end());
-				auto cc = xed_iclass_to_condition_code(xed_decoded_inst_get_iclass(&jcc->decoded_inst));
+				auto cc = xed_iclass_to_condition_code(jcc->iclass());
 				if (cc < XED_CC_COMPAT_END)
 				{
 					block.instructions.splice(

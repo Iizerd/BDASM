@@ -145,7 +145,7 @@ struct opaque_from_flags_t
 		for (auto inst_it = block->instructions.begin(); inst_it != block->instructions.end(); ++inst_it)
 		{
 			auto simple_flag = xed_decoded_inst_get_rflags_info(&inst_it->decoded_inst);
-			if (is_bad_iclass(xed_decoded_inst_get_iclass(&inst_it->decoded_inst)) || (simple_flag && (flag_set->flat & (xed_simple_flag_get_undefined_flag_set(simple_flag)->flat | xed_simple_flag_get_written_flag_set(simple_flag)->flat))))
+			if (is_bad_iclass(inst_it->iclass()) || (simple_flag && (flag_set->flat & (xed_simple_flag_get_undefined_flag_set(simple_flag)->flat | xed_simple_flag_get_written_flag_set(simple_flag)->flat))))
 			{
 				place_jcc(inst_it);
 
@@ -207,7 +207,7 @@ struct opaque_from_flags_t
 		{
 			auto simple_flag = xed_decoded_inst_get_rflags_info(&block->instructions.back().decoded_inst);
 			auto read_flags = xed_simple_flag_get_read_flag_set(simple_flag);
-			auto iclass = xed_decoded_inst_get_iclass(&block->instructions.back().decoded_inst);
+			auto iclass = block->instructions.back().iclass();
 
 
 			ctx.routine.reset_visited_bit(1);
@@ -266,8 +266,8 @@ struct opaque_from_const_t
 	template<addr_width::type aw = addr_width::x64>
 	static bool assures_value(dasm::inst_it_t<aw> inst_it, bool& is_zero, xed_reg_enum_t& reg)
 	{
-		uint32_t num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
-		auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
+		uint32_t num_operands = inst_it->noperands();
+		auto inst = inst_it->inst();
 
 		/*for (uint32_t i = 0; i < num_operands; ++i)
 		{
@@ -283,7 +283,7 @@ struct opaque_from_const_t
 			}
 		}*/
 
-		switch (xed_decoded_inst_get_iform_enum(&inst_it->decoded_inst))
+		switch (inst_it->iform())
 		{
 		case XED_IFORM_MOV_GPRv_IMMv:
 		case XED_IFORM_MOV_GPRv_IMMz:
@@ -340,8 +340,8 @@ struct opaque_from_const_t
 		if (XED_CATEGORY_CALL == xed_decoded_inst_get_category(&inst_it->decoded_inst))
 			return true;
 
-		uint32_t num_operands = xed_decoded_inst_noperands(&inst_it->decoded_inst);
-		auto inst = xed_decoded_inst_inst(&inst_it->decoded_inst);
+		uint32_t num_operands = inst_it->noperands();
+		auto inst = inst_it->inst();
 
 		for (uint32_t i = 0; i < num_operands; ++i)
 		{

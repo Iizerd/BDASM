@@ -20,7 +20,7 @@ bool trace_for_reg_alias(dasm::block_t<aw>& block, dasm::inst_it_t<aw> start, xe
 {
 	for (auto rev = std::make_reverse_iterator(start); rev != block.instructions.rend(); ++rev)
 	{
-		if (auto iform = xed_decoded_inst_get_iform_enum(&rev->decoded_inst); 
+		if (auto iform = rev->iform();
 			(iform == XED_IFORM_MOV_GPRv_GPRv_89 || iform == XED_IFORM_MOV_GPRv_GPRv_8B) &&
 			reg1 == xed_decoded_inst_get_reg(&rev->decoded_inst, XED_OPERAND_REG0))
 		{
@@ -32,8 +32,8 @@ bool trace_for_reg_alias(dasm::block_t<aw>& block, dasm::inst_it_t<aw> start, xe
 		}
 		else
 		{
-			auto inst = xed_decoded_inst_inst(&rev->decoded_inst);
-			auto num_operands = xed_decoded_inst_noperands(&rev->decoded_inst);
+			auto inst = rev->inst();
+			auto num_operands = rev->noperands();
 
 			for (uint32_t i = 0; i < num_operands; ++i)
 			{
