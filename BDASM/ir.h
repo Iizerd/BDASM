@@ -92,7 +92,7 @@ union ir_immediate_t
 	uint64_t u64;
 };
 
-struct ir_operand
+struct ir_operand_t
 {
 	operand_type_t type;
 	operand_width_t width;
@@ -106,20 +106,43 @@ struct ir_operand
 	}data;
 };
 
-class ir_inst
+class ir_inst_t
 {
 	ir_class_t inst_class;
-	ir_operand operands[3];
+	ir_operand_t operands[3];
 
 	bool validate() { return false; }
 	void print() { std::printf("Instruction.\n"); }
 };
 
-class ir_block
+class ir_block_t
 {
 	uint32_t link;
-	std::list<ir_inst> insts;
+	std::list<ir_inst_t> insts;
 };
+
+union lifter_gpr_state_t
+{
+	uint32_t a, b, c, d, sp, bp, si, di,
+		r8, r9, r10, r11, r12, r13, r14, r15;
+	uint32_t raw[16];
+	constexpr lifter_gpr_state_t()
+	{
+		for (uint32_t i = 0; i < 16; ++i)
+			raw[i] = i;
+	}
+};
+
+void lift_instruction(ir_block_t* block, lifter_gpr_state_t* vars)
+{
+	// Take for example the instruction    xor rax,rbx
+	// 
+	// in the ir it would be this.		   xor ++vars.a, vars.a, vars.b
+	// 
+	//
+
+}
+
 
 void memes()
 {

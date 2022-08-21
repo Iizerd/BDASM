@@ -40,7 +40,7 @@ namespace obf
 	//	std::list<dasm::routine_t<aw>>& additional_routines;
 	//};
 
-	template<addr_width::type aw>
+	template<addr_width::type aw = addr_width::x64>
 	class routine_t
 	{
 	public:
@@ -60,6 +60,77 @@ namespace obf
 		pass_status_t mutation_pass(obf_t<aw>& ctx, Params... params)
 		{
 			return Pass_type::pass(m_routine, ctx, params...);
+		}
+	};
+
+	namespace data_flag
+	{
+		typedef uint32_t type;
+		constexpr type none = 0;
+
+		// data = rva(link1)
+		constexpr type rva_32;
+		constexpr type rva_64;
+
+		// data = rva(link2) - rva(link1)
+		constexpr type disp_8;
+		constexpr type disp_32;
+
+
+	}
+
+	template<addr_width::type aw = addr_width::x64>
+	class data_segment_t
+	{
+		std::vector<std::tuple<uint32_t, data_flag::type, uint32_t, uint32_t>> patches;
+
+		std::vector<std::tuple<uint32_t, uint32_t>> links;
+	public:
+		std::vector<uint8_t> raw_data;
+		
+		void add_patch(uint32_t offset, data_flag::type flags, uint32_t link1, uint32_t link2)
+		{
+			patches.emplace_back(offset, flags, link1, link2);
+		}
+
+		void add_link(uint32_t link, uint32_t offset)
+		{
+			links.emplace_back(link, offset);
+		}
+
+		// For the placement pass
+		//
+		void place_in_binary(dasm::linker_t* linker, uint32_t rva)
+		{
+			for (auto [link, offset] : links)
+			{
+				linker->set_link_addr(link, rva + offset);
+			}
+		}
+
+		// For the encode/write pass
+		//
+		void write_to_binary(uint8_t* data, dasm::linker_t* linker)
+		{
+			for (auto [offset, flags, link1, link2] : patches)
+			{
+				if (flags & data_flag::rva_32)
+				{
+					
+				}
+				else if (flags & data_flag::rva_64)
+				{
+
+				}
+				else if (flags & data_flag::disp_8)
+				{
+
+				}
+				else if (flags & data_flag::disp_32)
+				{
+
+				}
+			}
 		}
 	};
 
@@ -84,6 +155,7 @@ namespace obf
 
 		std::list<routine_t<aw>> obf_routines;
 
+		std::list
 
 		// These are routines that are added after the fact and we dont want to apply obfuscation passes to.
 		//
@@ -94,8 +166,8 @@ namespace obf
 			, m_decoder_context(nullptr)
 			, linker(nullptr)
 			, bin(new pex::binary_t<aw>)
-			, func_alignment(0)
-			, block_alignment(0)
+			, func_alignment(1)
+			, block_alignment(1)
 		{}
 
 		~obf_t()
@@ -411,6 +483,11 @@ namespace obf
 
 				dest = align_up_ptr(dest, func_alignment);
 			}
+
+		}
+
+		void compile()
+		{
 
 		}
 	};

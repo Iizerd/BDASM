@@ -35,9 +35,9 @@ struct constant_encryption_t
 	template<addr_width::type aw = addr_width::x64>
 	static obf::pass_status_t pass(dasm::routine_t<aw>& routine, obf::obf_t<aw>& ctx)
 	{
-		for (auto& block : routine.blocks)
+		for (auto block_it = routine.blocks.begin(); block_it != routine.blocks.end(); ++block_it)
 		{
-			for (auto inst_it = block.instructions.begin(); inst_it != block.instructions.end();)
+			for (auto inst_it = block_it->instructions.begin(); inst_it != block_it->instructions.end();)
 			{
 				auto next = std::next(inst_it);
 
@@ -51,15 +51,28 @@ struct constant_encryption_t
 					if (imm_width > 32 || xed_decoded_inst_get_immediate_is_signed(&inst_it->decoded_inst) || inst_it->custom_encoder)
 						break;
 
+					xed_flag_set_t ledger;
+					ledger.s.of = 1;
+					ledger.s.cf = 1;
+					ledger.s.sf = 1;
+					ledger.s.zf = 1;
+					ledger.s.pf = 1;
+					ledger.s.af = 1;
+					bool need_to_save = dasm::flags_clobbered_before_use(routine, block_it, next, ledger);
+					if (need_to_save)
+						printf("Dont need to save.\n");
+					else
+						printf("Do need to save them.\n");
+
+					//need_to_save = true;
+
 
 					//printf("Found mov gpr,imm to obfuscate.\n");
 					auto reg = xed_decoded_inst_get_reg(&inst_it->decoded_inst, XED_OPERAND_REG0);
 					auto max_reg = change_reg_width(reg, addr_width::reg_width<aw>::value);
 					uint64_t imm_value = xed_decoded_inst_get_unsigned_immediate(&inst_it->decoded_inst);
 					//printf("Imm value %llu %X\n", imm_value, inst_it->original_rva);
-					uint32_t xor_key = (((static_cast<uint64_t>(rand()) << 48) |
-						(static_cast<uint64_t>(rand()) << 32) |
-						(static_cast<uint64_t>(rand()) << 16) |
+					uint32_t xor_key = (((static_cast<uint64_t>(rand()) << 16) |
 						(static_cast<uint64_t>(rand()) << 0)) & 0xFFFFFFFF);
 
 					switch (imm_width)
@@ -77,10 +90,11 @@ struct constant_encryption_t
 					enc.back().custom_encoder = std::bind(encrypted_const_custom_encoder<aw>,
 						std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, xor_key);
 
-					enc.emplace_back(
-						XED_ICLASS_PUSHF,
-						addr_width::bits<aw>::value
-					).common_edit(ctx.linker->allocate_link(), 0, 0);
+					if (!need_to_save)
+						enc.emplace_back(
+							XED_ICLASS_PUSHF,
+							addr_width::bits<aw>::value
+						).common_edit(ctx.linker->allocate_link(), 0, 0);
 
 					enc.emplace_back(
 						XED_ICLASS_MOV,
@@ -89,21 +103,36 @@ struct constant_encryption_t
 						xed_imm0(xor_key, addr_width::bits<aw>::value)
 					).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-					enc.emplace_back(
-						XED_ICLASS_XOR,
-						addr_width::bits<aw>::value,
-						xed_mem_bd(
-							max_reg_width<XED_REG_RSP, aw>::value, 
-							xed_disp(8, 8),
-							addr_width::bits<aw>::value
-						),
-						xed_reg(max_reg)
-					).common_edit(ctx.linker->allocate_link(), 0, 0);
+					if (!need_to_save)
+					{
+						enc.emplace_back(
+							XED_ICLASS_XOR,
+							addr_width::bits<aw>::value,
+							xed_mem_bd(
+								max_reg_width<XED_REG_RSP, aw>::value,
+								xed_disp(8, 8),
+								addr_width::bits<aw>::value
+							),
+							xed_reg(max_reg)
+						).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-					enc.emplace_back(
-						XED_ICLASS_POPF,
-						addr_width::bits<aw>::value
-					).common_edit(ctx.linker->allocate_link(), 0, 0);
+						enc.emplace_back(
+							XED_ICLASS_POPF,
+							addr_width::bits<aw>::value
+						).common_edit(ctx.linker->allocate_link(), 0, 0);
+					}
+					else
+					{
+						enc.emplace_back(
+							XED_ICLASS_XOR,
+							addr_width::bits<aw>::value,
+							xed_mem_b(
+								max_reg_width<XED_REG_RSP, aw>::value,
+								addr_width::bits<aw>::value
+							),
+							xed_reg(max_reg)
+						).common_edit(ctx.linker->allocate_link(), 0, 0);
+					}
 
 					enc.emplace_back(
 						XED_ICLASS_POP,
@@ -111,8 +140,8 @@ struct constant_encryption_t
 						xed_reg(max_reg)
 					).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-					block.instructions.splice(inst_it, enc);
-					block.instructions.erase(inst_it);
+					block_it->instructions.splice(inst_it, enc);
+					block_it->instructions.erase(inst_it);
 					break;
 				}
 				case XED_IFORM_PUSH_IMMb:

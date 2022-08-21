@@ -119,11 +119,11 @@ int main(int argc, char** argv)
 	obfuscator.register_single_pass<pad_original_t>();
 	//obfuscator.register_single_pass<opaque_from_rip_t>();
 	//obfuscator.register_single_pass<opaque_from_flags_t>();
-	obfuscator.register_single_pass<flatten_control_flow_t>();
+	//obfuscator.register_single_pass<flatten_control_flow_t>();
 	obfuscator.register_single_pass<constant_encryption_t>();
 	//obfuscator.register_single_pass<stack_allocation_t>(0x100);
 	//obfuscator.register_single_pass<opaque_from_const_t>();
-	//obfuscator.register_single_pass<position_independent_blocks_t>();
+	obfuscator.register_single_pass<position_independent_blocks_t>();
 	//obfuscator.register_single_pass<encrypted_routine_t>();
 
 	obfuscator.run_single_passes();
