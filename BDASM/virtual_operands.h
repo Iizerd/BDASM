@@ -17,11 +17,11 @@
 // 
 // Imagine the instruction:
 //	
-//		mov r11,r12
+//		add r11,r12
 // 
 //	The virtual instruction using the internal registers is:
 // 
-//		mov rax,rbx
+//		add rax,rbx
 // 
 //	So we need both a prologue and epilogue where the stored r11 and r12 and moved into the internal registers.
 //	For this example it would look something like this:
