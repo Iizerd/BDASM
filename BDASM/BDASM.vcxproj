@@ -179,6 +179,7 @@
     <ClInclude Include="symbol.h" />
     <ClInclude Include="traits.h" />
     <ClInclude Include="original.h" />
+    <ClInclude Include="virtual_operands.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

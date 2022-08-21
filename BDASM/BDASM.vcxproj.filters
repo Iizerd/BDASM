@@ -91,6 +91,9 @@
     <ClInclude Include="constant_encryption.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
+    <ClInclude Include="virtual_operands.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

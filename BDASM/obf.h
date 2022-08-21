@@ -69,18 +69,17 @@ namespace obf
 		constexpr type none = 0;
 
 		// data = rva(link1)
-		constexpr type rva_32;
-		constexpr type rva_64;
+		constexpr type rva_32 = (1 << 0);
+		constexpr type rva_64 = (1 << 1);
 
 		// data = rva(link2) - rva(link1)
-		constexpr type disp_8;
-		constexpr type disp_32;
+		constexpr type disp_32 = (1 << 3);
 
 
 	}
 
 	template<addr_width::type aw = addr_width::x64>
-	class data_segment_t
+	class data_chunk_t
 	{
 		std::vector<std::tuple<uint32_t, data_flag::type, uint32_t, uint32_t>> patches;
 
@@ -100,15 +99,16 @@ namespace obf
 
 		// For the placement pass
 		//
-		void place_in_binary(dasm::linker_t* linker, uint32_t rva)
+		void place_in_binary(dasm::linker_t* linker, uint64_t& rva)
 		{
 			for (auto [link, offset] : links)
 			{
 				linker->set_link_addr(link, rva + offset);
 			}
+			rva += raw_data.size():
 		}
 
-		// For the encode/write pass
+		// For the encode/write pass. using memcpy because of possible unaligned writes
 		//
 		void write_to_binary(uint8_t* data, dasm::linker_t* linker)
 		{
@@ -116,19 +116,20 @@ namespace obf
 			{
 				if (flags & data_flag::rva_32)
 				{
-					
+					uint32_t rva = linker->get_link_addr(link1);
+					std::memcpy(data + offset, &rva, sizeof uint32_t);
 				}
 				else if (flags & data_flag::rva_64)
 				{
-
-				}
-				else if (flags & data_flag::disp_8)
-				{
-
+					uint64_t rva = linker->get_link_addr(link1);
+					std::memcpy(data + offset, &rva, sizeof uint64_t);
 				}
 				else if (flags & data_flag::disp_32)
 				{
-
+					int64_t dest = linker->get_link_addr(link2);
+					int64_t source = linker->get_link_addr(link1);
+					int32_t disp = dest - source;
+					std::memcpy(data + offset, &disp, sizeof(int32_t));
 				}
 			}
 		}
@@ -155,7 +156,7 @@ namespace obf
 
 		std::list<routine_t<aw>> obf_routines;
 
-		std::list
+		std::list<data_chunk_t<aw>> data_chunks;
 
 		// These are routines that are added after the fact and we dont want to apply obfuscation passes to.
 		//
@@ -185,7 +186,7 @@ namespace obf
 
 		bool set_func_alignment(uint32_t new_alignment)
 		{
-			if (func_alignment == 0)
+			if (func_alignment == 1)
 			{
 				func_alignment = new_alignment;
 				return true;
@@ -195,7 +196,7 @@ namespace obf
 
 		bool set_block_alignment(uint32_t new_alignment)
 		{
-			if (block_alignment == 0)
+			if (block_alignment == 1)
 			{
 				block_alignment = new_alignment;
 				return true;
@@ -368,7 +369,7 @@ namespace obf
 		// These two functions REQUIRE that the order is not changed between their calls
 		// Must be called one after the other
 		//
-		uint32_t place()
+		uint64_t place_routines()
 		{
 			uint64_t rva = bin->next_section_rva();
 			auto base = rva;
@@ -404,11 +405,11 @@ namespace obf
 				rva = align_up(rva, func_alignment);
 			}
 
-			return rva - base;
+			return bin->append_section(".OBFCODE", rva - base, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_WRITE, true);
 		}
-		void encode(uint32_t section_size)
+		void encode_routines(uint64_t rva)
 		{
-			uint64_t rva = bin->append_section(".TEST", section_size, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_WRITE, true);
+			//uint64_t rva = bin->append_section(".TEST", section_size, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_WRITE, true);
 			auto dest = bin->mapped_image + rva;
 			for (auto& routine : obf_routines)
 			{
@@ -486,9 +487,38 @@ namespace obf
 
 		}
 
+		uint64_t place_data()
+		{
+			uint64_t rva = bin->next_section_rva();
+			auto base = rva;
+			for (auto& data_chunk : data_chunks)
+			{
+				data_chunk.place_in_binary(rva);
+				va = align_up(rva, 0x8);
+			}
+			return bin->append_section(".OBFDATA", rva - base, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_WRITE, true);
+		}
+		void write_data(uint64_t rva)
+		{
+			for (auto& data_chunk : data_chunks)
+			{
+				data_chunk.write_to_binary(rva);
+				rva = align_up(rva, 0x8);
+			}
+		}
+
 		void compile()
 		{
+			uint64_t data_rva = 0;
+			auto code_rva = place_routines();
 
+			if (data_chunks.size())
+				data_rva = place_data();
+
+			encode_routines(code_rva);
+
+			if (data_chunks.size())
+				write_data(data_rva);
 		}
 	};
 }

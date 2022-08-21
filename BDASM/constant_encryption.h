@@ -59,12 +59,6 @@ struct constant_encryption_t
 					ledger.s.pf = 1;
 					ledger.s.af = 1;
 					bool need_to_save = dasm::flags_clobbered_before_use(routine, block_it, next, ledger);
-					if (need_to_save)
-						printf("Dont need to save.\n");
-					else
-						printf("Do need to save them.\n");
-
-					//need_to_save = true;
 
 
 					//printf("Found mov gpr,imm to obfuscate.\n");
