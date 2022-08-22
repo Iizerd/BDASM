@@ -75,6 +75,11 @@ namespace obf
 		// data = rva(link2) - rva(link1)
 		constexpr type disp_32 = (1 << 3);
 
+		// data = rva(link1) - link2
+		// This is used by the virtualized to resolve rip relative displacements. 
+		// Treats link2 as an adjustment(displacement in virt inst wont be at rip)
+		//
+		constexpr type disp_from_me_32 = (1 << 4);
 
 	}
 

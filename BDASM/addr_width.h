@@ -32,6 +32,10 @@ namespace addr_width
 	template<> struct storage<x86> { using type = uint32_t; };
 	template<> struct storage<x64> { using type = uint64_t; };
 
+	template<type aw> struct register_count;
+	template<> struct register_count<x86> { constexpr static uint32_t value = 8; };
+	template<> struct register_count<x64> { constexpr static uint32_t value = 16; };
+
 	template<type aw> struct machine_state;
 	template<> struct machine_state<x86>
 	{
