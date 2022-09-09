@@ -1,6 +1,7 @@
 #pragma once
 
 #include "obf.h"
+#include "condition_code.h"
 
 // Ok so the basic idea behind this is that we move all the registers out into a structure somewhere in memory
 // The vm is protected by a spinlock like themida until i figure out tls stuff.
@@ -66,8 +67,11 @@ register_width vm_opsize_to_register_width_map[4] = { register_width::byte, regi
 
 constexpr uint32_t link_code_matrix_size = vm_ireg_t::ireg_max * vm_operand_size_t::opsize_max;
 
-enum vm_iform_t
+enum vm_iclass_t : uint16_t
 {
+	// This is what the operation handlers get.
+	no_operands,
+
 	load_reg,
 	store_reg,
 	load_mem_b,
@@ -77,9 +81,10 @@ enum vm_iform_t
 	load_mem_bisd,
 	store_mem_bisd,
 	load_imm,
+
 };
 
-#define link_code_define(_IForm) _IForm##_start, _IForm##_end = _IForm##_start + link_code_matrix_size - 1,
+#define link_code_define(_IClass) _IClass##_start, _IClass##_end = _IClass##_start + link_code_matrix_size - 1,
 
 enum vm_link_code_t : uint32_t
 {
@@ -95,7 +100,7 @@ enum vm_link_code_t : uint32_t
 	vm_link_code_max
 };
 
-#define link_code(_IForm, _IReg, _OpSize) (vm_link_code_t::##_IForm##_start + (_IReg * vm_operand_size_t::opsize_max) + _OpSize)
+#define link_code(_IClass, _IReg, _OpSize) (vm_link_code_t::##_IClass##_start + (_IReg * vm_operand_size_t::opsize_max) + _OpSize)
 
 
 // Despite this packing, everything has specific alignments.
@@ -122,7 +127,7 @@ static_assert(sizeof(vmcs_t<addr_width::x64>) % 8 == 0 && sizeof(vmcs_t<addr_wid
 // Here are the 8 different possible instruction encodings.
 // ranging from 2 to 16 bytes in size
 //
-namespace virt_insts
+namespace vinst_format
 {
 	struct nothing_t
 	{
@@ -197,11 +202,25 @@ namespace virt_insts
 }
 #pragma pack(pop)
 
+struct handler_linkage_t
+{
+	uint32_t opcode;	//after handler order is decided, this is set
+	uint32_t link;		//constant once handler is created and stored.
+};
+
 template<addr_width::type aw = addr_width::x64>
-struct flatten_control_flow_t
+struct virtual_operands_t
 {
 	// All register sizes are the max for the addr_width that pass is invoked with.
 	//
+
+	//inline static uint32_t 
+
+	// This is the global handler list that holds ALL handlers within.
+	// It is slowly filled as more handlers are discovered and used.
+	inline static dasm::inst_list_t<aw> handler_insts;
+
+	inline static dasm::linker_t vm_linker = { 0 };
 
 	inline static xed_reg_enum_t vmcs_reg, vip_reg;
 
@@ -213,6 +232,84 @@ struct flatten_control_flow_t
 	// These are the links to the virtual operand table.
 	//
 	inline static uint32_t virtual_operand_handler_link_table[vm_link_code_max] = { dasm::linker_t::invalid_link_value };
+
+	class inst_flag_t
+	{
+		inline static constexpr uint16_t none = 0;
+
+		// Calc the displacement from rip to target a and put in disp
+		//
+		inline static constexpr uint16_t disp = (1 << 1);
+	};
+
+#pragma pack(push,1)
+	struct inst_t
+	{
+		vm_iclass_t iclass;
+		uint16_t flags;
+		uint32_t length;
+		uint32_t my_link;
+		uint32_t used_link;
+		union
+		{
+			vinst_format::nothing_t no_operands;
+			vinst_format::reg_t reg;
+			vinst_format::reg_disp_t reg_disp;
+			vinst_format::reg_reg_scale_disp_t reg_reg_scale_disp;
+			vinst_format::imm8_t imm8;
+			vinst_format::imm16_t imm16;
+			vinst_format::imm32_t imm32;
+			vinst_format::imm64_t imm64;
+		}format;
+	};
+	static_assert(offsetof(inst_t, format.no_operands) == 0x10);
+	static_assert(offsetof(inst_t, format.reg) == 0x10);
+	static_assert(offsetof(inst_t, format.reg_disp) == 0x10);
+	static_assert(offsetof(inst_t, format.reg_reg_scale_disp) == 0x10);
+	static_assert(offsetof(inst_t, format.imm8) == 0x10);
+	static_assert(offsetof(inst_t, format.imm16) == 0x10);
+	static_assert(offsetof(inst_t, format.imm32) == 0x10);
+	static_assert(offsetof(inst_t, format.imm64) == 0x10);
+#pragma pack(pop)
+
+	class block_t
+	{
+		std::list<inst_t> insts;
+	};
+
+	/*uint32_t encode_inst(inst_t* inst, uint8_t* dest, obf::data_chunk_t<)
+	{
+		if (inst->flags & inst_flag_t::disp)
+		{
+			if (inst->type == vm_iclass_t::load_mem_bd || inst->type == vm_iclass_t::store_mem_bd)
+			{
+				inst->format.reg_disp.disp = static_cast<int32_t>(static_cast<int64_t>(vm_linker.get_link_addr(inst->used_link)) - static_cast<int64_t>(vm_linker.get_link_addr(inst->my_link)));
+			}
+			else if (inst->type == vm_iclass_t::load_mem_bisd || inst->type == vm_iclass_t::store_mem_bisd)
+			{
+				inst->format.reg_reg_scale_disp.disp = static_cast<int32_t>(static_cast<int64_t>(vm_linker.get_link_addr(inst->used_link)) - static_cast<int64_t>(vm_linker.get_link_addr(inst->my_link)));
+			}
+			else if (inst->type == vm_iclass_t::load_imm)
+			{
+				if (inst->length == sizeof(vinst_format::imm32_t))
+				{
+					inst->format.imm32.disp = static_cast<int32_t>(static_cast<int64_t>(vm_linker.get_link_addr(inst->used_link)) - static_cast<int64_t>(vm_linker.get_link_addr(inst->my_link)));
+				}
+				else if (inst->length == sizeof(vinst_format::imm64_t))
+				{
+					inst->format.imm64.disp = static_cast<int64_t>(static_cast<int64_t>(vm_linker.get_link_addr(inst->used_link)) - static_cast<int64_t>(vm_linker.get_link_addr(inst->my_link)));
+				}
+				else
+					return 0;
+			}
+			else
+				return 0;
+		}
+
+		std::memcpy(dest, &inst->format.no_operands, inst->length);
+
+		return inst->length;
+	}*/
 
 
 	finline static xed_reg_enum_t get_free_reg()
@@ -231,6 +328,9 @@ struct flatten_control_flow_t
 		return { free_regs[first], free_regs[second] };
 	}
 
+
+	// This is the epilogue that gets appended to all handlers and increments ip
+	//
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_handler_epilogue(obf::obf_t<aw>& ctx, uint32_t inst_length)
 	{
@@ -241,12 +341,15 @@ struct flatten_control_flow_t
 
 		dasm::inst_list_t<aw> result;
 
-		result.emplace_back(
-			XED_ICLASS_ADD,
-			addr_width::bits<aw>::value,
-			xed_reg(vip_reg),
-			xed_imm0(inst_length, 8)
-		).common_edit(ctx.linker->allocate_link(), 0, 0);
+		if (inst_length)
+		{
+			result.emplace_back(
+				XED_ICLASS_ADD,
+				addr_width::bits<aw>::value,
+				xed_reg(vip_reg),
+				xed_imm0(inst_length, 8)
+			).common_edit(ctx.linker->allocate_link(), 0, 0);
+		}
 
 		// Have to do this because rip relative instructions need to access vip
 		// So store vip into the ip register in vmcs
@@ -255,8 +358,8 @@ struct flatten_control_flow_t
 			addr_width::bits<aw>::value,
 			xed_mem_bd(
 				vmcs_reg,
-				xed_disp(offsetof(vmcs_t<aw>, rip), 32),
-				8
+				xed_disp(offsetof(vmcs_t<aw>, ip), 32),
+				addr_width::bits<aw>::value
 			),
 			xed_reg(vip_reg)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -304,10 +407,102 @@ struct flatten_control_flow_t
 		return result;
 	}
 
+	// Enter and exit
+	///
+	template<addr_width::type aw = addr_width::x64>
+	inline static dasm::inst_list_t<aw> build_vmenter(obf::obf_t<aw>& ctx, uint32_t vmcs_link, uint32_t vip_link)
+	{
+		//	vm_enter:
+		//		acquire_vmcs_spinlock
+		// 
+		//		mov [vmcs.a],rax			; probably randomize the order of these to break basic pattern?
+		//		mov ...
+		//		mov [vmcs.r15],r15
+		//		
+		//		lea rsp,[vmcs.flags]		; load flag storage into rsp
+		//		pushfq						; store the native flags
+		//		lea rdi,[vmcs]				; load vmcs into rdi
+		//		
+		//		lea rsi,[vip]
+		//		jmp qword ptr[rdi+rsi*4+sizeof(vmcs)]
+		//
+		dasm::inst_list_t<aw> result;
+
+		result.emplace_back(XED_ICLASS_PUSH, addr_width::bits<aw>::value, xed_reg(max_reg_width<XED_REG_RDI, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_LEA, addr_width::bits<aw>::value, xed_reg(max_reg_width<XED_REG_RDI, aw>::value), xed_mem_bd(max_reg_width<XED_REG_RIP, aw>::value, xed_disp(0, 32), addr_width::bits<aw>::value)).common_edit(ctx.linker->allocate_link(), vmcs_link, dasm::inst_flag::disp);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, a), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RAX, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, b), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RBX, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, c), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RCX, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, d), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RDX, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, sp), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RSP, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, bp), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RBP, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, si), 32), addr_width::bits<aw>::value), xed_reg(max_reg_width<XED_REG_RSI, aw>::value)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		
+		if constexpr (aw == addr_width::x64)
+		{
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r8), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R8)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r9), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R9)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r10), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R10)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r11), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R11)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r12), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R12)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r13), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R13)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r14), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R14)).common_edit(ctx.linker->allocate_link(), 0, 0);
+			result.emplace_back(XED_ICLASS_MOV, addr_width::bits<aw>::value, xed_mem_bd(max_reg_width<XED_REG_RDI, aw>::value, xed_disp(offsetof(vmcs_t<aw>, r15), 32), addr_width::bits<aw>::value), xed_reg(XED_REG_R15)).common_edit(ctx.linker->allocate_link(), 0, 0);
+		}
+
+		result.emplace_back(
+			XED_ICLASS_POP,
+			addr_width::bits<aw>::value,
+			xed_mem_bd(
+				max_reg_width<XED_REG_RDI, aw>::value, 
+				xed_disp(offsetof(vmcs_t<aw>, di), 32), 
+				addr_width::bits<aw>::value
+			)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_LEA,
+			addr_width::bits<aw>::value,
+			xed_reg(max_reg_width<XED_REG_RSI, aw>::value),
+			xed_mem_bd(
+				max_reg_width<XED_REG_RIP, aw>::value, 
+				xed_disp(0, 32), 
+				addr_width::bits<aw>::value
+			)
+		).common_edit(ctx.linker->allocate_link(), vip_link, dasm::inst_flag::disp);
+
+		result.emplace_back(
+			XED_ICLASS_LEA,
+			addr_width::bits<aw>::value,
+			xed_reg(max_reg_width<XED_REG_RSP, aw>::value),
+			xed_mem_bd(
+				max_reg_width<XED_REG_RDI, aw>::value,
+				xed_disp(offsetof(vmcs_t<aw>, flags), 8),
+				addr_width::bits<aw>::value
+			)
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_PUSHF,
+			addr_width::bits<aw>::value
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.splice(result.end(), build_handler_epilogue(ctx, 0));
+
+		return result;
+
+	}
+	template<addr_width::type aw = addr_width::x64>
+	inline static dasm::inst_list_t<aw> build_vmexit(obf::obf_t<aw>& ctx)
+	{
+
+	}
+
+	// These are the default vm instructions that are used to load/store from the iregs
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_load_reg_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_idx,[vip+offsetof(virt_insts::reg_t, reg1)]
+		// movzx reg_idx,[vip+offsetof(vinst_format::reg_t, reg1)]
 		// size ptr[vmcs+reg_idx*8+vmcs_register_file(aw)],ireg
 		//
 
@@ -320,7 +515,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_idx),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -338,7 +533,7 @@ struct flatten_control_flow_t
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_t));
 
 		return result;
 	}
@@ -346,7 +541,7 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_store_reg_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_idx,[vip+offsetof(virt_insts::reg_t, reg1)]
+		// movzx reg_idx,[vip+offsetof(vinst_format::reg_t, reg1)]
 		// ireg,size ptr[vmcs+reg_idx*8+vmcs_register_file(aw)]
 		//
 
@@ -359,7 +554,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_idx),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -377,7 +572,7 @@ struct flatten_control_flow_t
 			xed_reg(change_reg_width(iregs[ireg], vm_opsize_to_register_width_map[op_size]))
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_t));
 
 		return result;
 	}
@@ -385,7 +580,7 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_load_mem_b_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_idx,[vip+offsetof(virt_insts::reg_t, reg1)]
+		// movzx reg_idx,[vip+offsetof(vinst_format::reg_t, reg1)]
 		// mov reg_idx,qword ptr[vmcs+reg_idx*8+vmcs_register_file(aw)]
 		// mov ireg,size ptr[reg_idx]
 		// 
@@ -400,7 +595,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_idx),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -408,7 +603,7 @@ struct flatten_control_flow_t
 		result.emplace_back(
 			XED_ICLASS_MOV,
 			addr_width::bits<aw>::value,
-			xed_reg(reg_idx)
+			xed_reg(reg_idx),
 			xed_mem_bisd(
 				vmcs_reg,
 				reg_idx,
@@ -425,7 +620,7 @@ struct flatten_control_flow_t
 			xed_mem_b(reg_idx, op_size_bits)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_t));
 
 		return result;
 	}
@@ -433,7 +628,7 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_store_mem_b_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_idx,[vip+offsetof(virt_insts::reg_t, reg1)]
+		// movzx reg_idx,[vip+offsetof(vinst_format::reg_t, reg1)]
 		// mov reg_idx,qword ptr[vmcs+reg_idx*8+vmcs_register_file(aw)]
 		// mov size ptr[reg_idx],ireg
 		// 
@@ -448,7 +643,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_idx),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -456,7 +651,7 @@ struct flatten_control_flow_t
 		result.emplace_back(
 			XED_ICLASS_MOV,
 			addr_width::bits<aw>::value,
-			xed_reg(reg_idx)
+			xed_reg(reg_idx),
 			xed_mem_bisd(
 				vmcs_reg,
 				reg_idx,
@@ -473,7 +668,7 @@ struct flatten_control_flow_t
 			xed_reg(change_reg_width(iregs[ireg], vm_opsize_to_register_width_map[op_size]))
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_t));
 
 		return result;
 	}
@@ -481,8 +676,8 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_load_mem_bd_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_idx,[vip+offsetof(virt_insts::reg_disp_t, reg1)]
-		// movsxd reg_disp,dword ptr[vip+offsetof(virt_insts::reg_disp_t, disp)]
+		// movzx reg_idx,[vip+offsetof(vinst_format::reg_disp_t, reg1)]
+		// movsxd reg_disp,dword ptr[vip+offsetof(vinst_format::reg_disp_t, disp)]
 		// add reg_disp,qword ptr[vmcs+reg_idx*8+vmcs_register_file(aw)]
 		// mov ireg,size ptr[reg_disp]
 		// 
@@ -498,7 +693,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_idx),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_disp_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_disp_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -511,7 +706,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_disp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -524,7 +719,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_disp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -550,7 +745,7 @@ struct flatten_control_flow_t
 			xed_mem_b(reg_disp, op_size_bits)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_disp_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_disp_t));
 
 		return result;
 	}
@@ -558,8 +753,8 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_store_mem_bd_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_idx,[vip+offsetof(virt_insts::reg_disp_t, reg1)]
-		// movsxd reg_disp,dword ptr[vip+offsetof(virt_insts::reg_disp_t, disp)]
+		// movzx reg_idx,[vip+offsetof(vinst_format::reg_disp_t, reg1)]
+		// movsxd reg_disp,dword ptr[vip+offsetof(vinst_format::reg_disp_t, disp)]
 		// add reg_disp,qword ptr[vmcs+reg_idx*8+vmcs_register_file(aw)]
 		// mov size ptr[reg_disp],ireg
 		// 
@@ -575,7 +770,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_idx),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_disp_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_disp_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -588,7 +783,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_disp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -601,7 +796,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_disp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -627,7 +822,7 @@ struct flatten_control_flow_t
 			xed_reg(change_reg_width(iregs[ireg], vm_opsize_to_register_width_map[op_size]))
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_disp_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_disp_t));
 
 		return result;
 	}
@@ -635,21 +830,21 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_load_mem_bisd_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_tmp,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, reg2)]		; First load the idx register
+		// movzx reg_tmp,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, reg2)]		; First load the idx register
 		// mov reg_acc,qword ptr[vmcs+reg_tmp*8+vmcs_register_file(aw)]
 		// mov reg_tmp,rcx
-		// mov cl,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, scale)]			; Load the scale amount
+		// mov cl,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, scale)]			; Load the scale amount
 		// shl reg_acc,cl																; Shift index register by the scale amount
 		// mov rcx,reg_tmp
-		// movzx reg_tmp,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, reg1)]		; Load the base register
+		// movzx reg_tmp,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, reg1)]		; Load the base register
 		// add reg_acc,qword ptr[vmcs+reg_tmp*8+vmcs_register_file(aw)]
-		// movsxd reg_tmp,dword ptr[vip+offsetof(virt_insts::reg_disp_t, disp)]		; Load the displacement
+		// movsxd reg_tmp,dword ptr[vip+offsetof(vinst_format::reg_disp_t, disp)]		; Load the displacement
 		// add reg_acc,reg_tmp	
 		//
 		
 		dasm::inst_list_t<aw> result;
 
-		auto [reg_tmp, reg_acc] = get_free_reg();
+		auto [reg_tmp, reg_acc] = get_two_free_regs();
 
 		result.emplace_back(
 			XED_ICLASS_MOVZX,
@@ -657,7 +852,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_tmp),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, reg2), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -670,7 +865,7 @@ struct flatten_control_flow_t
 				vmcs_reg,
 				reg_tmp,
 				8,
-				xed_disp(vmcs_register_file, 8),
+				xed_disp(vmcs_register_file(aw), 8),
 				addr_width::bits<aw>::value
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -688,7 +883,7 @@ struct flatten_control_flow_t
 			xed_reg(XED_REG_CL),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, scale), 8),
+				xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, scale), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -708,14 +903,14 @@ struct flatten_control_flow_t
 			xed_reg(reg_tmp)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		// movzx reg_tmp,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, reg1)]		; Load the base register
+		// movzx reg_tmp,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, reg1)]		; Load the base register
 		result.emplace_back(
 			XED_ICLASS_MOVZX,
 			addr_width::bits<aw>::value,
 			xed_reg(reg_tmp),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -734,7 +929,7 @@ struct flatten_control_flow_t
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		// movsxd reg_tmp,dword ptr[vip+offsetof(virt_insts::reg_reg_scale_disp_t, disp)]		; Load the displacement
+		// movsxd reg_tmp,dword ptr[vip+offsetof(vinst_format::reg_reg_scale_disp_t, disp)]		; Load the displacement
 		if constexpr (aw == addr_width::x64)
 		{
 			result.emplace_back(
@@ -743,7 +938,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_tmp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -756,7 +951,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_tmp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -776,7 +971,7 @@ struct flatten_control_flow_t
 			xed_mem_b(reg_acc, vm_opsize_to_xed_opsize_map[op_size])
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_reg_scale_disp_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_reg_scale_disp_t));
 
 		return result;
 	}
@@ -784,21 +979,21 @@ struct flatten_control_flow_t
 	template<addr_width::type aw = addr_width::x64>
 	inline static dasm::inst_list_t<aw> build_store_mem_bisd_handler(obf::obf_t<aw>& ctx, vm_ireg_t ireg, vm_operand_size_t op_size)
 	{
-		// movzx reg_tmp,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, reg2)]		; First load the idx register
+		// movzx reg_tmp,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, reg2)]		; First load the idx register
 		// mov reg_acc,qword ptr[vmcs+reg_tmp*8+vmcs_register_file(aw)]
 		// mov reg_tmp,rcx
-		// mov cl,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, scale)]			; Load the scale amount
+		// mov cl,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, scale)]			; Load the scale amount
 		// shl reg_acc,cl																; Shift index register by the scale amount
 		// mov rcx,reg_tmp
-		// movzx reg_tmp,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, reg1)]		; Load the base register
+		// movzx reg_tmp,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, reg1)]		; Load the base register
 		// add reg_acc,qword ptr[vmcs+reg_tmp*8+vmcs_register_file(aw)]
-		// movsxd reg_tmp,dword ptr[vip+offsetof(virt_insts::reg_disp_t, disp)]		; Load the displacement
+		// movsxd reg_tmp,dword ptr[vip+offsetof(vinst_format::reg_disp_t, disp)]		; Load the displacement
 		// add reg_acc,reg_tmp	
 		//
 
 		dasm::inst_list_t<aw> result;
 
-		auto [reg_tmp, reg_acc] = get_free_reg();
+		auto [reg_tmp, reg_acc] = get_two_free_regs();
 
 		result.emplace_back(
 			XED_ICLASS_MOVZX,
@@ -806,7 +1001,7 @@ struct flatten_control_flow_t
 			xed_reg(reg_tmp),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, reg2), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -819,7 +1014,7 @@ struct flatten_control_flow_t
 				vmcs_reg,
 				reg_tmp,
 				8,
-				xed_disp(vmcs_register_file, 8),
+				xed_disp(vmcs_register_file(aw), 8),
 				addr_width::bits<aw>::value
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -837,7 +1032,7 @@ struct flatten_control_flow_t
 			xed_reg(XED_REG_CL),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, scale), 8),
+				xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, scale), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -857,14 +1052,14 @@ struct flatten_control_flow_t
 			xed_reg(reg_tmp)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		// movzx reg_tmp,[vip+offsetof(virt_insts::reg_reg_scale_disp_t, reg1)]		; Load the base register
+		// movzx reg_tmp,[vip+offsetof(vinst_format::reg_reg_scale_disp_t, reg1)]		; Load the base register
 		result.emplace_back(
 			XED_ICLASS_MOVZX,
 			addr_width::bits<aw>::value,
 			xed_reg(reg_tmp),
 			xed_mem_bd(
 				vip_reg,
-				xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, reg1), 8),
+				xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, reg1), 8),
 				8
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -883,7 +1078,7 @@ struct flatten_control_flow_t
 			)
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		// movsxd reg_tmp,dword ptr[vip+offsetof(virt_insts::reg_reg_scale_disp_t, disp)]		; Load the displacement
+		// movsxd reg_tmp,dword ptr[vip+offsetof(vinst_format::reg_reg_scale_disp_t, disp)]		; Load the displacement
 		if constexpr (aw == addr_width::x64)
 		{
 			result.emplace_back(
@@ -892,7 +1087,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_tmp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -905,7 +1100,7 @@ struct flatten_control_flow_t
 				xed_reg(reg_tmp),
 				xed_mem_bd(
 					vip_reg,
-					xed_disp(offsetof(virt_insts::reg_reg_scale_disp_t, disp), 8),
+					xed_disp(offsetof(vinst_format::reg_reg_scale_disp_t, disp), 8),
 					32
 				)
 			).common_edit(ctx.linker->allocate_link(), 0, 0);
@@ -925,10 +1120,51 @@ struct flatten_control_flow_t
 			xed_reg(change_reg_width(iregs[ireg], vm_opsize_to_register_width_map[op_size]))
 		).common_edit(ctx.linker->allocate_link(), 0, 0);
 
-		result.splice(result.end(), build_handler_epilogue(ctx, sizeof virt_insts::reg_reg_scale_disp_t));
+		result.splice(result.end(), build_handler_epilogue(ctx, sizeof vinst_format::reg_reg_scale_disp_t));
 
 		return result;
 	}
+
+	
+
+
+	// These are specific handlers that cant be generated trivially and must be hand built
+	//
+	template<addr_width::type aw = addr_width::x64>
+	inline static dasm::inst_list_t<aw> build_jcc(obf::obf_t<aw>& ctx, xed_iclass_enum_t jcc)
+	{
+		// This instruction assumes that the displacements required have been moved into the two iregs
+		// ireg1 = fallthrough displacement
+		// ireg2 = taken displacement
+		//
+
+		// cmovcc ireg1,ireg2
+		// add vip_reg,ireg1
+		// epilogue with zero rip advancement
+
+		dasm::inst_list_t<aw> result;
+
+		result.emplace_back(
+			xed_condition_code_to_cmovcc(xed_iclass_to_condition_code(jcc)),
+			addr_width::bits<aw>::value,
+			xed_reg(iregs[ireg1]),
+			xed_reg(iregs[ireg2])
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.emplace_back(
+			XED_ICLASS_ADD,
+			addr_width::bits<aw>::value,
+			xed_reg(vip_reg),
+			xed_reg(iregs[ireg1])
+		).common_edit(ctx.linker->allocate_link(), 0, 0);
+
+		result.splice(result.end(), build_handler_epilogue(ctx, 0));
+
+		return result;
+	}
+
+
+
 
 	// If a handler manipulates the native flags, we need to load them so they can be edited
 	//
@@ -950,7 +1186,7 @@ struct flatten_control_flow_t
 	// This can be done randomly and programatically in the future
 	//
 	template<addr_width::type aw = addr_width::x64>
-	void initialize_vm_regs()
+	inline static void initialize_tables()
 	{
 		iregs[vm_ireg_t::ireg1] = max_reg_width<XED_REG_RAX, aw>::value;
 		iregs[vm_ireg_t::ireg2] = max_reg_width<XED_REG_RCX, aw>::value;

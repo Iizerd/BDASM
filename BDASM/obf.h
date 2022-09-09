@@ -104,13 +104,13 @@ namespace obf
 
 		// For the placement pass
 		//
-		void place_in_binary(dasm::linker_t* linker, uint64_t& rva)
+		void place_in_binary(uint64_t& rva, dasm::linker_t* linker)
 		{
 			for (auto [link, offset] : links)
 			{
 				linker->set_link_addr(link, rva + offset);
 			}
-			rva += raw_data.size():
+			rva += raw_data.size();
 		}
 
 		// For the encode/write pass. using memcpy because of possible unaligned writes
@@ -498,17 +498,18 @@ namespace obf
 			auto base = rva;
 			for (auto& data_chunk : data_chunks)
 			{
-				data_chunk.place_in_binary(rva);
-				va = align_up(rva, 0x8);
+				data_chunk.place_in_binary(rva, linker);
+				rva = align_up(rva, 0x8);
 			}
 			return bin->append_section(".OBFDATA", rva - base, IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_WRITE, true);
 		}
 		void write_data(uint64_t rva)
 		{
+			auto dest = bin->mapped_image + rva;
 			for (auto& data_chunk : data_chunks)
 			{
-				data_chunk.write_to_binary(rva);
-				rva = align_up(rva, 0x8);
+				data_chunk.write_to_binary(dest, linker);
+				dest = align_up_ptr(dest, 0x8);
 			}
 		}
 

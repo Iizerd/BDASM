@@ -29,6 +29,7 @@
 #include "encrypted_routines.h"
 #include "flat_control.h"
 #include "constant_encryption.h"
+#include "virtual_operands.h"
 
 
 
@@ -62,56 +63,23 @@ int main(int argc, char** argv)
 	srand(time(nullptr));
 	xed_tables_init();
 
-	auto rand_val = ((0x24121 << 4) | (1 << 0));
+	uint32_t len = 0;
+	obf::obf_t<addr_width::x64> obf;
+	obf.linker = new dasm::linker_t(0);
 
-	auto addr = 0xC00023;
-	auto temp = addr;
-	do
+	virtual_operands_t<addr_width::x64>::initialize_tables();
+	auto list = virtual_operands_t<addr_width::x64>::build_vmenter(obf, 0, 0);
+	auto res = dasm::dumb_encoder(list, len);
+
+	for (uint32_t i = 0; i < len; i++)
 	{
-		addr += rand_val;
-	} while (addr & 0xF);
-
-	do
-	{
-		addr -= (rand_val - 1);
-	} while (temp < addr);
-
-	addr += (rand_val - 1);
-
-	printf("Results are %X %X\n", addr, rand_val, temp);
-
-	//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
-
-	//dasm::inst_t<addr_width::x64> inst(
-	//	XED_ICLASS_NOP,
-	//	32
-	//);
-
-	///*dasm::inst_t<addr_width::x64> inst;
-
-	//
-
-	//auto len = encode_inst_in_place(buffer, addr_width::machine_state<addr_width::x64>::value, 
-	//	XED_ICLASS_XCHG,
-	//	8,
-	//	xed_mem_bd(
-	//		max_reg_width<XED_REG_RIP, addr_width::x64>::value,
-	//		xed_disp(0, 32),
-	//		8
-	//	),
-	//	xed_reg(XED_REG_AL)
-	//);*/
+		std::printf("%02X ", res[i]);
+	}
+	printf("\n");
+	system("pause");
+	return 1;
 
 
-	//inst.dumb_encode(buffer);
-
-	//for (auto i = 0; i < inst.length(); i++)
-	//{
-	//	std::printf("%02X ", buffer[i]);
-	//}
-	//std::printf("\n");
-
-	//return 1;
 	obf::obf_t<addr_width::x64> obfuscator;
 
 	obfuscator.load_file(image_name);
@@ -329,69 +297,62 @@ int main(int argc, char** argv)
 
 
 	system("pause");
-
-
-
-
-
-
-
-
-
-
-
-	///*inst_t inst;
-	//if (!inst.decode(bytes, sizeof(bytes)))
-	//{
-	//	printf("failed to decode");
-	//	system("pause");
-	//	return 0;
-	//}
-
-	//printf("iform: %s\n", xed_iform_enum_t2str(xed_decoded_inst_get_iform_enum(&inst.decoded_inst)));*/
-
-
-	//std::ifstream SffFile("C:\\$Fanta\\FntaDrvr\\x64\\Release\\FntaDrvr.sc", std::ios::binary);
-
-	//SffFile.seekg(0, std::ios::end);
-	//size_t FileLength = SffFile.tellg();
-	//SffFile.seekg(0, std::ios::beg);
-	//PDECOMP_FILE FileBuffer = (PDECOMP_FILE)malloc(FileLength);
-	//if (!FileBuffer)
-	//	return 1;
-	//SffFile.read((PCHAR)FileBuffer, FileLength);
-	//SffFile.close();
-
-	//SffVerify(FileBuffer);
-	//SffDbgPrint(FileBuffer);
-
-	//uint8_t* bytes = (uint8_t*)FileBuffer + FileBuffer->Functions[0].Offset;
-
-
-	////uint8_t bytes[] = { 0x31, 0xC0, 0x31, 0xC0, 0x75, 0x04, 0x09, 0xC0, 0x09, 0xC0, 0x21, 0xC0, 0x21, 0xC0 };
-
-	//bin_data_table_t sym_table;
-	//x86_dasm_t<address_width::x64> dasm((uint8_t*)FileBuffer, FileLength, &sym_table);
-	//dasm.set_malformed_functions(false);
-	//dasm.set_recurse_calls(true);
-	//dasm.set_block_progress_callback([](dasm_decode_block_t<address_width::x64> const& block)
-	//	{
-	//		std::printf("Created block with %llu insts at [%016X:%016X]\n", block.instructions.size(), block.start, block.end);
-	//	});
-
-	//dasm.set_routine_progress_callback([](uint32_t block_count)
-	//	{
-	//		std::printf("Created routine with %u blocks.\n", block_count);
-	//	});
-
-
-
-	//dasm.do_routine(FileBuffer->Functions[0].Offset);
-	//dasm.routines.back().print_blocks();
 }
 
 
 
+//uint8_t buffer[XED_MAX_INSTRUCTION_BYTES];
+
+//dasm::inst_t<addr_width::x64> inst(
+//	XED_ICLASS_NOP,
+//	32
+//);
+
+///*dasm::inst_t<addr_width::x64> inst;
+
+//
+
+//auto len = encode_inst_in_place(buffer, addr_width::machine_state<addr_width::x64>::value, 
+//	XED_ICLASS_XCHG,
+//	8,
+//	xed_mem_bd(
+//		max_reg_width<XED_REG_RIP, addr_width::x64>::value,
+//		xed_disp(0, 32),
+//		8
+//	),
+//	xed_reg(XED_REG_AL)
+//);*/
+
+
+//inst.dumb_encode(buffer);
+
+//for (auto i = 0; i < inst.length(); i++)
+//{
+//	std::printf("%02X ", buffer[i]);
+//}
+//std::printf("\n");
+
+//return 1;
+
+/*
+auto rand_val = ((0x24121 << 4) | (1 << 0));
+
+	auto addr = 0xC00023;
+	auto temp = addr;
+	do
+	{
+		addr += rand_val;
+	} while (addr & 0xF);
+
+	do
+	{
+		addr -= (rand_val - 1);
+	} while (temp < addr);
+
+	addr += (rand_val - 1);
+
+	printf("Results are %X %X\n", addr, rand_val, temp);
+*/
 
 
 
