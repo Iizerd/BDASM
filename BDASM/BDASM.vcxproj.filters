@@ -94,6 +94,9 @@
     <ClInclude Include="virtual_operands.h">
       <Filter>headers\obfuscator\passes\mutation</Filter>
     </ClInclude>
+    <ClInclude Include="other_vm.h">
+      <Filter>headers\obfuscator\passes\mutation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="headers">

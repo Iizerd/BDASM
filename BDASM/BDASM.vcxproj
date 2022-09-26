@@ -170,6 +170,7 @@
     <ClInclude Include="mba.h" />
     <ClInclude Include="obf.h" />
     <ClInclude Include="opaques.h" />
+    <ClInclude Include="other_vm.h" />
     <ClInclude Include="pex.h" />
     <ClInclude Include="sff.h" />
     <ClInclude Include="size_casting.h" />

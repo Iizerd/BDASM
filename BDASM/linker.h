@@ -68,6 +68,13 @@ namespace dasm
 			return index;
 		}
 
+		uint32_t allocate_link_no_lock()
+		{
+			auto index = m_table.size();
+			m_table.emplace_back();
+			return index;
+		}
+
 		finline link_t& get_link(uint32_t link_index)
 		{
 			return m_table[link_index];

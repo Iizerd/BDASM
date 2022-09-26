@@ -47,9 +47,9 @@
 //#else
 //#define image_name "C:\\@\\Work\\BDASM\\x64\\Release\\TestExe.exe"
 
-//#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
+#define image_name "C:\\$Work\\BDASM\\x64\\Release\\TestExe.exe"
 
-#define image_name "C:\\$Work\\CrackmeTest\\x64\\Release\\CrackmeTest.exe"
+//#define image_name "C:\\$Work\\CrackmeTest\\x64\\Release\\CrackmeTest.exe"
 
 //#define image_name "C:\\Users\\James\\Desktop\\Reverse Windas\\dxgkrnl.sys"
 #define image_out "C:\\$Work\\BDASM\\x64\\Release\\TestExe4.exe"
@@ -63,7 +63,40 @@ int main(int argc, char** argv)
 	srand(time(nullptr));
 	xed_tables_init();
 
-	uint32_t len = 0;
+
+	dasm::linker_t linker(0x1000);
+	std::list<dasm::block_t<>> blocks;
+	auto& block = blocks.emplace_front(blocks.end());
+	//dasm::block_t<> block(blocks.end());
+
+	block.instructions.emplace_back(
+		XED_ICLASS_MOV,
+		64,
+		xed_reg(XED_REG_RAX),
+		xed_reg(XED_REG_RBX)
+	);
+
+	block.instructions.emplace_back(
+		XED_ICLASS_ADD,
+		64,
+		xed_reg(XED_REG_RAX),
+		xed_reg(XED_REG_RBX)
+	);
+	virtual_operands_t<>::routine_t routine;
+	virtual_operands_t<>::convert_basic_block(linker, routine, blocks.begin());
+
+	for (auto& inst : routine.blocks.front().insts)
+	{
+		printf("Inst: %u\n", inst.flags);
+	}
+
+	printf("converted count %u\n", routine.blocks.begin()->insts.size());
+
+	system("pause");
+
+	return 1;
+
+	/*uint32_t len = 0;
 	obf::obf_t<addr_width::x64> obf;
 	obf.linker = new dasm::linker_t(0);
 
@@ -77,7 +110,7 @@ int main(int argc, char** argv)
 	}
 	printf("\n");
 	system("pause");
-	return 1;
+	return 1;*/
 
 
 	obf::obf_t<addr_width::x64> obfuscator;
@@ -103,7 +136,6 @@ int main(int argc, char** argv)
 	obfuscator.save_file(image_out);
 	system("pause");
 	return 1;
-
 
 
 	//uint8_t memes[] = { 0x48, 0x81, 0xEC, 0xB8, 0x22, 0x00, 0x00 };

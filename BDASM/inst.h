@@ -319,6 +319,19 @@ namespace dasm
 			return xed_decoded_inst_noperands(&decoded_inst);
 		}
 
+		finline uint32_t num_explicit_operands() const
+		{
+			auto _inst = inst();
+			auto _noperands = noperands();
+			uint32_t explicit_operands = 0;
+			for (uint32_t i = 0; i < _noperands; ++i)
+			{
+				if (XED_OPVIS_EXPLICIT == xed_operand_operand_visibility(xed_inst_operand(_inst, i)))
+					++explicit_operands;
+			}
+			return explicit_operands;
+		}
+
 		finline const xed_inst_t* inst() const
 		{
 			return xed_decoded_inst_inst(&decoded_inst);
@@ -339,6 +352,51 @@ namespace dasm
 		finline uint8_t calc_reloc_offset() const
 		{
 			return length() - addr_width::bytes<aw>::value;
+		}
+
+		finline uint32_t effective_operand_width() const
+		{
+			return xed_operand_values_get_effective_operand_width(xed_decoded_inst_operands_const(&decoded_inst));
+		}
+
+		finline xed_reg_enum_t get_reg(xed_operand_enum_t operand_name) const
+		{
+			return xed_decoded_inst_get_reg(&decoded_inst, operand_name);
+		}
+
+		finline xed_reg_enum_t get_base_reg(uint32_t mem_idx) const
+		{
+			return xed_decoded_inst_get_base_reg(&decoded_inst, mem_idx);
+		}
+
+		finline xed_reg_enum_t get_index_reg(uint32_t mem_idx) const
+		{
+			return xed_decoded_inst_get_index_reg(&decoded_inst, mem_idx);
+		}
+
+		finline uint32_t get_scale(uint32_t mem_idx) const
+		{
+			return xed_decoded_inst_get_scale(&decoded_inst, mem_idx);
+		}
+
+		finline long long get_memory_displacement(uint32_t mem_idx) const
+		{
+			return xed_decoded_inst_get_memory_displacement(&decoded_inst, mem_idx);
+		}
+
+		finline int get_signed_immediate() const
+		{
+			return xed_decoded_inst_get_signed_immediate(&decoded_inst);
+		}
+		
+		finline int get_unsigned_immediate() const
+		{
+			return xed_decoded_inst_get_unsigned_immediate(&decoded_inst);
+		}
+
+		finline unsigned int operand_length(uint32_t operand_idx) const
+		{
+			return xed_decoded_inst_operand_length(&decoded_inst, operand_idx);
 		}
 
 		finline void common_edit(uint32_t mlink, uint32_t ulink, inst_flag::type flg)
