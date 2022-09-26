@@ -69,6 +69,7 @@ constexpr uint32_t link_code_matrix_size = vm_ireg_t::ireg_max * vm_operand_size
 
 enum vm_iclass_t : uint16_t
 {
+	vm_iclass_start = XED_ICLASS_LAST,
 	vm_enter,
 	vm_exit,
 	load_reg,
@@ -202,6 +203,36 @@ namespace vinst_format
 }
 #pragma pack(pop)
 
+struct handler_descriptor_t
+{
+	uint32_t link;
+	uint32_t opcode;
+};
+
+template<addr_width::type aw = addr_width::x64>
+struct virtual_operands_ctx_t
+{
+	// Opcode to be used by the next initialized handler
+	//
+	uint32_t current_handler_opcode;
+
+	// Map to translate handlers to opcodes and associated link
+	//
+	std::unordered_map<uint64_t, handler_descriptor_t> handler_descriptors;
+
+	handler_descriptor_t& get_handler_descriptor(uint64_t iclass, vm_operand_size_t os1, vm_operand_size_t os2, vm_operand_size_t os3)
+	{
+		iclass += vm_operand_size_t::opsize_max * vm_operand_size_t::opsize_max * os1;
+		iclass += vm_operand_size_t::opsize_max * os2;
+		iclass += os3;
+		return handler_descriptors[iclass];
+	}
+
+	virtual_operands_ctx_t()
+	{
+
+	}
+};
 
 template<addr_width::type aw = addr_width::x64>
 struct virtual_operands_t
@@ -213,6 +244,11 @@ struct virtual_operands_t
 
 	// This is the global handler list that holds ALL handlers within.
 	// It is slowly filled as more handlers are discovered and used.
+
+
+	inline static uint32_t cur_handler_opcode = 0;
+
+
 	inline static dasm::inst_list_t<aw> handler_insts;
 
 	inline static dasm::linker_t vm_linker = { 0 };
@@ -343,6 +379,8 @@ struct virtual_operands_t
 		return inst.length;
 	}*/
 
+	template<addr_width::type aw = addr_width::x64>
+	
 
 	template<addr_width::type aw = addr_width::x64>
 	inline static void emit_native_inst(dasm::linker_t& linker, dasm::inst_t<aw>& inst, std::list<inst_t>& dest)
